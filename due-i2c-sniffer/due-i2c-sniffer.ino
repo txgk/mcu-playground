@@ -1,16 +1,14 @@
-#include <Arduino.h>
-
-#define SDA_PIN                          32
-#define SCL_PIN                          33
-#define SDA                              ((REG_READ(GPIO_IN1_REG)) & 0b01)
-#define SCL                              ((REG_READ(GPIO_IN1_REG)) & 0b10)
-#define SDA_AND_SCL                      ((REG_READ(GPIO_IN1_REG)) & 0b11)
+#define SDA_PIN                          6
+#define SCL_PIN                          7
+#define SDA                              digitalReadDirect(SDA_PIN)
+#define SCL                              digitalReadDirect(SCL_PIN)
+#define SDA_AND_SCL                      ((digitalReadDirect(SCL_PIN) << 1) | digitalReadDirect(SDA_PIN))
 #define PACKETS_TO_STORE_BEFORE_PRINTING 10
-#define CHECK_FACTOR                     30
-#define I2C_START_CONDITION_CHECK_FACTOR 10
-#define I2C_START_CONDITION_PASS_FACTOR  5
-#define I2C_SDA_CHECK_FACTOR             10
-#define I2C_SDA_PASS_FACTOR              5
+#define CHECK_FACTOR                     1
+#define I2C_START_CONDITION_CHECK_FACTOR 1
+#define I2C_START_CONDITION_PASS_FACTOR  1
+#define I2C_SDA_CHECK_FACTOR             1
+#define I2C_SDA_PASS_FACTOR              1
 #define WAIT_SDA_RISE                    for (j = 0; j < CHECK_FACTOR; ++j) { while (SDA == 0); }
 #define WAIT_SDA_DROP                    for (j = 0; j < CHECK_FACTOR; ++j) { while (SDA != 0); }
 #define WAIT_SCL_RISE                    for (j = 0; j < CHECK_FACTOR; ++j) { while (SCL == 0); }
@@ -31,15 +29,13 @@ volatile int j;
 volatile int packets = 0;
 volatile int passes;
 
-gpio_config_t cfg = {
-	(1ULL << SDA_PIN) | (1ULL << SCL_PIN),
-	GPIO_MODE_INPUT,
-	GPIO_PULLUP_ENABLE,
-	GPIO_PULLDOWN_DISABLE,
-	GPIO_INTR_DISABLE,
-};
+inline uint8_t
+digitalReadDirect(int pin)
+{
+	return !!(g_APinDescription[pin].pPort -> PIO_PDSR & g_APinDescription[pin].ulPin);
+}
 
-static void
+void
 print_data(void)
 {
 	for (ptr = d; ptr < p; ptr += 1) {
@@ -65,7 +61,7 @@ print_data(void)
 	packets = 0;
 }
 
-static uint8_t
+uint8_t
 i2c_start_condition(void)
 {
 	passes = 0;
@@ -77,7 +73,7 @@ i2c_start_condition(void)
 	return passes >= I2C_START_CONDITION_PASS_FACTOR ? 1 : 0;
 }
 
-static uint8_t
+uint8_t
 get_sda(void)
 {
 	passes = 0;
@@ -92,8 +88,9 @@ get_sda(void)
 void
 setup(void)
 {
-	Serial.begin(460800);
-	gpio_config(&cfg);
+	Serial.begin(115200);
+	pinMode(SDA_PIN, INPUT);
+	pinMode(SCL_PIN, INPUT);
 }
 
 void
