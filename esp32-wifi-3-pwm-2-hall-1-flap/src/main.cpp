@@ -6,13 +6,24 @@
 #define DEFAULT_SAMPLING_RESOLUTION 1000
 #define DEFAULT_SAMPLING_PERIOD 100 // us
 #define DEFAULT_THRESHOLD 2047
-#define FLAP_SHUTDOWN_PERIOD 5000 // ms
 #define PORT 6503
 #define FLAP_PIN 27
 #define HALL_PIN 34
 #define FLOW_PIN 35
+#define PWM1_PIN 4
+#define PWM2_PIN 5
+#define PWM3_PIN 6
 #define TIMER1_ID 0
 #define TIMER2_ID 1
+
+#define FLAP_PIN_DEFAULT_VALUE LOW
+#define FLAP_PIN_PERISH_PERIOD 5000 // ms
+#define PWM1_PIN_DEFAULT_VALUE 0    // 1 byte
+#define PWM1_PIN_PERISH_PERIOD 5000 // ms
+#define PWM2_PIN_DEFAULT_VALUE 0    // 1 byte
+#define PWM2_PIN_PERISH_PERIOD 5000 // ms
+#define PWM3_PIN_DEFAULT_VALUE 0    // 1 byte
+#define PWM3_PIN_PERISH_PERIOD 5000 // ms
 
 #if 1
 #define DEBUG(...) Serial.print(__VA_ARGS__)
@@ -24,19 +35,18 @@
 #define DEBUGINIT
 #endif
 
-#define HALL_NOT_RECONFIGURED(X) (((X).current_lim == (X).desired_lim) && ((X).current_threshold == (X).desired_threshold))
-
 struct hall_data {
+	bool has_stopped;
+	bool want_to_reconfigure;
 	uint16_t len;
 	uint16_t delay;
-	uint32_t start;
-	uint32_t finish;
-	uint64_t switchings;
 	uint16_t current_lim;
 	uint16_t desired_lim;
 	uint16_t current_threshold;
 	uint16_t desired_threshold;
-	bool has_stopped;
+	uint32_t start;
+	uint32_t finish;
+	uint64_t switchings;
 };
 
 WiFiServer slave(PORT);
@@ -51,17 +61,23 @@ hw_timer_t *volatile timer2 = NULL;
 volatile struct hall_data hall1 = {0};
 volatile struct hall_data hall2 = {0};
 
-volatile uint32_t disable_flap_after = 0;
+volatile uint32_t perish_flap_after = 0;
+volatile uint32_t perish_pwm1_after = 0;
+volatile uint32_t perish_pwm2_after = 0;
+volatile uint32_t perish_pwm3_after = 0;
 
-void activate_hall_routine(volatile struct hall_data *hall) {
+void
+activate_hall_routine(volatile struct hall_data *hall)
+{
 	hall->switchings = 0;
 	hall->len = 0;
 	hall->has_stopped = hall->current_lim == 0 ? true : false;
 }
 
-volatile uint16_t freq;
-void try_sending_gathered_data(uint8_t sensor_id, volatile struct hall_data *hall) {
-	if ((hall->current_lim == 0) || (hall->len != hall->current_lim)) {
+void
+try_sending_gathered_data(uint8_t sensor_id, volatile struct hall_data *hall)
+{
+	if ((hall->len != hall->current_lim) || (hall->current_lim == 0)) {
 		DEBUG("Won't send data from channel "); DEBUG(sensor_id); DEBUGLN(" because packet is incomplete!");
 		return; // Don't bother with empty or incomplete packets!
 	}
@@ -82,7 +98,7 @@ void try_sending_gathered_data(uint8_t sensor_id, volatile struct hall_data *hal
 	master.write((uint8_t)((hall->finish >>  8) & 0xFF));
 	master.write((uint8_t)(hall->finish         & 0xFF));
 	// Frequency in tenths of Hertz
-	freq = hall->start != hall->finish ? hall->switchings * 5000 / (hall->finish - hall->start) : 0;
+	static uint16_t freq = hall->start != hall->finish ? hall->switchings * 5000 / (hall->finish - hall->start) : 0;
 	master.write((uint8_t)(freq >> 8));
 	master.write((uint8_t)(freq & 0xFF));
 	// Amount of points
@@ -98,7 +114,9 @@ void try_sending_gathered_data(uint8_t sensor_id, volatile struct hall_data *hal
 	}
 }
 
-void IRAM_ATTR on_timer1(void) {
+void IRAM_ATTR
+on_timer1(void)
+{
 	if (hall1.has_stopped == false) {
 		data[hall1.len] = analogRead(HALL_PIN);
 		if (hall1.len == 0) {
@@ -120,7 +138,9 @@ void IRAM_ATTR on_timer1(void) {
 	}
 }
 
-void IRAM_ATTR on_timer2(void) {
+void IRAM_ATTR
+on_timer2(void)
+{
 	if (hall2.has_stopped == false) {
 		data[hall1.current_lim + hall2.len] = analogRead(FLOW_PIN);
 		if (hall2.len == 0) {
@@ -142,24 +162,59 @@ void IRAM_ATTR on_timer2(void) {
 	}
 }
 
-void setup(void) {
+inline void
+write_default_values_to_output_pins(void)
+{
+	digitalWrite(FLAP_PIN, FLAP_PIN_DEFAULT_VALUE);
+	analogWrite(PWM1_PIN, PWM1_PIN_DEFAULT_VALUE);
+	analogWrite(PWM2_PIN, PWM2_PIN_DEFAULT_VALUE);
+	analogWrite(PWM3_PIN, PWM3_PIN_DEFAULT_VALUE);
+}
+
+inline void
+write_default_values_to_hall_structures(void)
+{
+	hall1.has_stopped = true;
+	hall1.want_to_reconfigure = true;
+	hall1.len = 0;
+	hall1.delay = DEFAULT_SAMPLING_PERIOD;
+	hall1.current_lim = DEFAULT_SAMPLING_RESOLUTION;
+	hall1.desired_lim = DEFAULT_SAMPLING_RESOLUTION;
+	hall1.current_threshold = DEFAULT_THRESHOLD;
+	hall1.desired_threshold = DEFAULT_THRESHOLD;
+	hall2.has_stopped = true;
+	hall2.want_to_reconfigure = true;
+	hall2.len = 0;
+	hall2.delay = DEFAULT_SAMPLING_PERIOD;
+	hall2.current_lim = DEFAULT_SAMPLING_RESOLUTION;
+	hall2.desired_lim = DEFAULT_SAMPLING_RESOLUTION;
+	hall2.current_threshold = DEFAULT_THRESHOLD;
+	hall2.desired_threshold = DEFAULT_THRESHOLD;
+}
+
+void
+setup(void)
+{
 	DEBUGINIT(9600);
+
 	pinMode(HALL_PIN, INPUT);
 	pinMode(FLOW_PIN, INPUT);
 	pinMode(FLAP_PIN, OUTPUT);
-	digitalWrite(FLAP_PIN, LOW);
+	pinMode(PWM1_PIN, OUTPUT);
+	pinMode(PWM2_PIN, OUTPUT);
+	pinMode(PWM3_PIN, OUTPUT);
+
+	write_default_values_to_output_pins();
+
 	WiFi.begin(WIFI_SSID, WIFI_SECRET);
 	while (WiFi.status() != WL_CONNECTED) {
 		DEBUGLN("Not connected to Wi-Fi yet!");
 		delay(1000);
 	}
 	slave.begin();
-	hall1.current_lim = DEFAULT_SAMPLING_RESOLUTION;
-	hall1.desired_lim = DEFAULT_SAMPLING_RESOLUTION;
-	hall1.current_threshold = DEFAULT_THRESHOLD;
-	hall2.current_lim = DEFAULT_SAMPLING_RESOLUTION;
-	hall2.desired_lim = DEFAULT_SAMPLING_RESOLUTION;
-	hall2.current_threshold = DEFAULT_THRESHOLD;
+
+	write_default_values_to_hall_structures();
+
 	timer1 = timerBegin(TIMER1_ID, 80, true);
 	timerAttachInterrupt(timer1, &on_timer1, true);
 	timerAlarmWrite(timer1, DEFAULT_SAMPLING_PERIOD, true);
@@ -170,23 +225,22 @@ void setup(void) {
 	timerAlarmEnable(timer2);
 }
 
-volatile uint8_t channel_value;
-volatile uint16_t period_value, points_value, threshold_value;
-volatile uint8_t tmp[2];
-void read_packet(void) {
+void
+read_packet(void)
+{
 	master.read(); // Ignore first channel byte.
-	channel_value = master.read(); DEBUG("channel_value = "); DEBUGLN(channel_value);
+	static uint8_t channel_value = master.read(); DEBUG("channel_value = "); DEBUGLN(channel_value);
 	transaction[1] = master.read(); DEBUG("transaction[1] = "); DEBUGLN(transaction[1]);
 	transaction[0] = master.read(); DEBUG("transaction[0] = "); DEBUGLN(transaction[0]);
-	tmp[1] = master.read(); DEBUG("tmp[1] = "); DEBUGLN(tmp[1]);
-	tmp[0] = master.read(); DEBUG("tmp[0] = "); DEBUGLN(tmp[0]);
-	threshold_value = (((uint16_t)(tmp[1])) << 8) + tmp[0]; DEBUG("threshold_value = "); DEBUGLN(threshold_value);
-	tmp[1] = master.read(); DEBUG("tmp[1] = "); DEBUGLN(tmp[1]);
-	tmp[0] = master.read(); DEBUG("tmp[0] = "); DEBUGLN(tmp[0]);
-	period_value = (((uint16_t)(tmp[1])) << 8) + tmp[0]; DEBUG("period_value = "); DEBUGLN(period_value);
-	tmp[1] = master.read(); DEBUG("tmp[1] = "); DEBUGLN(tmp[1]);
-	tmp[0] = master.read(); DEBUG("tmp[0] = "); DEBUGLN(tmp[0]);
-	points_value = (((uint16_t)(tmp[1])) << 8) + tmp[0]; DEBUG("points_value = "); DEBUGLN(points_value);
+	static uint8_t tmp1 = master.read(); DEBUG("tmp1 = "); DEBUGLN(tmp1);
+	static uint8_t tmp2 = master.read(); DEBUG("tmp2 = "); DEBUGLN(tmp2);
+	static uint16_t threshold_value = (((uint16_t)(tmp1)) << 8) + tmp2; DEBUG("threshold_value = "); DEBUGLN(threshold_value);
+	tmp1 = master.read(); DEBUG("tmp1 = "); DEBUGLN(tmp1);
+	tmp2 = master.read(); DEBUG("tmp2 = "); DEBUGLN(tmp2);
+	static uint16_t period_value = (((uint16_t)(tmp1)) << 8) + tmp2; DEBUG("period_value = "); DEBUGLN(period_value);
+	tmp1 = master.read(); DEBUG("tmp1 = "); DEBUGLN(tmp1);
+	tmp2 = master.read(); DEBUG("tmp2 = "); DEBUGLN(tmp2);
+	static uint16_t points_value = (((uint16_t)(tmp1)) << 8) + tmp2; DEBUG("points_value = "); DEBUGLN(points_value);
 
 	if (points_value > DATA_LIM) {
 		points_value = DATA_LIM; DEBUGLN("Lowered down points_value to match the actual data size!");
@@ -194,6 +248,7 @@ void read_packet(void) {
 
 	if (channel_value == 1) {
 		hall1.has_stopped = true;
+		hall1.want_to_reconfigure = true;
 		hall1.desired_lim = points_value;
 		hall1.delay = period_value;
 		hall1.desired_threshold = threshold_value;
@@ -202,6 +257,7 @@ void read_packet(void) {
 		}
 	} else if (channel_value == 2) {
 		hall2.has_stopped = true;
+		hall2.want_to_reconfigure = true;
 		hall2.desired_lim = points_value;
 		hall2.delay = period_value;
 		hall2.desired_threshold = threshold_value;
@@ -209,37 +265,40 @@ void read_packet(void) {
 			hall1.desired_lim = DATA_LIM - hall2.desired_lim;
 		}
 	} else if (channel_value == 3) {
-		/* DEBUG("Writing "); DEBUG(period_value == 0 ? LOW : HIGH); DEBUGLN(" to the vent!"); */
 		digitalWrite(FLAP_PIN, period_value == 0 ? LOW : HIGH);
-		disable_flap_after = millis() + FLAP_SHUTDOWN_PERIOD;
+		perish_flap_after = millis() + FLAP_PIN_PERISH_PERIOD;
+	} else if (channel_value == 4) {
+		analogWrite(PWM1_PIN, period_value);
+		perish_pwm1_after = millis() + PWM1_PIN_PERISH_PERIOD;
+	} else if (channel_value == 5) {
+		analogWrite(PWM2_PIN, period_value);
+		perish_pwm2_after = millis() + PWM2_PIN_PERISH_PERIOD;
+	} else if (channel_value == 6) {
+		analogWrite(PWM3_PIN, period_value);
+		perish_pwm3_after = millis() + PWM3_PIN_PERISH_PERIOD;
 	}
 }
 
-bool master_available = false;
-void loop(void) {
+volatile bool master_available = false;
+void
+loop(void)
+{
 	if (master_available == false) {
 		DEBUGLN("Don't have a master yet...");
 		master = slave.available();
 		if ((master) && (master.connected())) {
 			DEBUGLN("I found myself a master!");
 			master_available = true;
-			digitalWrite(FLAP_PIN, LOW);
 			master.setTimeout(5);
-			hall1.has_stopped = true;
-			hall1.delay = DEFAULT_SAMPLING_PERIOD;
-			hall1.desired_lim = DEFAULT_SAMPLING_RESOLUTION;
-			hall1.desired_threshold = DEFAULT_THRESHOLD;
-			hall2.has_stopped = true;
-			hall2.delay = DEFAULT_SAMPLING_PERIOD;
-			hall2.desired_lim = DEFAULT_SAMPLING_RESOLUTION;
-			hall2.desired_threshold = DEFAULT_THRESHOLD;
+			write_default_values_to_output_pins();
+			write_default_values_to_hall_structures();
 		}
 	} else if ((master) && (master.connected())) {
 		if (master.available() > 0) {
 			/* DEBUGLN("Some data is available from the master!"); */
 			read_packet();
 		}
-		if (HALL_NOT_RECONFIGURED(hall1) && HALL_NOT_RECONFIGURED(hall2)) {
+		if ((hall1.want_to_reconfigure == false) && (hall2.want_to_reconfigure == false)) {
 			/* DEBUGLN("No one wants to change, trying to send gathered data..."); */
 			if (hall1.has_stopped == true) {
 				try_sending_gathered_data(1, &hall1);
@@ -250,7 +309,8 @@ void loop(void) {
 				activate_hall_routine(&hall2);
 			}
 		} else if ((hall1.has_stopped == true) && (hall2.has_stopped == true)) {
-			/* DEBUGLN("Timer or timers want to change and they're all stopped."); */
+			hall1.want_to_reconfigure = false;
+			hall2.want_to_reconfigure = false;
 			try_sending_gathered_data(1, &hall1);
 			try_sending_gathered_data(2, &hall2);
 			timerAlarmDisable(timer1);
@@ -271,9 +331,24 @@ void loop(void) {
 		master_available = false;
 		master.stop();
 	}
-	if (millis() > disable_flap_after) {
-		/* DEBUGLN("Switching off the vent."); */
-		digitalWrite(FLAP_PIN, LOW);
+
+	static uint32_t current_millis = millis();
+	if (current_millis > perish_flap_after) {
+		digitalWrite(FLAP_PIN, FLAP_PIN_DEFAULT_VALUE);
+		perish_flap_after = current_millis + FLAP_PIN_PERISH_PERIOD / 2;
 	}
+	if (current_millis > perish_pwm1_after) {
+		analogWrite(PWM1_PIN, PWM1_PIN_DEFAULT_VALUE);
+		perish_pwm1_after = current_millis + PWM1_PIN_PERISH_PERIOD / 2;
+	}
+	if (current_millis > perish_pwm2_after) {
+		analogWrite(PWM2_PIN, PWM2_PIN_DEFAULT_VALUE);
+		perish_pwm2_after = current_millis + PWM2_PIN_PERISH_PERIOD / 2;
+	}
+	if (current_millis > perish_pwm3_after) {
+		analogWrite(PWM3_PIN, PWM3_PIN_DEFAULT_VALUE);
+		perish_pwm3_after = current_millis + PWM3_PIN_PERISH_PERIOD / 2;
+	}
+
 	delay(10);
 }
