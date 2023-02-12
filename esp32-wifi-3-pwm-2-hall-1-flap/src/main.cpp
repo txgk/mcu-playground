@@ -286,14 +286,14 @@ loop(void)
 	if (master_available == false) {
 		DEBUGLN("Don't have a master yet...");
 		master = slave.available();
-		if ((master) && (master.connected())) {
+		if (master.connected()) {
 			DEBUGLN("I found myself a master!");
 			master_available = true;
 			master.setTimeout(5);
 			write_default_values_to_output_pins();
 			write_default_values_to_hall_structures();
 		}
-	} else if ((master) && (master.connected())) {
+	} else if (master.connected()) {
 		if (master.available() > 0) {
 			/* DEBUGLN("Some data is available from the master!"); */
 			read_packet();
