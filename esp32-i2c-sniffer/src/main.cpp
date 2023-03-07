@@ -40,6 +40,7 @@ volatile uint16_t d[10000];
 volatile uint16_t *p = d;
 volatile uint16_t *ptr;
 volatile int packets = 0;
+bool this_is_first_byte = false;
 
 gpio_config_t cfg = {
 	(1ULL << SDA_PIN) | (1ULL << SCL_PIN),
@@ -57,17 +58,19 @@ print_data(void)
 			Serial.print(':');
 		} else if (*ptr == MESSAGE_SEPARATOR) {
 			Serial.print('\n');
+			this_is_first_byte = true;
 		} else if (*ptr == PACKET_SEPARATOR) {
 			Serial.print('$');
 		} else {
-#if 1
-			if (*ptr < 16) {
+			if (this_is_first_byte == true) {
+				Serial.print(*ptr & 0x1 ? 'r' : 'w');
+				*ptr >>= 1;
+				this_is_first_byte = false;
+			}
+			if (*ptr < 0x10) {
 				Serial.print('0');
 			}
 			Serial.print(*ptr, HEX);
-#else
-			Serial.print((char)*ptr);
-#endif
 		}
 	}
 	Serial.flush();
