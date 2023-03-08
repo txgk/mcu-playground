@@ -3,6 +3,7 @@
 #include <stddef.h>
 #include <stdbool.h>
 #include <inttypes.h>
+#include <time.h>
 
 #define ISDIGIT(A) (((A)=='0')||((A)=='1')||((A)=='2')||((A)=='3')||((A)=='4')||((A)=='5')||((A)=='6')||((A)=='7')||((A)=='8')||((A)=='9'))
 
@@ -10,7 +11,7 @@ struct i2c_packet {
 	bool is_read;
 	uint8_t *data;
 	size_t data_len;
-	int64_t receipt_time;
+	struct timespec gettime;
 };
 
 // See "device.c" file for implementation.

@@ -17,6 +17,8 @@ struct node_data {
 	size_t min_packet_size;
 	size_t max_packet_size;
 	double avg_packet_size;
+	long double period_ms;
+	long double frequency_hz;
 };
 
 static const char *serial_file_paths[] = {"/dev/ttyUSB0", "/dev/ttyACM0"};
@@ -95,6 +97,8 @@ make_sure_node_exists(int address)
 	nodes[nodes_count].min_packet_size = 999999;
 	nodes[nodes_count].max_packet_size = 0;
 	nodes[nodes_count].avg_packet_size = 0;
+	nodes[nodes_count].period_ms = 0;
+	nodes[nodes_count].frequency_hz = 0;
 	nodes_count += 1;
 	return nodes_count - 1;
 }
@@ -118,6 +122,8 @@ assign_packet_to_node(uint8_t index, struct i2c_packet *packet)
 	nodes[index].avg_packet_size = nodes[index].avg_packet_size * nodes[index].packets_count + packet->data_len;
 	nodes[index].packets_count += 1;
 	nodes[index].avg_packet_size /= nodes[index].packets_count;
+	nodes[index].period_ms = ((long double)packet->gettime.tv_sec - nodes[index].packets[0]->gettime.tv_sec + (packet->gettime.tv_nsec - nodes[index].packets[0]->gettime.tv_nsec) / 1000000000.0L) / nodes[index].packets_count * 1000.0L;
+	nodes[index].frequency_hz = 1000.0L / nodes[index].period_ms;
 }
 
 static void *
@@ -164,19 +170,22 @@ static void
 print_overall_statistics(void)
 {
 	mvprintw(0, 0, "space:update enter:submit q:quit");
-	mvprintw(1, 0, "+----+------+--------+--------+--------+--------+--------+");
-	mvprintw(2, 0, "| ID | Addr |  Reads | Writes | MinLen | MaxLen | AvgLen |");
-	mvprintw(3, 0, "+----+------+--------+--------+--------+--------+--------+");
+	mvprintw(1, 0, "+----+------+--------+--------+--------+--------+--------+--------+--------+");
+	mvprintw(2, 0, "| ID | Addr |  Reads | Writes | MinLen | MaxLen | AvgLen |  T, ms |  f, Hz |");
+	mvprintw(3, 0, "+----+------+--------+--------+--------+--------+--------+--------+--------+");
 	for (size_t i = 0; i < nodes_count; ++i) {
-		mvprintw(4 + i, 0, "| %2zu | %4d | %6zu | %6zu | %6zu | %6zu | %6.0lf |",
+		mvprintw(4 + i, 0, "| %2zu | %4d | %6zu | %6zu | %6zu | %6zu | %6.0lf | %6.1Lf | %6.1Lf |",
 			i + 1,
 			nodes[i].address,
 			nodes[i].reads_count,
 			nodes[i].writes_count,
 			nodes[i].min_packet_size,
 			nodes[i].max_packet_size,
-			nodes[i].avg_packet_size);
+			nodes[i].avg_packet_size,
+			nodes[i].period_ms,
+			nodes[i].frequency_hz);
 	}
+	mvprintw(4 + nodes_count, 0, "+----+------+--------+--------+--------+--------+--------+--------+--------+");
 }
 
 static void
@@ -188,7 +197,7 @@ print_channel_statistics(size_t i)
 	mvprintw(0, 0, "%s", "");
 	int terminal_height = LINES;
 	for (size_t j = nodes[i].packets_count; (j > 0) && (terminal_height > 0); --j) {
-		printw("%7zu.", j);
+		printw("%6zu.", j);
 		printw(nodes[i].packets[j - 1]->is_read ? " R" : " W");
 		for (size_t k = 0; k < nodes[i].packets[j - 1]->data_len; ++k) {
 			printw(" %3d", nodes[i].packets[j - 1]->data[k]);
