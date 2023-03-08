@@ -63,10 +63,14 @@ print_data(void)
 				*ptr >>= 1;
 				this_is_first_byte = false;
 			}
+#if 1
+			Serial.print(*ptr);
+#else
 			if (*ptr < 0x10) {
 				Serial.print('0');
 			}
 			Serial.print(*ptr, HEX);
+#endif
 		}
 	}
 	Serial.flush();
