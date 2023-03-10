@@ -15,7 +15,7 @@ struct i2c_packet {
 };
 
 // See "device.c" file for implementation.
-bool start_serial_device_analysis(const char *desired_path, long baud_rate);
+bool start_serial_device_analysis(const char *device_path, long baud_rate);
 void print_analysis_results(size_t selected_channel);
 void stop_serial_device_analysis(void);
 

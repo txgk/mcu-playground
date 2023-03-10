@@ -21,24 +21,11 @@ struct node_data {
 	long double frequency_hz;
 };
 
-static const char *serial_file_paths[] = {"/dev/ttyUSB0", "/dev/ttyACM0"};
-static const size_t serial_file_paths_count = 2;
 static FILE *device_stream = NULL;
 static pthread_t device_handler_thread;
 static volatile bool device_handler_must_finish = false;
 static struct node_data *nodes = NULL;
 static size_t nodes_count = 0;
-
-static const char *
-get_path_to_available_serial_device(void)
-{
-	for (size_t i = 0; i < serial_file_paths_count; ++i) {
-		if (access(serial_file_paths[i], F_OK) == 0) {
-			return serial_file_paths[i];
-		}
-	}
-	return NULL;
-}
 
 static bool
 setup_serial_device(const char *device_path, long baud_rate)
@@ -54,30 +41,6 @@ setup_serial_device(const char *device_path, long baud_rate)
 	strcat(setup_command, baud_rate_string);
 	strcat(setup_command, " raw crtscts -echo");
 	return system(setup_command) == 0 ? true : false;
-}
-
-static FILE *
-open_serial_device(const char *desired_path, long baud_rate)
-{
-	const char *device_path;
-	if (desired_path == NULL) {
-		device_path = get_path_to_available_serial_device();
-	} else {
-		device_path = desired_path;
-	}
-	if (device_path == NULL) {
-		fprintf(stderr, "Failed to find serial device\n");
-		return NULL;
-	}
-	if (setup_serial_device(device_path, baud_rate) == false) {
-		fprintf(stderr, "Failed to setup %s\n", device_path);
-		return NULL;
-	}
-	FILE *f = fopen(device_path, "r");
-	if (f == NULL) {
-		fprintf(stderr, "Failed to read %s\n", device_path);
-	}
-	return f;
 }
 
 static size_t
@@ -156,10 +119,15 @@ device_handler(void *dummy)
 }
 
 bool
-start_serial_device_analysis(const char *desired_path, long baud_rate)
+start_serial_device_analysis(const char *device_path, long baud_rate)
 {
-	device_stream = open_serial_device(desired_path, baud_rate);
+	if (setup_serial_device(device_path, baud_rate) == false) {
+		fprintf(stderr, "Failed to setup %s\n", device_path);
+		return false;
+	}
+	device_stream = fopen(device_path, "r");
 	if (device_stream == NULL) {
+		fprintf(stderr, "Failed to read %s\n", device_path);
 		return false;
 	}
 	pthread_create(&device_handler_thread, NULL, &device_handler, NULL);
