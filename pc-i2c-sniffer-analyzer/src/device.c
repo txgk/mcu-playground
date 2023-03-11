@@ -1,22 +1,28 @@
 #include "main.h"
 #include <stdio.h>
 #include <stdlib.h>
-#include <unistd.h>
 #include <string.h>
-#include <pthread.h>
 #include <curses.h>
 
 #define PACKET_MAX_SIZE 5000
 
+struct i2c_packet_sample {
+	struct i2c_packet *packet;
+	size_t packets_count;
+	char *packet_string;
+};
+
 struct node_data {
 	int address;
-	struct i2c_packet **packets;
 	size_t packets_count;
 	size_t reads_count;
 	size_t writes_count;
+	struct i2c_packet_sample *samples;
+	size_t samples_count;
 	size_t min_packet_size;
 	size_t max_packet_size;
 	double avg_packet_size;
+	struct timespec start_time;
 	long double period_ms;
 	long double frequency_hz;
 };
@@ -26,6 +32,8 @@ static pthread_t device_handler_thread;
 static volatile bool device_handler_must_finish = false;
 static struct node_data *nodes = NULL;
 static size_t nodes_count = 0;
+static struct node_data *selected_node = NULL;
+static char entry_content_buffer[1000];
 
 static bool
 setup_serial_device(const char *device_path, long baud_rate)
@@ -51,15 +59,17 @@ make_sure_node_exists(int address)
 			return i;
 		}
 	}
-	nodes = realloc(nodes, sizeof(struct node_data) * (nodes_count + 1));
+	nodes = xrealloc(nodes, sizeof(struct node_data) * (nodes_count + 1));
 	nodes[nodes_count].address = address;
-	nodes[nodes_count].packets = NULL;
 	nodes[nodes_count].packets_count = 0;
 	nodes[nodes_count].reads_count = 0;
 	nodes[nodes_count].writes_count = 0;
+	nodes[nodes_count].samples = NULL;
+	nodes[nodes_count].samples_count = 0;
 	nodes[nodes_count].min_packet_size = 999999;
 	nodes[nodes_count].max_packet_size = 0;
 	nodes[nodes_count].avg_packet_size = 0;
+	clock_gettime(CLOCK_REALTIME, &nodes[nodes_count].start_time);
 	nodes[nodes_count].period_ms = 0;
 	nodes[nodes_count].frequency_hz = 0;
 	nodes_count += 1;
@@ -69,8 +79,8 @@ make_sure_node_exists(int address)
 static void
 assign_packet_to_node(uint8_t index, struct i2c_packet *packet)
 {
-	nodes[index].packets = realloc(nodes[index].packets, sizeof(struct i2c_packets *) * (nodes[index].packets_count + 1));
-	nodes[index].packets[nodes[index].packets_count] = packet;
+	pthread_mutex_lock(&interface_lock);
+
 	if (packet->is_read == true) {
 		nodes[index].reads_count += 1;
 	} else {
@@ -85,8 +95,24 @@ assign_packet_to_node(uint8_t index, struct i2c_packet *packet)
 	nodes[index].avg_packet_size = nodes[index].avg_packet_size * nodes[index].packets_count + packet->data_len;
 	nodes[index].packets_count += 1;
 	nodes[index].avg_packet_size /= nodes[index].packets_count;
-	nodes[index].period_ms = ((long double)packet->gettime.tv_sec - nodes[index].packets[0]->gettime.tv_sec + (packet->gettime.tv_nsec - nodes[index].packets[0]->gettime.tv_nsec) / 1000000000.0L) / nodes[index].packets_count * 1000.0L;
+	nodes[index].period_ms = ((long double)packet->gettime.tv_sec - nodes[index].start_time.tv_sec + (packet->gettime.tv_nsec - nodes[index].start_time.tv_nsec) / 1000000000.0L) / nodes[index].packets_count * 1000.0L;
 	nodes[index].frequency_hz = 1000.0L / nodes[index].period_ms;
+
+	for (size_t i = 0; i < nodes[index].samples_count; ++i) {
+		if (i2c_packets_are_equal(packet, nodes[index].samples[i].packet)) {
+			nodes[index].samples[i].packets_count += 1;
+			i2c_packet_free(packet);
+			pthread_mutex_unlock(&interface_lock);
+			return;
+		}
+	}
+	nodes[index].samples = xrealloc(nodes[index].samples, sizeof(struct i2c_packet_sample *) * (nodes[index].samples_count + 1));
+	nodes[index].samples[nodes[index].samples_count].packet = packet;
+	nodes[index].samples[nodes[index].samples_count].packets_count = 1;
+	nodes[index].samples[nodes[index].samples_count].packet_string = i2c_packet_convert_to_string(packet);
+	nodes[index].samples_count += 1;
+
+	pthread_mutex_unlock(&interface_lock);
 }
 
 static void *
@@ -134,57 +160,48 @@ start_serial_device_analysis(const char *device_path, long baud_rate)
 	return true;
 }
 
-static void
-print_overall_statistics(void)
+const char *
+print_overview_menu_entry(size_t index)
 {
-	mvprintw(0, 0, "space:update enter:submit q:quit");
-	mvprintw(1, 0, "+----+------+--------+--------+--------+--------+--------+--------+--------+");
-	mvprintw(2, 0, "| ID | Addr |  Reads | Writes | MinLen | MaxLen | AvgLen |  T, ms |  f, Hz |");
-	mvprintw(3, 0, "+----+------+--------+--------+--------+--------+--------+--------+--------+");
-	for (size_t i = 0; i < nodes_count; ++i) {
-		mvprintw(4 + i, 0, "| %2zu | %4d | %6zu | %6zu | %6zu | %6zu | %6.0lf | %6.1Lf | %6.1Lf |",
-			i + 1,
-			nodes[i].address,
-			nodes[i].reads_count,
-			nodes[i].writes_count,
-			nodes[i].min_packet_size,
-			nodes[i].max_packet_size,
-			nodes[i].avg_packet_size,
-			nodes[i].period_ms,
-			nodes[i].frequency_hz);
+	if ((index == 0) || (index == 2)) {
+		return "+------+--------+--------+--------+--------+--------+---------+---------+";
+	} else if (index == 1) {
+		return "| Addr |  Reads | Writes | MinLen | MaxLen | AvgLen |   T, ms |   f, Hz |";
+	} else if (index - 3 < nodes_count) {
+		index -= 3;
+		sprintf(entry_content_buffer,
+			"| %4d | %6zu | %6zu | %6zu | %6zu | %6.0lf | %7.1Lf | %7.1Lf |",
+			nodes[index].address,
+			nodes[index].reads_count,
+			nodes[index].writes_count,
+			nodes[index].min_packet_size,
+			nodes[index].max_packet_size,
+			nodes[index].avg_packet_size,
+			nodes[index].period_ms,
+			nodes[index].frequency_hz
+		);
+		return entry_content_buffer;
 	}
-	mvprintw(4 + nodes_count, 0, "+----+------+--------+--------+--------+--------+--------+--------+--------+");
+	return "";
 }
 
-static void
-print_channel_statistics(size_t i)
+const char *
+print_samples_menu_entry(size_t index)
 {
-	if ((i >= nodes_count) || (nodes[i].packets_count == 0)) {
-		return;
+	if ((index == 0) || (index == 2)) {
+		return "+----------+---------+";
+	} else if (index == 1) {
+		return "| Quantity | Content |";
+	} else if (index - 3 < selected_node->samples_count) {
+		index -= 3;
+		sprintf(entry_content_buffer,
+			"| %8zu | %s |",
+			selected_node->samples[index].packets_count,
+			selected_node->samples[index].packet_string
+		);
+		return entry_content_buffer;
 	}
-	mvprintw(0, 0, "%s", "");
-	int terminal_height = LINES;
-	for (size_t j = nodes[i].packets_count; (j > 0) && (terminal_height > 0); --j) {
-		printw("%6zu.", j);
-		printw(nodes[i].packets[j - 1]->is_read ? " R" : " W");
-		for (size_t k = 0; k < nodes[i].packets[j - 1]->data_len; ++k) {
-			printw(" %3d", nodes[i].packets[j - 1]->data[k]);
-		}
-		printw("\n\n");
-		terminal_height -= 2;
-	}
-}
-
-void
-print_analysis_results(size_t selected_channel)
-{
-	clear();
-	if (selected_channel == 0) {
-		print_overall_statistics();
-	} else {
-		print_channel_statistics(selected_channel - 1);
-	}
-	refresh();
+	return "";
 }
 
 void
@@ -193,4 +210,54 @@ stop_serial_device_analysis(void)
 	device_handler_must_finish = true;
 	pthread_join(device_handler_thread, NULL);
 	fclose(device_stream);
+}
+
+static void
+enter_samples_menu(size_t node_index)
+{
+	selected_node = nodes + node_index;
+	const size_t *view_sel = enter_list_menu(SAMPLES_MENU, selected_node->packets_count + 3);
+	while (true) {
+		int c = getch();
+		if (handle_list_menu_navigation(c) == true) {
+			// Rest a little.
+		} else if (c == ' ') {
+			reset_list_menu(selected_node->packets_count + 3);
+		} else if (c == '\n') {
+			if (*view_sel > 2) {
+				clear();
+				refresh();
+				mvprintw(0, 0, "%s", selected_node->samples[*view_sel - 3].packet_string);
+				getch();
+				resize_counter_action();
+			}
+		} else if ((c == KEY_DC) || (c == 'q')) {
+			break;
+		} else if (c == KEY_RESIZE) {
+			resize_counter_action();
+		}
+	}
+	leave_list_menu();
+}
+
+void
+enter_overview_menu(void)
+{
+	const size_t *view_sel = enter_list_menu(OVERVIEW_MENU, 3);
+	while (true) {
+		int c = getch();
+		if (handle_list_menu_navigation(c) == true) {
+			// Rest a little.
+		} else if (c == ' ') {
+			reset_list_menu(nodes_count + 3);
+		} else if (c == '\n') {
+			if (*view_sel > 2) {
+				enter_samples_menu(*view_sel - 3);
+			}
+		} else if ((c == KEY_DC) || (c == 'q')) {
+			break;
+		} else if (c == KEY_RESIZE) {
+			resize_counter_action();
+		}
+	}
 }

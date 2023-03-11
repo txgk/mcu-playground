@@ -23,6 +23,7 @@ find_serial_terminal_to_device(void)
 int
 main(int argc, char **argv)
 {
+	int error = 0;
 	const char *device_path;
 
 	if ((argc > 2) && (strcmp(argv[1], "-d") == 0)) {
@@ -35,10 +36,18 @@ main(int argc, char **argv)
 		return 1;
 	}
 
-	if (start_serial_device_analysis(device_path, 115200) == false) {
-		return 1;
-	}
-	enter_interface();
+	if (!start_serial_device_analysis(device_path, 115200)) { error = 1; goto undo0; }
+	if (!curses_init())                                     { error = 2; goto undo1; }
+	if (!adjust_list_menu())                                { error = 3; goto undo2; }
+	initialize_settings_of_list_menus();
+
+	enter_overview_menu();
+
+	free_list_menu();
+undo2:
+	curses_free();
+undo1:
 	stop_serial_device_analysis();
-	return 0;
+undo0:
+	return error;
 }
