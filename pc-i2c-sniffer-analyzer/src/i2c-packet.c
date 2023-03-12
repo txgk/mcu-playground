@@ -57,7 +57,7 @@ char *
 i2c_packet_convert_to_string(const struct i2c_packet *packet)
 {
 	char *str = xmalloc(sizeof(char) * (1000 + packet->data_len * 4));
-	char piece[100];
+	char piece[10];
 	str[0] = '\0';
 	if (packet->data_len == 0) return str;
 	sprintf(str, "%d%s", packet->data[0], packet->is_read ? "R" : "W");
@@ -69,7 +69,7 @@ i2c_packet_convert_to_string(const struct i2c_packet *packet)
 }
 
 void
-i2c_packet_free(struct i2c_packet *packet)
+free_i2c_packet(struct i2c_packet *packet)
 {
 	if (packet != NULL) {
 		free(packet->data);

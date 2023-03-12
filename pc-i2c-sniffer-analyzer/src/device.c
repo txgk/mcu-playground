@@ -3,13 +3,16 @@
 #include <stdlib.h>
 #include <string.h>
 #include <curses.h>
+#include <math.h>
 
-#define PACKET_MAX_SIZE 5000
+#define INITIAL_PACKET_SIZE 5000
 
 struct i2c_packet_sample {
 	struct i2c_packet *packet;
 	size_t packets_count;
 	char *packet_string;
+	long double period_ms;
+	long double frequency_hz;
 };
 
 struct node_data {
@@ -70,49 +73,51 @@ make_sure_node_exists(int address)
 	nodes[nodes_count].max_packet_size = 0;
 	nodes[nodes_count].avg_packet_size = 0;
 	clock_gettime(CLOCK_REALTIME, &nodes[nodes_count].start_time);
-	nodes[nodes_count].period_ms = 0;
+	nodes[nodes_count].period_ms = INFINITY;
 	nodes[nodes_count].frequency_hz = 0;
 	nodes_count += 1;
 	return nodes_count - 1;
 }
 
 static void
-assign_packet_to_node(uint8_t index, struct i2c_packet *packet)
+assign_packet_to_node(struct node_data *node, struct i2c_packet *packet)
 {
-	pthread_mutex_lock(&interface_lock);
-
 	if (packet->is_read == true) {
-		nodes[index].reads_count += 1;
+		node->reads_count += 1;
 	} else {
-		nodes[index].writes_count += 1;
+		node->writes_count += 1;
 	}
-	if (packet->data_len < nodes[index].min_packet_size) {
-		nodes[index].min_packet_size = packet->data_len;
+	if (packet->data_len < node->min_packet_size) {
+		node->min_packet_size = packet->data_len;
 	}
-	if (packet->data_len > nodes[index].max_packet_size) {
-		nodes[index].max_packet_size = packet->data_len;
+	if (packet->data_len > node->max_packet_size) {
+		node->max_packet_size = packet->data_len;
 	}
-	nodes[index].avg_packet_size = nodes[index].avg_packet_size * nodes[index].packets_count + packet->data_len;
-	nodes[index].packets_count += 1;
-	nodes[index].avg_packet_size /= nodes[index].packets_count;
-	nodes[index].period_ms = ((long double)packet->gettime.tv_sec - nodes[index].start_time.tv_sec + (packet->gettime.tv_nsec - nodes[index].start_time.tv_nsec) / 1000000000.0L) / nodes[index].packets_count * 1000.0L;
-	nodes[index].frequency_hz = 1000.0L / nodes[index].period_ms;
+	node->avg_packet_size = node->avg_packet_size * node->packets_count + packet->data_len;
+	node->packets_count += 1;
+	node->avg_packet_size /= node->packets_count;
+	node->period_ms = ((long double)packet->gettime.tv_sec - node->start_time.tv_sec + ((long double)packet->gettime.tv_nsec - node->start_time.tv_nsec) / 1000000000.0L) / node->packets_count * 1000.0L;
+	node->frequency_hz = 1000.0L / node->period_ms;
 
-	for (size_t i = 0; i < nodes[index].samples_count; ++i) {
-		if (i2c_packets_are_equal(packet, nodes[index].samples[i].packet)) {
-			nodes[index].samples[i].packets_count += 1;
-			i2c_packet_free(packet);
-			pthread_mutex_unlock(&interface_lock);
+	for (size_t i = 0; i < node->samples_count; ++i) {
+		if (i2c_packets_are_equal(packet, node->samples[i].packet)) {
+			struct i2c_packet_sample *sample = node->samples + i;
+			sample->packets_count += 1;
+			sample->period_ms = ((long double)packet->gettime.tv_sec - sample->packet->gettime.tv_sec + ((long double)packet->gettime.tv_nsec - sample->packet->gettime.tv_nsec) / 1000000000.0L) / sample->packets_count * 1000.0L;
+			sample->frequency_hz = 1000.0L / sample->period_ms;
+			free_i2c_packet(packet);
 			return;
 		}
 	}
-	nodes[index].samples = xrealloc(nodes[index].samples, sizeof(struct i2c_packet_sample *) * (nodes[index].samples_count + 1));
-	nodes[index].samples[nodes[index].samples_count].packet = packet;
-	nodes[index].samples[nodes[index].samples_count].packets_count = 1;
-	nodes[index].samples[nodes[index].samples_count].packet_string = i2c_packet_convert_to_string(packet);
-	nodes[index].samples_count += 1;
 
-	pthread_mutex_unlock(&interface_lock);
+	node->samples = xrealloc(node->samples,
+		sizeof(struct i2c_packet_sample *) * (node->samples_count + 1));
+	node->samples[node->samples_count].packet = packet;
+	node->samples[node->samples_count].packets_count = 1;
+	node->samples[node->samples_count].packet_string = i2c_packet_convert_to_string(packet);
+	node->samples[node->samples_count].period_ms = INFINITY;
+	node->samples[node->samples_count].frequency_hz = 0;
+	node->samples_count += 1;
 }
 
 static void *
@@ -120,8 +125,9 @@ device_handler(void *dummy)
 {
 	(void)dummy;
 	char c;
-	char packet[PACKET_MAX_SIZE];
+	char *packet = xmalloc(sizeof(char) * INITIAL_PACKET_SIZE);
 	size_t packet_len = 0;
+	size_t packet_lim = INITIAL_PACKET_SIZE;
 	struct i2c_packet *parsed_packet;
 	size_t node_index;
 	while (device_handler_must_finish == false) {
@@ -132,15 +138,22 @@ device_handler(void *dummy)
 				continue;
 			}
 			parsed_packet = i2c_packet_parse(packet, packet_len);
+			pthread_mutex_lock(&interface_lock);
 			node_index = make_sure_node_exists(parsed_packet->data[0]);
-			assign_packet_to_node(node_index, parsed_packet);
+			assign_packet_to_node(nodes + node_index, parsed_packet);
+			pthread_mutex_unlock(&interface_lock);
 			packet_len = 0;
 		} else if (c == EOF) {
 			break;
-		} else if (packet_len < PACKET_MAX_SIZE) {
+		} else {
+			if (packet_len >= packet_lim) {
+				packet_lim = packet_lim * 2 + 67;
+				packet = xrealloc(packet, sizeof(char) * packet_lim);
+			}
 			packet[packet_len++] = c;
 		}
 	}
+	free(packet);
 	return NULL;
 }
 
@@ -191,12 +204,14 @@ print_samples_menu_entry(size_t index)
 	if ((index == 0) || (index == 2)) {
 		return "+----------+---------+";
 	} else if (index == 1) {
-		return "| Quantity | Content |";
+		return "| Quantity |   T, ms |   f, Hz | Content |";
 	} else if (index - 3 < selected_node->samples_count) {
 		index -= 3;
 		sprintf(entry_content_buffer,
-			"| %8zu | %s |",
+			"| %8zu | %7.1Lf | %7.1Lf | %s |",
 			selected_node->samples[index].packets_count,
+			selected_node->samples[index].period_ms,
+			selected_node->samples[index].frequency_hz,
 			selected_node->samples[index].packet_string
 		);
 		return entry_content_buffer;
@@ -210,6 +225,15 @@ stop_serial_device_analysis(void)
 	device_handler_must_finish = true;
 	pthread_join(device_handler_thread, NULL);
 	fclose(device_stream);
+
+	for (size_t i = 0; i < nodes_count; ++i) {
+		for (size_t j = 0; j < nodes[i].samples_count; ++j) {
+			free_i2c_packet(nodes[i].samples[j].packet);
+			free(nodes[i].samples[j].packet_string);
+		}
+		free(nodes[i].samples);
+	}
+	free(nodes);
 }
 
 static void

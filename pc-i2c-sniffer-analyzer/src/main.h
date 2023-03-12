@@ -33,7 +33,7 @@ void enter_overview_menu(void);
 struct i2c_packet *i2c_packet_parse(const char *src, size_t src_len);
 bool i2c_packets_are_equal(const struct i2c_packet *packet1, const struct i2c_packet *packet2);
 char *i2c_packet_convert_to_string(const struct i2c_packet *packet);
-void i2c_packet_free(struct i2c_packet *packet);
+void free_i2c_packet(struct i2c_packet *packet);
 
 // See "interface.c" file for implementation.
 bool curses_init(void);
