@@ -36,7 +36,9 @@ static volatile bool device_handler_must_finish = false;
 static struct node_data *nodes = NULL;
 static size_t nodes_count = 0;
 static struct node_data *selected_node = NULL;
-static char entry_content_buffer[1000];
+static char entry_content_buffer[5000];
+static bool in_samples_menu = false;
+static const struct timespec input_delay = {0, 10000000};
 
 static bool
 setup_serial_device(const char *device_path, long baud_rate)
@@ -128,6 +130,8 @@ device_handler(void *dummy)
 	char *packet = xmalloc(sizeof(char) * INITIAL_PACKET_SIZE);
 	size_t packet_len = 0;
 	size_t packet_lim = INITIAL_PACKET_SIZE;
+	struct timespec current_time;
+	struct timespec last_get_time = {0, 0};
 	struct i2c_packet *parsed_packet;
 	size_t node_index;
 	while (device_handler_must_finish == false) {
@@ -141,6 +145,19 @@ device_handler(void *dummy)
 			pthread_mutex_lock(&interface_lock);
 			node_index = make_sure_node_exists(parsed_packet->data[0]);
 			assign_packet_to_node(nodes + node_index, parsed_packet);
+			clock_gettime(CLOCK_REALTIME, &current_time);
+			if ((current_time.tv_sec - last_get_time.tv_sec > 0) || (current_time.tv_nsec - last_get_time.tv_nsec > 200000000))
+			{
+				if (in_samples_menu == true) {
+					if (selected_node != NULL) {
+						reset_list_menu_unprotected(selected_node->packets_count + 3);
+					}
+				} else {
+					reset_list_menu_unprotected(nodes_count + 3);
+				}
+				last_get_time.tv_sec = current_time.tv_sec;
+				last_get_time.tv_nsec = current_time.tv_nsec;
+			}
 			pthread_mutex_unlock(&interface_lock);
 			packet_len = 0;
 		} else if (c == EOF) {
@@ -169,7 +186,6 @@ start_serial_device_analysis(const char *device_path, long baud_rate)
 		fprintf(stderr, "Failed to read %s\n", device_path);
 		return false;
 	}
-	pthread_create(&device_handler_thread, NULL, &device_handler, NULL);
 	return true;
 }
 
@@ -177,19 +193,20 @@ const char *
 print_overview_menu_entry(size_t index)
 {
 	if ((index == 0) || (index == 2)) {
-		return "+------+--------+--------+--------+--------+--------+---------+---------+";
+		return "+------+--------+--------+--------+--------+--------+--------+---------+---------+";
 	} else if (index == 1) {
-		return "| Addr |  Reads | Writes | MinLen | MaxLen | AvgLen |   T, ms |   f, Hz |";
+		return "| Addr |  Reads | Writes | MinLen | MaxLen | AvgLen | Unique |   T, ms |   f, Hz |";
 	} else if (index - 3 < nodes_count) {
 		index -= 3;
 		sprintf(entry_content_buffer,
-			"| %4d | %6zu | %6zu | %6zu | %6zu | %6.0lf | %7.1Lf | %7.1Lf |",
+			"| %4d | %6zu | %6zu | %6zu | %6zu | %6.0lf | %6zu | %7.1Lf | %7.1Lf |",
 			nodes[index].address,
 			nodes[index].reads_count,
 			nodes[index].writes_count,
 			nodes[index].min_packet_size,
 			nodes[index].max_packet_size,
 			nodes[index].avg_packet_size,
+			nodes[index].samples_count,
 			nodes[index].period_ms,
 			nodes[index].frequency_hz
 		);
@@ -241,26 +258,33 @@ enter_samples_menu(size_t node_index)
 {
 	selected_node = nodes + node_index;
 	const size_t *view_sel = enter_list_menu(SAMPLES_MENU, selected_node->packets_count + 3);
+	in_samples_menu = true;
 	while (true) {
+		pthread_mutex_lock(&interface_lock);
 		int c = getch();
+		pthread_mutex_unlock(&interface_lock);
 		if (handle_list_menu_navigation(c) == true) {
 			// Rest a little.
-		} else if (c == ' ') {
-			reset_list_menu(selected_node->packets_count + 3);
-		} else if (c == '\n') {
+		} else if ((c == '\n') || (c == KEY_RIGHT)) {
 			if (*view_sel > 2) {
+				pthread_mutex_lock(&interface_lock);
 				clear();
 				refresh();
 				mvprintw(0, 0, "%s", selected_node->samples[*view_sel - 3].packet_string);
-				getch();
-				resize_counter_action();
+				while (getch() == ERR) {
+					nanosleep(&input_delay, NULL);
+				}
+				redraw_list_menu_unprotected();
+				pthread_mutex_unlock(&interface_lock);
 			}
-		} else if ((c == KEY_DC) || (c == 'q')) {
+		} else if ((c == 'q') || (c == KEY_LEFT)) {
 			break;
 		} else if (c == KEY_RESIZE) {
 			resize_counter_action();
 		}
+		nanosleep(&input_delay, NULL);
 	}
+	in_samples_menu = false;
 	leave_list_menu();
 }
 
@@ -268,20 +292,22 @@ void
 enter_overview_menu(void)
 {
 	const size_t *view_sel = enter_list_menu(OVERVIEW_MENU, 3);
+	pthread_create(&device_handler_thread, NULL, &device_handler, NULL);
 	while (true) {
+		pthread_mutex_lock(&interface_lock);
 		int c = getch();
+		pthread_mutex_unlock(&interface_lock);
 		if (handle_list_menu_navigation(c) == true) {
 			// Rest a little.
-		} else if (c == ' ') {
-			reset_list_menu(nodes_count + 3);
-		} else if (c == '\n') {
+		} else if ((c == '\n') || (c == KEY_RIGHT)) {
 			if (*view_sel > 2) {
 				enter_samples_menu(*view_sel - 3);
 			}
-		} else if ((c == KEY_DC) || (c == 'q')) {
+		} else if (c == 'q') {
 			break;
 		} else if (c == KEY_RESIZE) {
 			resize_counter_action();
 		}
+		nanosleep(&input_delay, NULL);
 	}
 }

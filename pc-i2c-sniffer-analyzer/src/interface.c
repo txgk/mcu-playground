@@ -46,6 +46,7 @@ curses_init(void)
 		fputs("Invalid terminal size obtained!\n", stderr);
 		return false;
 	}
+	timeout(0);
 	curs_set(0);
 	noecho();
 	keypad(stdscr, TRUE);

@@ -46,7 +46,7 @@ void free_list_menu(void);
 void initialize_settings_of_list_menus(void);
 void redraw_list_menu_unprotected(void);
 const size_t *enter_list_menu(int8_t menu_index, size_t new_entries_count);
-void reset_list_menu(size_t new_entries_count);
+void reset_list_menu_unprotected(size_t new_entries_count);
 void leave_list_menu(void);
 bool handle_list_menu_navigation(int c);
 

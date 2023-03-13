@@ -129,16 +129,14 @@ enter_list_menu(int8_t menu_index, size_t new_entries_count)
 }
 
 void
-reset_list_menu(size_t new_entries_count)
+reset_list_menu_unprotected(size_t new_entries_count)
 {
-	pthread_mutex_lock(&interface_lock);
 	if (new_entries_count < menu->entries_count) {
 		menu->view_sel = 0;
 		menu->view_min = 0;
 	}
 	menu->entries_count = new_entries_count;
 	redraw_list_menu_unprotected();
-	pthread_mutex_unlock(&interface_lock);
 }
 
 void
