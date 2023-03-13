@@ -111,7 +111,7 @@ assign_packet_to_node(struct node_data *node, struct i2c_packet *packet)
 	}
 
 	node->samples = xrealloc(node->samples,
-		sizeof(struct i2c_packet_sample *) * (node->samples_count + 1));
+		sizeof(struct i2c_packet_sample) * (node->samples_count + 1));
 	node->samples[node->samples_count].packet = packet;
 	node->samples[node->samples_count].packets_count = 1;
 	node->samples[node->samples_count].packet_string = i2c_packet_convert_to_string(packet);
@@ -202,7 +202,7 @@ const char *
 print_samples_menu_entry(size_t index)
 {
 	if ((index == 0) || (index == 2)) {
-		return "+----------+---------+";
+		return "+----------+---------+---------+---------+";
 	} else if (index == 1) {
 		return "| Quantity |   T, ms |   f, Hz | Content |";
 	} else if (index - 3 < selected_node->samples_count) {
