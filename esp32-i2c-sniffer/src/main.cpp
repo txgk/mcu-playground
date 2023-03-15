@@ -7,7 +7,6 @@
 #define SCL_OR_SDA                       ((REG_READ(GPIO_IN1_REG)) & 0b11)
 #define SDA_IS_LOW_AND_SCL_IS_HIGH       (SCL_OR_SDA == 0b10)
 #define SDA_AND_SCL_ARE_HIGH             (SCL_OR_SDA == 0b11)
-#define PACKETS_TO_STORE_BEFORE_PRINTING 10
 #define BYTE_SEPARATOR                   256
 #define MESSAGE_SEPARATOR                512
 #define PACKET_SEPARATOR                 1024
@@ -39,7 +38,6 @@ volatile int j, passes;
 volatile uint16_t d[10000];
 volatile uint16_t *p = d;
 volatile uint16_t *ptr;
-volatile int packets = 0;
 bool this_is_first_byte = false;
 
 gpio_config_t cfg = {
@@ -67,19 +65,11 @@ print_data(void)
 				*ptr >>= 1;
 				this_is_first_byte = false;
 			}
-#if 1
 			Serial.print(*ptr);
-#else
-			if (*ptr < 0x10) {
-				Serial.print('0');
-			}
-			Serial.print(*ptr, HEX);
-#endif
 		}
 	}
 	Serial.flush();
 	p = d;
-	packets = 0;
 }
 
 uint8_t
@@ -144,10 +134,7 @@ i2c_start:
 	if (read_sda()) {
 		WAIT_SCL_DROP;
 		*p++ = PACKET_SEPARATOR;
-		packets += 1;
-		if (packets >= PACKETS_TO_STORE_BEFORE_PRINTING) {
-			print_data();
-		}
+		print_data();
 		goto i2c_sync;
 	} else {
 		WAIT_SCL_DROP;
@@ -179,10 +166,7 @@ i2c_next:
 	} else {
 		WAIT_FOR_SDA_RISE_OR_SCL_DROP;
 		if (SDA_AND_SCL_ARE_HIGH) {
-			packets += 1;
-			if (packets >= PACKETS_TO_STORE_BEFORE_PRINTING) {
-				print_data();
-			}
+			print_data();
 			goto i2c_sync;
 		}
 	}
