@@ -1,13 +1,14 @@
 #define SDA_PIN                          6
 #define SCL_PIN                          7
+#define SERIAL_SPEED                     115200
 #define SDA                              digitalReadDirect(SDA_PIN)
 #define SCL                              digitalReadDirect(SCL_PIN)
 #define SCL_OR_SDA                       ((digitalReadDirect(SCL_PIN) << 1) | digitalReadDirect(SDA_PIN))
 #define SDA_IS_LOW_AND_SCL_IS_HIGH       (SCL_OR_SDA == 0b10)
 #define SDA_AND_SCL_ARE_HIGH             (SCL_OR_SDA == 0b11)
-#define BYTE_SEPARATOR                   256
-#define MESSAGE_SEPARATOR                512
-#define PACKET_SEPARATOR                 1024
+#define IS_ACKNOWLEDGED                  256
+#define NOT_ACKNOWLEDGED                 512
+#define MESSAGE_SEPARATOR                1024
 
 #ifdef CONNECTION_IS_FLAKY
 #define CHECK_FACTOR                     3
@@ -36,7 +37,7 @@ volatile int j, passes;
 volatile uint16_t d[10000];
 volatile uint16_t *p = d;
 volatile uint16_t *ptr;
-bool this_is_first_byte = false;
+volatile unsigned long timestamp;
 
 inline uint8_t
 digitalReadDirect(int pin)
@@ -48,19 +49,15 @@ void
 print_data(void)
 {
 	for (ptr = d; ptr < p; ptr += 1) {
-		if (*ptr == BYTE_SEPARATOR) {
-			Serial.print(':');
+		if (*ptr == IS_ACKNOWLEDGED) {
+			Serial.print('>');
 		} else if (*ptr == MESSAGE_SEPARATOR) {
 			Serial.print('\n');
-			this_is_first_byte = true;
-		} else if (*ptr == PACKET_SEPARATOR) {
-			Serial.print('$');
+			Serial.print(timestamp);
+			Serial.print('=');
+		} else if (*ptr == NOT_ACKNOWLEDGED) {
+			Serial.print('x');
 		} else {
-			if (this_is_first_byte == true) {
-				Serial.print(*ptr & 0x1 ? 'r' : 'w');
-				*ptr >>= 1;
-				this_is_first_byte = false;
-			}
 			Serial.print(*ptr);
 		}
 	}
@@ -103,7 +100,7 @@ read_sda(void)
 void
 setup(void)
 {
-	Serial.begin(115200);
+	Serial.begin(SERIAL_SPEED);
 	pinMode(SDA_PIN, INPUT);
 	pinMode(SCL_PIN, INPUT);
 }
@@ -118,6 +115,7 @@ i2c_idle:
 	if (!i2c_start_condition()) goto i2c_sync;
 i2c_start:
 	*p++ = MESSAGE_SEPARATOR;
+	timestamp = millis();
 	WAIT_SCL_DROP;
 	WAIT_SCL_RISE; *p  = read_sda(); *p <<= 1; WAIT_SCL_DROP;
 	WAIT_SCL_RISE; *p |= read_sda(); *p <<= 1; WAIT_SCL_DROP;
@@ -130,12 +128,12 @@ i2c_start:
 	WAIT_SCL_RISE;
 	if (read_sda()) {
 		WAIT_SCL_DROP;
-		*p++ = PACKET_SEPARATOR;
+		*p++ = NOT_ACKNOWLEDGED;
 		print_data();
 		goto i2c_sync;
 	} else {
 		WAIT_SCL_DROP;
-		*p++ = BYTE_SEPARATOR;
+		*p++ = IS_ACKNOWLEDGED;
 	}
 	WAIT_SCL_RISE; *p  = read_sda(); *p <<= 1; WAIT_SCL_DROP;
 i2c_next:
@@ -148,21 +146,21 @@ i2c_next:
 	WAIT_SCL_RISE; *p |= read_sda(); p += 1;   WAIT_SCL_DROP;
 	WAIT_SCL_RISE;
 	if (read_sda()) {
-		*p++ = PACKET_SEPARATOR;
+		*p++ = NOT_ACKNOWLEDGED;
 	} else {
-		*p++ = BYTE_SEPARATOR;
+		*p++ = IS_ACKNOWLEDGED;
 	}
 	WAIT_SCL_DROP;
 
 	while (SCL == 0) *p = SDA;
 	if (*p) {
 		WAIT_FOR_SDA_OR_SCL_DROP;
-		if (SDA_IS_LOW_AND_SCL_IS_HIGH) {
+		if (SDA_IS_LOW_AND_SCL_IS_HIGH) { // Repeated start signal.
 			goto i2c_start;
 		}
 	} else {
 		WAIT_FOR_SDA_RISE_OR_SCL_DROP;
-		if (SDA_AND_SCL_ARE_HIGH) {
+		if (SDA_AND_SCL_ARE_HIGH) { // Stop signal.
 			print_data();
 			goto i2c_sync;
 		}

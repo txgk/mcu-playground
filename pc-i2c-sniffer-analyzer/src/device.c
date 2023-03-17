@@ -137,11 +137,15 @@ device_handler(void *dummy)
 	while (device_handler_must_finish == false) {
 		c = fgetc(device_stream);
 		if (c == '\n') {
-			if ((packet_len < 3) || ((packet[0] != 'r') && (packet[0] != 'w'))) {
+			if (packet_len < 3) {
 				packet_len = 0;
 				continue;
 			}
 			parsed_packet = i2c_packet_parse(packet, packet_len);
+			if (parsed_packet == NULL) {
+				packet_len = 0;
+				continue;
+			}
 			pthread_mutex_lock(&interface_lock);
 			node_index = make_sure_node_exists(parsed_packet->data[0]);
 			assign_packet_to_node(nodes + node_index, parsed_packet);

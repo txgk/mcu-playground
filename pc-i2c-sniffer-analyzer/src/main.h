@@ -19,6 +19,7 @@ struct i2c_packet {
 	bool is_read;
 	uint8_t *data;
 	size_t data_len;
+	uint32_t timestamp_ms;
 	struct timespec gettime;
 };
 

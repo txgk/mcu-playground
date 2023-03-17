@@ -3,6 +3,9 @@
 #include <stdlib.h>
 #include <string.h>
 
+static char byte_str[1000];
+static size_t byte_len;
+
 static inline void
 parse_byte_string_into_i2c_packet(struct i2c_packet *dest, const char *src)
 {
@@ -16,28 +19,40 @@ parse_byte_string_into_i2c_packet(struct i2c_packet *dest, const char *src)
 struct i2c_packet *
 i2c_packet_parse(const char *src, size_t src_len)
 {
-	char byte_str[100]; size_t byte_len = 0;
+	byte_len = 0;
 	struct i2c_packet *packet = xmalloc(sizeof(struct i2c_packet));
-	packet->is_read = src[0] == 'r' ? true : false;
 	packet->data = NULL;
 	packet->data_len = 0;
 	clock_gettime(CLOCK_REALTIME, &packet->gettime);
-	for (const char *i = src + 1; (size_t)(i - src) < src_len; ++i) {
+	for (const char *i = src; (size_t)(i - src) < src_len; ++i) {
 		if (ISDIGIT(*i)) {
 			byte_str[byte_len++] = *i;
-		} else if (*i == ':') {
+		} else if ((*i == '>') || (*i == 'x')) {
 			byte_str[byte_len] = '\0';
 			parse_byte_string_into_i2c_packet(packet, byte_str);
 			byte_len = 0;
-		} else if (*i == '$') {
-			break;
+		} else if (*i == '=') {
+			byte_str[byte_len] = '\0';
+			sscanf(byte_str, "%" SCNu32, &packet->timestamp_ms);
+			byte_len = 0;
+		} else {
+			goto bad_packet;
 		}
 	}
 	if (byte_len != 0) {
 		byte_str[byte_len] = '\0';
 		parse_byte_string_into_i2c_packet(packet, byte_str);
 	}
+	if (packet->data_len == 0) {
+		goto bad_packet;
+	}
+	packet->is_read = packet->data[0] & 0x1 ? true : false;
+	packet->data[0] >>= 1;
 	return packet;
+bad_packet:
+	free(packet->data);
+	free(packet);
+	return NULL;
 }
 
 bool
