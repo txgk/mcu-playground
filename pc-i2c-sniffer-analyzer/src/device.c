@@ -30,7 +30,7 @@ struct node_data {
 	long double frequency_hz;
 };
 
-static FILE *device_stream = NULL;
+static FILE *log_stream = NULL;
 static pthread_t device_handler_thread;
 static volatile bool device_handler_must_finish = false;
 static struct node_data *nodes = NULL;
@@ -39,22 +39,7 @@ static struct node_data *selected_node = NULL;
 static char entry_content_buffer[5000];
 static bool in_samples_menu = false;
 static const struct timespec input_delay = {0, 10000000};
-
-static bool
-setup_serial_device(const char *device_path, long baud_rate)
-{
-	// To make device terminal work as serial stream we have to setup its
-	// characteristics properly.
-	char setup_command[100];
-	char baud_rate_string[50];
-	sprintf(baud_rate_string, "%ld", baud_rate);
-	strcpy(setup_command, "stty -F ");
-	strcat(setup_command, device_path);
-	strcat(setup_command, " ");
-	strcat(setup_command, baud_rate_string);
-	strcat(setup_command, " raw crtscts -echo");
-	return system(setup_command) == 0 ? true : false;
-}
+static const struct timespec wait_data_delay = {0, 100000};
 
 static size_t
 make_sure_node_exists(int address)
@@ -135,7 +120,7 @@ device_handler(void *dummy)
 	struct i2c_packet *parsed_packet;
 	size_t node_index;
 	while (device_handler_must_finish == false) {
-		c = fgetc(device_stream);
+		c = fgetc(log_stream);
 		if (c == '\n') {
 			if (packet_len < 3) {
 				packet_len = 0;
@@ -165,7 +150,8 @@ device_handler(void *dummy)
 			pthread_mutex_unlock(&interface_lock);
 			packet_len = 0;
 		} else if (c == EOF) {
-			break;
+			fseek(log_stream, 0, SEEK_CUR);
+			nanosleep(&wait_data_delay, NULL);
 		} else {
 			if (packet_len >= packet_lim) {
 				packet_lim = packet_lim * 2 + 67;
@@ -179,15 +165,11 @@ device_handler(void *dummy)
 }
 
 bool
-start_serial_device_analysis(const char *device_path, long baud_rate)
+start_i2c_log_analysis(const char *log_path)
 {
-	if (setup_serial_device(device_path, baud_rate) == false) {
-		fprintf(stderr, "Failed to setup %s\n", device_path);
-		return false;
-	}
-	device_stream = fopen(device_path, "r");
-	if (device_stream == NULL) {
-		fprintf(stderr, "Failed to read %s\n", device_path);
+	log_stream = fopen(log_path, "r");
+	if (log_stream == NULL) {
+		fprintf(stderr, "Failed to read %s\n", log_path);
 		return false;
 	}
 	return true;
@@ -245,7 +227,7 @@ stop_serial_device_analysis(void)
 {
 	device_handler_must_finish = true;
 	pthread_join(device_handler_thread, NULL);
-	fclose(device_stream);
+	fclose(log_stream);
 
 	for (size_t i = 0; i < nodes_count; ++i) {
 		for (size_t j = 0; j < nodes[i].samples_count; ++j) {
