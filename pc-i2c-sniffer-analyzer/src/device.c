@@ -1,5 +1,4 @@
 #include "main.h"
-#include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
 #include <curses.h>
@@ -34,9 +33,9 @@ static FILE *log_stream = NULL;
 static pthread_mutex_t data_lock = PTHREAD_MUTEX_INITIALIZER;
 
 static struct i2c_packet *packets = NULL;
-static ssize_t packets_len = 0;
-static ssize_t packets_lim = 0;
-static ssize_t packets_sel = 0;
+static size_t packets_len = 0;
+static size_t packets_lim = 0;
+static size_t packets_sel = 0;
 
 static struct node_data *nodes = NULL;
 static size_t nodes_len = 0;
@@ -46,10 +45,16 @@ static pthread_t device_handler_thread;
 static volatile bool device_handler_must_finish = false;
 static char entry_content_buffer[5000];
 static const struct timespec input_delay = {0, 10000000};
-static const struct timespec wait_data_delay = {0, 100000};
+static const struct timespec wait_data_delay = {0, 10000000};
+
+void
+set_log_stream(FILE *stream)
+{
+	log_stream = stream;
+}
 
 static inline void
-make_sure_there_is_a_room_for_another_packet(void)
+make_sure_there_is_enough_room_for_another_packet(void)
 {
 	if (packets_len >= packets_lim) {
 		packets_lim = packets_lim * 2 + 67;
@@ -84,9 +89,12 @@ make_sure_node_for_packet_exists(const struct i2c_packet *packet)
 }
 
 static inline void
-assign_packet_to_node(struct node_data *node, size_t packet_index)
+take_packet_into_account(size_t packet_index)
 {
+	size_t node_index = make_sure_node_for_packet_exists(packets + packet_index);
+	struct node_data *node = nodes + node_index;
 	const struct i2c_packet *packet = &packets[packet_index];
+
 	if ((packet->data_len > 0) && (packet->data[0] & 1)) {
 		node->reads_count += 1;
 	} else {
@@ -124,6 +132,21 @@ assign_packet_to_node(struct node_data *node, size_t packet_index)
 	node->samples_count += 1;
 }
 
+static void
+try_to_update_menu(void)
+{
+	static struct timespec current_time;
+	static struct timespec last_get_time = {0, 0};
+	clock_gettime(CLOCK_REALTIME, &current_time);
+	if ((current_time.tv_sec - last_get_time.tv_sec > 0)
+		|| (current_time.tv_nsec - last_get_time.tv_nsec > 200000000))
+	{
+		reset_list_menu();
+		last_get_time.tv_sec = current_time.tv_sec;
+		last_get_time.tv_nsec = current_time.tv_nsec;
+	}
+}
+
 static void *
 device_handler(void *dummy)
 {
@@ -132,9 +155,6 @@ device_handler(void *dummy)
 	char *packet = xmalloc(sizeof(char) * INITIAL_PACKET_SIZE);
 	size_t packet_len = 0;
 	size_t packet_lim = INITIAL_PACKET_SIZE;
-	struct timespec current_time;
-	struct timespec last_get_time = {0, 0};
-	size_t node_index;
 	while (device_handler_must_finish == false) {
 		c = fgetc(log_stream);
 		if (c == '\n') {
@@ -143,28 +163,25 @@ device_handler(void *dummy)
 				continue;
 			}
 			pthread_mutex_lock(&data_lock);
-			make_sure_there_is_a_room_for_another_packet();
+			make_sure_there_is_enough_room_for_another_packet();
 			if (i2c_packet_parse(&packets[packets_len], packet, packet_len) == false) {
 				packet_len = 0;
 				pthread_mutex_unlock(&data_lock);
 				continue;
 			}
-			node_index = make_sure_node_for_packet_exists(&packets[packets_len]);
-			assign_packet_to_node(nodes + node_index, packets_len);
-			pthread_mutex_unlock(&data_lock);
 			packets_len += 1;
-			clock_gettime(CLOCK_REALTIME, &current_time);
-			if ((current_time.tv_sec - last_get_time.tv_sec > 0)
-				|| (current_time.tv_nsec - last_get_time.tv_nsec > 200000000))
-			{
-				reset_list_menu();
-				last_get_time.tv_sec = current_time.tv_sec;
-				last_get_time.tv_nsec = current_time.tv_nsec;
+			pthread_mutex_unlock(&data_lock);
+			if (packets_sel == 0) {
+				pthread_mutex_lock(&data_lock);
+				take_packet_into_account(packets_len - 1);
+				pthread_mutex_unlock(&data_lock);
+				try_to_update_menu();
 			}
 			packet_len = 0;
 		} else if (c == EOF) {
 			fseek(log_stream, 0, SEEK_CUR);
 			nanosleep(&wait_data_delay, NULL);
+			try_to_update_menu();
 		} else {
 			if (packet_len >= packet_lim) {
 				packet_lim = packet_lim * 2 + 67;
@@ -177,24 +194,9 @@ device_handler(void *dummy)
 	return NULL;
 }
 
-bool
-start_i2c_log_analysis(const char *log_path)
+static inline void
+destroy_nodes(void)
 {
-	log_stream = fopen(log_path, "r");
-	if (log_stream == NULL) {
-		fprintf(stderr, "Failed to read %s\n", log_path);
-		return false;
-	}
-	return true;
-}
-
-void
-stop_i2c_log_analysis(void)
-{
-	device_handler_must_finish = true;
-	pthread_join(device_handler_thread, NULL);
-	fclose(log_stream);
-
 	for (size_t i = 0; i < nodes_len; ++i) {
 		for (size_t j = 0; j < nodes[i].samples_count; ++j) {
 			free(nodes[i].samples[j].packet_string);
@@ -202,11 +204,9 @@ stop_i2c_log_analysis(void)
 		free(nodes[i].samples);
 	}
 	free(nodes);
-
-	for (ssize_t i = 0; i < packets_len; ++i) {
-		free(packets[i].data);
-	}
-	free(packets);
+	nodes = NULL;
+	nodes_len = 0;
+	nodes_sel = 0;
 }
 
 const char *
@@ -285,6 +285,70 @@ samples_menu_entries_counter(void)
 }
 
 static void
+discard_one_packet(void)
+{
+	pthread_mutex_lock(&data_lock);
+	pthread_mutex_lock(&interface_lock);
+	if (packets_sel == 0) {
+		packets_sel = packets_len;
+	} else if (packets_sel > 1) {
+		destroy_nodes();
+		packets_sel -= 1;
+		for (size_t i = 0; i < packets_sel; ++i) {
+			take_packet_into_account(i);
+		}
+	}
+	pthread_mutex_unlock(&data_lock);
+	pthread_mutex_unlock(&interface_lock);
+	reset_list_menu();
+}
+
+static void
+discard_all_packets(void)
+{
+	if (packets_len == 0) return;
+	pthread_mutex_lock(&data_lock);
+	pthread_mutex_lock(&interface_lock);
+	destroy_nodes();
+	packets_sel = 1;
+	take_packet_into_account(0);
+	pthread_mutex_unlock(&data_lock);
+	pthread_mutex_unlock(&interface_lock);
+	reset_list_menu();
+}
+
+static void
+apply_one_packet(void)
+{
+	if (packets_sel == 0) return;
+	pthread_mutex_lock(&data_lock);
+	pthread_mutex_lock(&interface_lock);
+	if (packets_sel < packets_len) {
+		take_packet_into_account(packets_sel);
+		packets_sel += 1;
+	}
+	pthread_mutex_unlock(&data_lock);
+	pthread_mutex_unlock(&interface_lock);
+	reset_list_menu();
+}
+
+static void
+apply_all_packets(void)
+{
+	if (packets_sel == 0) return;
+	pthread_mutex_lock(&data_lock);
+	pthread_mutex_lock(&interface_lock);
+	packets_sel = 0;
+	destroy_nodes();
+	for (size_t i = 0; i < packets_len; ++i) {
+		take_packet_into_account(i);
+	}
+	pthread_mutex_unlock(&data_lock);
+	pthread_mutex_unlock(&interface_lock);
+	reset_list_menu();
+}
+
+static void
 enter_samples_menu(size_t node_index)
 {
 	nodes_sel = node_index;
@@ -322,6 +386,7 @@ enter_overview_menu(void)
 {
 	const size_t *view_sel = enter_list_menu(OVERVIEW_MENU);
 	pthread_create(&device_handler_thread, NULL, &device_handler, NULL);
+
 	while (true) {
 		pthread_mutex_lock(&interface_lock);
 		int c = getch();
@@ -332,6 +397,14 @@ enter_overview_menu(void)
 			if (*view_sel > 2) {
 				enter_samples_menu(*view_sel - 3);
 			}
+		} else if (c == ',') {
+			discard_one_packet();
+		} else if (c == '<') {
+			discard_all_packets();
+		} else if (c == '.') {
+			apply_one_packet();
+		} else if (c == '>') {
+			apply_all_packets();
 		} else if (c == 'q') {
 			break;
 		} else if (c == KEY_RESIZE) {
@@ -339,4 +412,12 @@ enter_overview_menu(void)
 		}
 		nanosleep(&input_delay, NULL);
 	}
+
+	device_handler_must_finish = true;
+	pthread_join(device_handler_thread, NULL);
+	destroy_nodes();
+	for (size_t i = 0; i < packets_len; ++i) {
+		free(packets[i].data);
+	}
+	free(packets);
 }

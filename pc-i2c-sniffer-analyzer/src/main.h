@@ -1,5 +1,6 @@
 #ifndef MAIN_H
 #define MAIN_H
+#include <stdio.h>
 #include <stddef.h>
 #include <stdbool.h>
 #include <inttypes.h>
@@ -22,8 +23,7 @@ struct i2c_packet {
 };
 
 // See "device.c" file for implementation.
-bool start_i2c_log_analysis(const char *log_path);
-void stop_i2c_log_analysis(void);
+void set_log_stream(FILE *stream);
 const char *overview_menu_entry_writer(size_t index);
 const char *samples_menu_entry_writer(size_t index);
 size_t overview_menu_entries_counter(void);

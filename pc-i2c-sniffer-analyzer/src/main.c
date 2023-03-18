@@ -1,5 +1,4 @@
 #include "main.h"
-#include <stdio.h>
 #include <unistd.h>
 #include <string.h>
 
@@ -12,11 +11,16 @@ main(int argc, char **argv)
 	if ((argc > 2) && (strcmp(argv[1], "-l") == 0)) {
 		log_path = argv[2];
 	}
+	FILE *log_stream = fopen(log_path, "r");
+	if (log_stream == NULL) {
+		fprintf(stderr, "Failed to read %s\n", log_path);
+		return 1;
+	}
 
-	if (!start_i2c_log_analysis(log_path)) { error = 1; goto undo0; }
-	if (!curses_init())                    { error = 2; goto undo1; }
-	if (!adjust_list_menu())               { error = 3; goto undo2; }
+	if (!curses_init())      { error = 2; goto undo1; }
+	if (!adjust_list_menu()) { error = 3; goto undo2; }
 	initialize_settings_of_list_menus();
+	set_log_stream(log_stream);
 
 	enter_overview_menu();
 
@@ -24,7 +28,6 @@ main(int argc, char **argv)
 undo2:
 	curses_free();
 undo1:
-	stop_i2c_log_analysis();
-undo0:
+	fclose(log_stream);
 	return error;
 }
