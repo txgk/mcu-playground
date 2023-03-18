@@ -11,8 +11,8 @@ struct i2c_packet_sample {
 	struct i2c_packet *packet;
 	size_t packets_count;
 	char *packet_string;
-	long double period_ms;
-	long double frequency_hz;
+	double period_ms;
+	double frequency_hz;
 };
 
 struct node_data {
@@ -25,9 +25,9 @@ struct node_data {
 	size_t min_packet_size;
 	size_t max_packet_size;
 	double avg_packet_size;
-	struct timespec start_time;
-	long double period_ms;
-	long double frequency_hz;
+	uint32_t first_timestamp_ms;
+	double period_ms;
+	double frequency_hz;
 };
 
 static FILE *log_stream = NULL;
@@ -42,7 +42,7 @@ static const struct timespec input_delay = {0, 10000000};
 static const struct timespec wait_data_delay = {0, 100000};
 
 static size_t
-make_sure_node_exists(int address)
+make_sure_node_exists(int address, uint32_t timestamp)
 {
 	for (size_t i = 0; i < nodes_count; ++i) {
 		if (address == nodes[i].address) {
@@ -59,7 +59,7 @@ make_sure_node_exists(int address)
 	nodes[nodes_count].min_packet_size = 999999;
 	nodes[nodes_count].max_packet_size = 0;
 	nodes[nodes_count].avg_packet_size = 0;
-	clock_gettime(CLOCK_REALTIME, &nodes[nodes_count].start_time);
+	nodes[nodes_count].first_timestamp_ms = timestamp;
 	nodes[nodes_count].period_ms = INFINITY;
 	nodes[nodes_count].frequency_hz = 0;
 	nodes_count += 1;
@@ -83,15 +83,15 @@ assign_packet_to_node(struct node_data *node, struct i2c_packet *packet)
 	node->avg_packet_size = node->avg_packet_size * node->packets_count + packet->data_len;
 	node->packets_count += 1;
 	node->avg_packet_size /= node->packets_count;
-	node->period_ms = ((long double)packet->gettime.tv_sec - node->start_time.tv_sec + ((long double)packet->gettime.tv_nsec - node->start_time.tv_nsec) / 1000000000.0L) / node->packets_count * 1000.0L;
-	node->frequency_hz = 1000.0L / node->period_ms;
+	node->period_ms = (double)(packet->timestamp_ms - node->first_timestamp_ms) / node->packets_count;
+	node->frequency_hz = 1000.0 / node->period_ms;
 
 	for (size_t i = 0; i < node->samples_count; ++i) {
 		if (i2c_packets_are_equal(packet, node->samples[i].packet)) {
 			struct i2c_packet_sample *sample = node->samples + i;
 			sample->packets_count += 1;
-			sample->period_ms = ((long double)packet->gettime.tv_sec - sample->packet->gettime.tv_sec + ((long double)packet->gettime.tv_nsec - sample->packet->gettime.tv_nsec) / 1000000000.0L) / sample->packets_count * 1000.0L;
-			sample->frequency_hz = 1000.0L / sample->period_ms;
+			sample->period_ms = (double)(packet->timestamp_ms - sample->packet->timestamp_ms) / sample->packets_count;
+			sample->frequency_hz = 1000.0 / sample->period_ms;
 			free_i2c_packet(packet);
 			return;
 		}
@@ -132,7 +132,7 @@ device_handler(void *dummy)
 				continue;
 			}
 			pthread_mutex_lock(&interface_lock);
-			node_index = make_sure_node_exists(parsed_packet->data[0]);
+			node_index = make_sure_node_exists(parsed_packet->data[0], parsed_packet->timestamp_ms);
 			assign_packet_to_node(nodes + node_index, parsed_packet);
 			clock_gettime(CLOCK_REALTIME, &current_time);
 			if ((current_time.tv_sec - last_get_time.tv_sec > 0) || (current_time.tv_nsec - last_get_time.tv_nsec > 200000000))

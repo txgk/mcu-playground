@@ -20,7 +20,6 @@ struct i2c_packet {
 	uint8_t *data;
 	size_t data_len;
 	uint32_t timestamp_ms;
-	struct timespec gettime;
 };
 
 // See "device.c" file for implementation.

@@ -23,7 +23,6 @@ i2c_packet_parse(const char *src, size_t src_len)
 	struct i2c_packet *packet = xmalloc(sizeof(struct i2c_packet));
 	packet->data = NULL;
 	packet->data_len = 0;
-	clock_gettime(CLOCK_REALTIME, &packet->gettime);
 	for (const char *i = src; (size_t)(i - src) < src_len; ++i) {
 		if (ISDIGIT(*i)) {
 			byte_str[byte_len++] = *i;
