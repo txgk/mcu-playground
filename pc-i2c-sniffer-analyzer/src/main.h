@@ -16,7 +16,6 @@ enum {
 };
 
 struct i2c_packet {
-	bool is_read;
 	uint8_t *data;
 	size_t data_len;
 	uint32_t timestamp_ms;
@@ -24,16 +23,17 @@ struct i2c_packet {
 
 // See "device.c" file for implementation.
 bool start_i2c_log_analysis(const char *log_path);
-const char *print_overview_menu_entry(size_t index);
-const char *print_samples_menu_entry(size_t index);
-void stop_serial_device_analysis(void);
+void stop_i2c_log_analysis(void);
+const char *overview_menu_entry_writer(size_t index);
+const char *samples_menu_entry_writer(size_t index);
+size_t overview_menu_entries_counter(void);
+size_t samples_menu_entries_counter(void);
 void enter_overview_menu(void);
 
 // See "i2c-packet.c" file for implementation.
-struct i2c_packet *i2c_packet_parse(const char *src, size_t src_len);
+bool i2c_packet_parse(struct i2c_packet *dest, const char *src, size_t src_len);
 bool i2c_packets_are_equal(const struct i2c_packet *packet1, const struct i2c_packet *packet2);
 char *i2c_packet_convert_to_string(const struct i2c_packet *packet);
-void free_i2c_packet(struct i2c_packet *packet);
 
 // See "interface.c" file for implementation.
 bool curses_init(void);
@@ -45,8 +45,8 @@ bool adjust_list_menu(void);
 void free_list_menu(void);
 void initialize_settings_of_list_menus(void);
 void redraw_list_menu_unprotected(void);
-const size_t *enter_list_menu(int8_t menu_index, size_t new_entries_count);
-void reset_list_menu_unprotected(size_t new_entries_count);
+const size_t *enter_list_menu(int8_t menu_index);
+void reset_list_menu(void);
 void leave_list_menu(void);
 bool handle_list_menu_navigation(int c);
 

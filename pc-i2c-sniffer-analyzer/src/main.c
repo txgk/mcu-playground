@@ -24,7 +24,7 @@ main(int argc, char **argv)
 undo2:
 	curses_free();
 undo1:
-	stop_serial_device_analysis();
+	stop_i2c_log_analysis();
 undo0:
 	return error;
 }

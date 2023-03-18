@@ -8,7 +8,7 @@
 #define INITIAL_PACKET_SIZE 5000
 
 struct i2c_packet_sample {
-	struct i2c_packet *packet;
+	size_t packet_index;
 	size_t packets_count;
 	char *packet_string;
 	double period_ms;
@@ -31,45 +31,63 @@ struct node_data {
 };
 
 static FILE *log_stream = NULL;
+static pthread_mutex_t data_lock = PTHREAD_MUTEX_INITIALIZER;
+
+static struct i2c_packet *packets = NULL;
+static ssize_t packets_len = 0;
+static ssize_t packets_lim = 0;
+static ssize_t packets_sel = 0;
+
+static struct node_data *nodes = NULL;
+static size_t nodes_len = 0;
+static size_t nodes_sel = 0;
+
 static pthread_t device_handler_thread;
 static volatile bool device_handler_must_finish = false;
-static struct node_data *nodes = NULL;
-static size_t nodes_count = 0;
-static struct node_data *selected_node = NULL;
 static char entry_content_buffer[5000];
-static bool in_samples_menu = false;
 static const struct timespec input_delay = {0, 10000000};
 static const struct timespec wait_data_delay = {0, 100000};
 
-static size_t
-make_sure_node_exists(int address, uint32_t timestamp)
+static inline void
+make_sure_there_is_a_room_for_another_packet(void)
 {
-	for (size_t i = 0; i < nodes_count; ++i) {
+	if (packets_len >= packets_lim) {
+		packets_lim = packets_lim * 2 + 67;
+		packets = xrealloc(packets, sizeof(struct i2c_packet) * packets_lim);
+	}
+}
+
+static inline size_t
+make_sure_node_for_packet_exists(const struct i2c_packet *packet)
+{
+	const uint8_t address = packet->data[0] >> 1;
+	for (size_t i = 0; i < nodes_len; ++i) {
 		if (address == nodes[i].address) {
 			return i;
 		}
 	}
-	nodes = xrealloc(nodes, sizeof(struct node_data) * (nodes_count + 1));
-	nodes[nodes_count].address = address;
-	nodes[nodes_count].packets_count = 0;
-	nodes[nodes_count].reads_count = 0;
-	nodes[nodes_count].writes_count = 0;
-	nodes[nodes_count].samples = NULL;
-	nodes[nodes_count].samples_count = 0;
-	nodes[nodes_count].min_packet_size = 999999;
-	nodes[nodes_count].max_packet_size = 0;
-	nodes[nodes_count].avg_packet_size = 0;
-	nodes[nodes_count].first_timestamp_ms = timestamp;
-	nodes[nodes_count].period_ms = INFINITY;
-	nodes[nodes_count].frequency_hz = 0;
-	nodes_count += 1;
-	return nodes_count - 1;
+	nodes = xrealloc(nodes, sizeof(struct node_data) * (nodes_len + 1));
+	nodes[nodes_len].address = address;
+	nodes[nodes_len].packets_count = 0;
+	nodes[nodes_len].reads_count = 0;
+	nodes[nodes_len].writes_count = 0;
+	nodes[nodes_len].samples = NULL;
+	nodes[nodes_len].samples_count = 0;
+	nodes[nodes_len].min_packet_size = 999999;
+	nodes[nodes_len].max_packet_size = 0;
+	nodes[nodes_len].avg_packet_size = 0;
+	nodes[nodes_len].first_timestamp_ms = packet->timestamp_ms;
+	nodes[nodes_len].period_ms = HUGE_VAL;
+	nodes[nodes_len].frequency_hz = 0;
+	nodes_len += 1;
+	return nodes_len - 1;
 }
 
-static void
-assign_packet_to_node(struct node_data *node, struct i2c_packet *packet)
+static inline void
+assign_packet_to_node(struct node_data *node, size_t packet_index)
 {
-	if (packet->is_read == true) {
+	const struct i2c_packet *packet = &packets[packet_index];
+	if ((packet->data_len > 0) && (packet->data[0] & 1)) {
 		node->reads_count += 1;
 	} else {
 		node->writes_count += 1;
@@ -87,22 +105,21 @@ assign_packet_to_node(struct node_data *node, struct i2c_packet *packet)
 	node->frequency_hz = 1000.0 / node->period_ms;
 
 	for (size_t i = 0; i < node->samples_count; ++i) {
-		if (i2c_packets_are_equal(packet, node->samples[i].packet)) {
+		if (i2c_packets_are_equal(packet, &packets[node->samples[i].packet_index])) {
 			struct i2c_packet_sample *sample = node->samples + i;
 			sample->packets_count += 1;
-			sample->period_ms = (double)(packet->timestamp_ms - sample->packet->timestamp_ms) / sample->packets_count;
+			sample->period_ms = (double)(packet->timestamp_ms - packets[sample->packet_index].timestamp_ms) / sample->packets_count;
 			sample->frequency_hz = 1000.0 / sample->period_ms;
-			free_i2c_packet(packet);
 			return;
 		}
 	}
 
 	node->samples = xrealloc(node->samples,
 		sizeof(struct i2c_packet_sample) * (node->samples_count + 1));
-	node->samples[node->samples_count].packet = packet;
+	node->samples[node->samples_count].packet_index = packet_index;
 	node->samples[node->samples_count].packets_count = 1;
 	node->samples[node->samples_count].packet_string = i2c_packet_convert_to_string(packet);
-	node->samples[node->samples_count].period_ms = INFINITY;
+	node->samples[node->samples_count].period_ms = HUGE_VAL;
 	node->samples[node->samples_count].frequency_hz = 0;
 	node->samples_count += 1;
 }
@@ -117,37 +134,33 @@ device_handler(void *dummy)
 	size_t packet_lim = INITIAL_PACKET_SIZE;
 	struct timespec current_time;
 	struct timespec last_get_time = {0, 0};
-	struct i2c_packet *parsed_packet;
 	size_t node_index;
 	while (device_handler_must_finish == false) {
 		c = fgetc(log_stream);
 		if (c == '\n') {
-			if (packet_len < 3) {
+			if (packet_len < 4) {
 				packet_len = 0;
 				continue;
 			}
-			parsed_packet = i2c_packet_parse(packet, packet_len);
-			if (parsed_packet == NULL) {
+			pthread_mutex_lock(&data_lock);
+			make_sure_there_is_a_room_for_another_packet();
+			if (i2c_packet_parse(&packets[packets_len], packet, packet_len) == false) {
 				packet_len = 0;
+				pthread_mutex_unlock(&data_lock);
 				continue;
 			}
-			pthread_mutex_lock(&interface_lock);
-			node_index = make_sure_node_exists(parsed_packet->data[0], parsed_packet->timestamp_ms);
-			assign_packet_to_node(nodes + node_index, parsed_packet);
+			node_index = make_sure_node_for_packet_exists(&packets[packets_len]);
+			assign_packet_to_node(nodes + node_index, packets_len);
+			pthread_mutex_unlock(&data_lock);
+			packets_len += 1;
 			clock_gettime(CLOCK_REALTIME, &current_time);
-			if ((current_time.tv_sec - last_get_time.tv_sec > 0) || (current_time.tv_nsec - last_get_time.tv_nsec > 200000000))
+			if ((current_time.tv_sec - last_get_time.tv_sec > 0)
+				|| (current_time.tv_nsec - last_get_time.tv_nsec > 200000000))
 			{
-				if (in_samples_menu == true) {
-					if (selected_node != NULL) {
-						reset_list_menu_unprotected(selected_node->packets_count + 3);
-					}
-				} else {
-					reset_list_menu_unprotected(nodes_count + 3);
-				}
+				reset_list_menu();
 				last_get_time.tv_sec = current_time.tv_sec;
 				last_get_time.tv_nsec = current_time.tv_nsec;
 			}
-			pthread_mutex_unlock(&interface_lock);
 			packet_len = 0;
 		} else if (c == EOF) {
 			fseek(log_stream, 0, SEEK_CUR);
@@ -175,17 +188,41 @@ start_i2c_log_analysis(const char *log_path)
 	return true;
 }
 
+void
+stop_i2c_log_analysis(void)
+{
+	device_handler_must_finish = true;
+	pthread_join(device_handler_thread, NULL);
+	fclose(log_stream);
+
+	for (size_t i = 0; i < nodes_len; ++i) {
+		for (size_t j = 0; j < nodes[i].samples_count; ++j) {
+			free(nodes[i].samples[j].packet_string);
+		}
+		free(nodes[i].samples);
+	}
+	free(nodes);
+
+	for (ssize_t i = 0; i < packets_len; ++i) {
+		free(packets[i].data);
+	}
+	free(packets);
+}
+
 const char *
-print_overview_menu_entry(size_t index)
+overview_menu_entry_writer(size_t index)
 {
 	if ((index == 0) || (index == 2)) {
 		return "+------+--------+--------+--------+--------+--------+--------+---------+---------+";
-	} else if (index == 1) {
+	}
+	if (index == 1) {
 		return "| Addr |  Reads | Writes | MinLen | MaxLen | AvgLen | Unique |   T, ms |   f, Hz |";
-	} else if (index - 3 < nodes_count) {
-		index -= 3;
+	}
+	index -= 3;
+	pthread_mutex_lock(&data_lock);
+	if (index < nodes_len) {
 		sprintf(entry_content_buffer,
-			"| %4d | %6zu | %6zu | %6zu | %6zu | %6.0lf | %6zu | %7.1Lf | %7.1Lf |",
+			"| %4d | %6zu | %6zu | %6zu | %6zu | %6.0lf | %6zu | %7.1lf | %7.1lf |",
 			nodes[index].address,
 			nodes[index].reads_count,
 			nodes[index].writes_count,
@@ -196,55 +233,62 @@ print_overview_menu_entry(size_t index)
 			nodes[index].period_ms,
 			nodes[index].frequency_hz
 		);
+		pthread_mutex_unlock(&data_lock);
 		return entry_content_buffer;
 	}
+	pthread_mutex_unlock(&data_lock);
 	return "";
 }
 
 const char *
-print_samples_menu_entry(size_t index)
+samples_menu_entry_writer(size_t index)
 {
 	if ((index == 0) || (index == 2)) {
 		return "+----------+---------+---------+---------+";
-	} else if (index == 1) {
+	}
+	if (index == 1) {
 		return "| Quantity |   T, ms |   f, Hz | Content |";
-	} else if (index - 3 < selected_node->samples_count) {
-		index -= 3;
+	}
+	index -= 3;
+	pthread_mutex_lock(&data_lock);
+	if (index < nodes[nodes_sel].samples_count) {
 		sprintf(entry_content_buffer,
-			"| %8zu | %7.1Lf | %7.1Lf | %s |",
-			selected_node->samples[index].packets_count,
-			selected_node->samples[index].period_ms,
-			selected_node->samples[index].frequency_hz,
-			selected_node->samples[index].packet_string
+			"| %8zu | %7.1lf | %7.1lf | %s |",
+			nodes[nodes_sel].samples[index].packets_count,
+			nodes[nodes_sel].samples[index].period_ms,
+			nodes[nodes_sel].samples[index].frequency_hz,
+			nodes[nodes_sel].samples[index].packet_string
 		);
+		pthread_mutex_unlock(&data_lock);
 		return entry_content_buffer;
 	}
+	pthread_mutex_unlock(&data_lock);
 	return "";
 }
 
-void
-stop_serial_device_analysis(void)
+size_t
+overview_menu_entries_counter(void)
 {
-	device_handler_must_finish = true;
-	pthread_join(device_handler_thread, NULL);
-	fclose(log_stream);
+	pthread_mutex_lock(&data_lock);
+	const size_t entries_count = nodes_len + 3;
+	pthread_mutex_unlock(&data_lock);
+	return entries_count;
+}
 
-	for (size_t i = 0; i < nodes_count; ++i) {
-		for (size_t j = 0; j < nodes[i].samples_count; ++j) {
-			free_i2c_packet(nodes[i].samples[j].packet);
-			free(nodes[i].samples[j].packet_string);
-		}
-		free(nodes[i].samples);
-	}
-	free(nodes);
+size_t
+samples_menu_entries_counter(void)
+{
+	pthread_mutex_lock(&data_lock);
+	const size_t entries_count = nodes[nodes_sel].samples_count + 3;
+	pthread_mutex_unlock(&data_lock);
+	return entries_count;
 }
 
 static void
 enter_samples_menu(size_t node_index)
 {
-	selected_node = nodes + node_index;
-	const size_t *view_sel = enter_list_menu(SAMPLES_MENU, selected_node->packets_count + 3);
-	in_samples_menu = true;
+	nodes_sel = node_index;
+	const size_t *view_sel = enter_list_menu(SAMPLES_MENU);
 	while (true) {
 		pthread_mutex_lock(&interface_lock);
 		int c = getch();
@@ -256,7 +300,7 @@ enter_samples_menu(size_t node_index)
 				pthread_mutex_lock(&interface_lock);
 				clear();
 				refresh();
-				mvprintw(0, 0, "%s", selected_node->samples[*view_sel - 3].packet_string);
+				mvprintw(0, 0, "%s", nodes[nodes_sel].samples[*view_sel - 3].packet_string);
 				while (getch() == ERR) {
 					nanosleep(&input_delay, NULL);
 				}
@@ -270,14 +314,13 @@ enter_samples_menu(size_t node_index)
 		}
 		nanosleep(&input_delay, NULL);
 	}
-	in_samples_menu = false;
 	leave_list_menu();
 }
 
 void
 enter_overview_menu(void)
 {
-	const size_t *view_sel = enter_list_menu(OVERVIEW_MENU, 3);
+	const size_t *view_sel = enter_list_menu(OVERVIEW_MENU);
 	pthread_create(&device_handler_thread, NULL, &device_handler, NULL);
 	while (true) {
 		pthread_mutex_lock(&interface_lock);

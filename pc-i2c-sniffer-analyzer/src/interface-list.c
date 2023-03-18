@@ -7,7 +7,8 @@ struct list_menu_settings {
 	size_t view_sel; // Index of the selected entry.
 	size_t view_min; // Index of the first visible entry.
 	size_t view_max; // Index of the last visible entry.
-	const char *(*write)(size_t index);
+	const char *(*entry_writer)(size_t index);
+	size_t (*entries_counter)(void);
 };
 
 size_t list_menu_height;
@@ -52,8 +53,10 @@ free_list_menu(void)
 void
 initialize_settings_of_list_menus(void)
 {
-	menus[OVERVIEW_MENU].write = &print_overview_menu_entry;
-	menus[SAMPLES_MENU].write  = &print_samples_menu_entry;
+	menus[OVERVIEW_MENU].entry_writer    = &overview_menu_entry_writer;
+	menus[OVERVIEW_MENU].entries_counter = &overview_menu_entries_counter;
+	menus[SAMPLES_MENU].entry_writer     = &samples_menu_entry_writer;
+	menus[SAMPLES_MENU].entries_counter  = &samples_menu_entries_counter;
 }
 
 static inline void
@@ -61,7 +64,7 @@ expose_entry_of_the_list_menu_unprotected(size_t index)
 {
 	WINDOW *w = windows[index - menu->view_min];
 	werase(w);
-	mvwaddnstr(w, 0, 0, menu->write(index), list_menu_width);
+	mvwaddnstr(w, 0, 0, menu->entry_writer(index), list_menu_width);
 	wbkgd(w, index == menu->view_sel ? A_REVERSE : A_NORMAL);
 	wrefresh(w);
 }
@@ -116,11 +119,11 @@ redraw_list_menu_unprotected(void)
 }
 
 const size_t *
-enter_list_menu(int8_t menu_index, size_t new_entries_count)
+enter_list_menu(int8_t menu_index)
 {
 	pthread_mutex_lock(&interface_lock);
 	menu = menus + menu_index;
-	menu->entries_count = new_entries_count;
+	menu->entries_count = menu->entries_counter();
 	menu->view_sel = 0;
 	menu->view_min = 0;
 	redraw_list_menu_unprotected();
@@ -129,14 +132,17 @@ enter_list_menu(int8_t menu_index, size_t new_entries_count)
 }
 
 void
-reset_list_menu_unprotected(size_t new_entries_count)
+reset_list_menu(void)
 {
+	pthread_mutex_lock(&interface_lock);
+	const size_t new_entries_count = menu->entries_counter();
 	if (new_entries_count < menu->entries_count) {
 		menu->view_sel = 0;
 		menu->view_min = 0;
 	}
 	menu->entries_count = new_entries_count;
 	redraw_list_menu_unprotected();
+	pthread_mutex_unlock(&interface_lock);
 }
 
 void
