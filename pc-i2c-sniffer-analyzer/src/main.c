@@ -17,13 +17,16 @@ main(int argc, char **argv)
 		return 1;
 	}
 
-	if (!curses_init())      { error = 2; goto undo1; }
-	if (!adjust_list_menu()) { error = 3; goto undo2; }
+	if (!curses_init())                 { error = 2; goto undo1; }
+	if (!adjust_list_menu())            { error = 3; goto undo2; }
+	if (!status_recreate_unprotected()) { error = 4; goto undo3; }
 	initialize_settings_of_list_menus();
 	set_log_stream(log_stream);
 
 	enter_overview_menu();
 
+	status_delete();
+undo3:
 	free_list_menu();
 undo2:
 	curses_free();

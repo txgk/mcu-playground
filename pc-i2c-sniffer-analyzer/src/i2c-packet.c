@@ -1,6 +1,5 @@
 #include "main.h"
 #include <stdlib.h>
-#include <string.h>
 
 static char byte_str[1000];
 static size_t byte_len;
@@ -55,14 +54,12 @@ i2c_packets_are_equal(const struct i2c_packet *packet1, const struct i2c_packet 
 char *
 i2c_packet_convert_to_string(const struct i2c_packet *packet)
 {
-	char *str = xmalloc(sizeof(char) * (1000 + packet->data_len * 4));
-	char piece[10];
+	char *str = xmalloc(sizeof(char) * (100 + packet->data_len * 4));
 	str[0] = '\0';
 	if (packet->data_len == 0) return str;
-	sprintf(str, "%d%s", packet->data[0] >> 1, packet->data[0] & 1 ? "R" : "W");
+	int str_len = sprintf(str, "%d%s", packet->data[0] >> 1, packet->data[0] & 1 ? "R" : "W");
 	for (size_t i = 1; i < packet->data_len; ++i) {
-		sprintf(piece, " %3" PRIu8, packet->data[i]);
-		strcat(str, piece);
+		str_len += sprintf(str + str_len, " %3" PRIu8, packet->data[i]);
 	}
 	return str;
 }

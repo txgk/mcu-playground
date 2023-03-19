@@ -50,6 +50,11 @@ void reset_list_menu(void);
 void leave_list_menu(void);
 bool handle_list_menu_navigation(int c);
 
+// See "interface-status.c" file for implementation.
+bool status_recreate_unprotected(void);
+void status_write(const char *format, ...);
+void status_delete(void);
+
 // See "xalloc.c" file for implementation.
 void complain_about_insufficient_memory_and_exit(void);
 void *xmalloc(size_t size);

@@ -20,7 +20,8 @@ struct node_data {
 	size_t reads_count;
 	size_t writes_count;
 	struct i2c_packet_sample *samples;
-	size_t samples_count;
+	size_t samples_len;
+	size_t samples_lim;
 	size_t min_packet_size;
 	size_t max_packet_size;
 	double avg_packet_size;
@@ -47,6 +48,8 @@ static char entry_content_buffer[5000];
 static const struct timespec input_delay = {0, 10000000};
 static const struct timespec wait_data_delay = {0, 10000000};
 
+static size_t traverse_speed = 1;
+
 void
 set_log_stream(FILE *stream)
 {
@@ -54,10 +57,22 @@ set_log_stream(FILE *stream)
 }
 
 static inline void
+display_history_position(void)
+{
+	pthread_mutex_lock(&data_lock);
+	status_write("Considered packets: %07zu/%07zu  Traverse speed: %zu",
+		packets_sel == 0 ? packets_len : packets_sel,
+		packets_len,
+		traverse_speed
+	);
+	pthread_mutex_unlock(&data_lock);
+}
+
+static inline void
 make_sure_there_is_enough_room_for_another_packet(void)
 {
 	if (packets_len >= packets_lim) {
-		packets_lim = packets_lim * 2 + 67;
+		packets_lim = 100000 + packets_lim * 2;
 		packets = xrealloc(packets, sizeof(struct i2c_packet) * packets_lim);
 	}
 }
@@ -77,7 +92,8 @@ make_sure_node_for_packet_exists(const struct i2c_packet *packet)
 	nodes[nodes_len].reads_count = 0;
 	nodes[nodes_len].writes_count = 0;
 	nodes[nodes_len].samples = NULL;
-	nodes[nodes_len].samples_count = 0;
+	nodes[nodes_len].samples_len = 0;
+	nodes[nodes_len].samples_lim = 0;
 	nodes[nodes_len].min_packet_size = 999999;
 	nodes[nodes_len].max_packet_size = 0;
 	nodes[nodes_len].avg_packet_size = 0;
@@ -112,7 +128,7 @@ take_packet_into_account(size_t packet_index)
 	node->period_ms = (double)(packet->timestamp_ms - node->first_timestamp_ms) / node->packets_count;
 	node->frequency_hz = 1000.0 / node->period_ms;
 
-	for (size_t i = 0; i < node->samples_count; ++i) {
+	for (size_t i = 0; i < node->samples_len; ++i) {
 		if (i2c_packets_are_equal(packet, &packets[node->samples[i].packet_index])) {
 			struct i2c_packet_sample *sample = node->samples + i;
 			sample->packets_count += 1;
@@ -122,14 +138,16 @@ take_packet_into_account(size_t packet_index)
 		}
 	}
 
-	node->samples = xrealloc(node->samples,
-		sizeof(struct i2c_packet_sample) * (node->samples_count + 1));
-	node->samples[node->samples_count].packet_index = packet_index;
-	node->samples[node->samples_count].packets_count = 1;
-	node->samples[node->samples_count].packet_string = i2c_packet_convert_to_string(packet);
-	node->samples[node->samples_count].period_ms = HUGE_VAL;
-	node->samples[node->samples_count].frequency_hz = 0;
-	node->samples_count += 1;
+	if (node->samples_len >= node->samples_lim) {
+		node->samples_lim = 100 + node->samples_len * 2;
+		node->samples = xrealloc(node->samples, sizeof(struct i2c_packet_sample) * node->samples_lim);
+	}
+	node->samples[node->samples_len].packet_index = packet_index;
+	node->samples[node->samples_len].packets_count = 1;
+	node->samples[node->samples_len].packet_string = i2c_packet_convert_to_string(packet);
+	node->samples[node->samples_len].period_ms = HUGE_VAL;
+	node->samples[node->samples_len].frequency_hz = 0;
+	node->samples_len += 1;
 }
 
 static void
@@ -142,6 +160,7 @@ try_to_update_menu(void)
 		|| (current_time.tv_nsec - last_get_time.tv_nsec > 200000000))
 	{
 		reset_list_menu();
+		display_history_position();
 		last_get_time.tv_sec = current_time.tv_sec;
 		last_get_time.tv_nsec = current_time.tv_nsec;
 	}
@@ -198,7 +217,7 @@ static inline void
 destroy_nodes(void)
 {
 	for (size_t i = 0; i < nodes_len; ++i) {
-		for (size_t j = 0; j < nodes[i].samples_count; ++j) {
+		for (size_t j = 0; j < nodes[i].samples_len; ++j) {
 			free(nodes[i].samples[j].packet_string);
 		}
 		free(nodes[i].samples);
@@ -213,23 +232,23 @@ const char *
 overview_menu_entry_writer(size_t index)
 {
 	if ((index == 0) || (index == 2)) {
-		return "+------+--------+--------+--------+--------+--------+--------+---------+---------+";
+		return "+------+--------+--------+--------+--------+--------+--------+-----------+-------+";
 	}
 	if (index == 1) {
-		return "| Addr |  Reads | Writes | MinLen | MaxLen | AvgLen | Unique |   T, ms |   f, Hz |";
+		return "| Addr |  Reads | Writes | MinLen | MaxLen | AvgLen | Unique |     T, ms | f, Hz |";
 	}
 	index -= 3;
 	pthread_mutex_lock(&data_lock);
 	if (index < nodes_len) {
 		sprintf(entry_content_buffer,
-			"| %4d | %6zu | %6zu | %6zu | %6zu | %6.0lf | %6zu | %7.1lf | %7.1lf |",
+			"| %4d | %6zu | %6zu | %6zu | %6zu | %6.0lf | %6zu | %9.1lf | %5.1lf |",
 			nodes[index].address,
 			nodes[index].reads_count,
 			nodes[index].writes_count,
 			nodes[index].min_packet_size,
 			nodes[index].max_packet_size,
 			nodes[index].avg_packet_size,
-			nodes[index].samples_count,
+			nodes[index].samples_len,
 			nodes[index].period_ms,
 			nodes[index].frequency_hz
 		);
@@ -244,16 +263,16 @@ const char *
 samples_menu_entry_writer(size_t index)
 {
 	if ((index == 0) || (index == 2)) {
-		return "+----------+---------+---------+---------+";
+		return "+----------+-----------+-------+---------+";
 	}
 	if (index == 1) {
-		return "| Quantity |   T, ms |   f, Hz | Content |";
+		return "| Quantity |     T, ms | f, Hz | Content |";
 	}
 	index -= 3;
 	pthread_mutex_lock(&data_lock);
-	if (index < nodes[nodes_sel].samples_count) {
+	if (index < nodes[nodes_sel].samples_len) {
 		sprintf(entry_content_buffer,
-			"| %8zu | %7.1lf | %7.1lf | %s |",
+			"| %8zu | %9.1lf | %5.1lf | %s |",
 			nodes[nodes_sel].samples[index].packets_count,
 			nodes[nodes_sel].samples[index].period_ms,
 			nodes[nodes_sel].samples[index].frequency_hz,
@@ -279,7 +298,7 @@ size_t
 samples_menu_entries_counter(void)
 {
 	pthread_mutex_lock(&data_lock);
-	const size_t entries_count = nodes[nodes_sel].samples_count + 3;
+	const size_t entries_count = nodes[nodes_sel].samples_len + 3;
 	pthread_mutex_unlock(&data_lock);
 	return entries_count;
 }
@@ -291,9 +310,9 @@ discard_one_packet(void)
 	pthread_mutex_lock(&interface_lock);
 	if (packets_sel == 0) {
 		packets_sel = packets_len;
-	} else if (packets_sel > 1) {
+	} else {
 		destroy_nodes();
-		packets_sel -= 1;
+		packets_sel = packets_sel > traverse_speed ? packets_sel - traverse_speed : 1;
 		for (size_t i = 0; i < packets_sel; ++i) {
 			take_packet_into_account(i);
 		}
@@ -301,6 +320,7 @@ discard_one_packet(void)
 	pthread_mutex_unlock(&data_lock);
 	pthread_mutex_unlock(&interface_lock);
 	reset_list_menu();
+	display_history_position();
 }
 
 static void
@@ -315,6 +335,7 @@ discard_all_packets(void)
 	pthread_mutex_unlock(&data_lock);
 	pthread_mutex_unlock(&interface_lock);
 	reset_list_menu();
+	display_history_position();
 }
 
 static void
@@ -323,13 +344,14 @@ apply_one_packet(void)
 	if (packets_sel == 0) return;
 	pthread_mutex_lock(&data_lock);
 	pthread_mutex_lock(&interface_lock);
-	if (packets_sel < packets_len) {
+	for (size_t i = 0; (i < traverse_speed) && (packets_sel < packets_len); ++i) {
 		take_packet_into_account(packets_sel);
 		packets_sel += 1;
 	}
 	pthread_mutex_unlock(&data_lock);
 	pthread_mutex_unlock(&interface_lock);
 	reset_list_menu();
+	display_history_position();
 }
 
 static void
@@ -346,6 +368,7 @@ apply_all_packets(void)
 	pthread_mutex_unlock(&data_lock);
 	pthread_mutex_unlock(&interface_lock);
 	reset_list_menu();
+	display_history_position();
 }
 
 static void
@@ -405,6 +428,20 @@ enter_overview_menu(void)
 			apply_one_packet();
 		} else if (c == '>') {
 			apply_all_packets();
+		} else if (ISDIGIT(c)) {
+			switch (c) {
+				case '1': traverse_speed = 1; break;
+				case '2': traverse_speed = 5; break;
+				case '3': traverse_speed = 10; break;
+				case '4': traverse_speed = 50; break;
+				case '5': traverse_speed = 100; break;
+				case '6': traverse_speed = 500; break;
+				case '7': traverse_speed = 1000; break;
+				case '8': traverse_speed = 5000; break;
+				case '9': traverse_speed = 10000; break;
+				case '0': traverse_speed = 50000; break;
+			}
+			display_history_position();
 		} else if (c == 'q') {
 			break;
 		} else if (c == KEY_RESIZE) {

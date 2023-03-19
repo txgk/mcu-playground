@@ -79,6 +79,7 @@ resize_counter_action(void)
 		goto error;
 	}
 	redraw_list_menu_unprotected();
+	status_recreate_unprotected();
 	pthread_mutex_unlock(&interface_lock);
 	return true;
 error:
