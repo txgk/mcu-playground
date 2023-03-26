@@ -1,8 +1,12 @@
 #include <Arduino.h>
+#include <WiFi.h>
 
 #define SDA_PIN                          32
 #define SCL_PIN                          33
-#define SERIAL_SPEED                     115200
+#define SERIAL_SPEED                     9600
+#define WIFI_SSID                        "Prometheanica"
+#define WIFI_PASSWORD                    "12345678"
+#define WIFI_DATA_PORT                   80
 #define SDA                              ((REG_READ(GPIO_IN1_REG)) & 0b01)
 #define SCL                              ((REG_READ(GPIO_IN1_REG)) & 0b10)
 #define SCL_OR_SDA                       ((REG_READ(GPIO_IN1_REG)) & 0b11)
@@ -35,6 +39,8 @@ volatile int j, passes;
 #define WAIT_FOR_SDA_RISE_OR_SCL_DROP    while (SCL_OR_SDA == 0b10)
 #endif
 
+WiFiServer server(WIFI_DATA_PORT);
+WiFiClient client;
 volatile uint8_t b;
 char str[10000];
 volatile size_t str_len = 0;
@@ -74,8 +80,14 @@ read_sda(void)
 void
 print_data(void)
 {
-	Serial.write(str, str_len);
-	Serial.flush();
+	if (client.connected()) {
+		client.write(str, str_len);
+	} else {
+		client = server.available();
+		if (client.connected()) {
+			client.write(str, str_len);
+		}
+	}
 }
 
 void
@@ -90,6 +102,20 @@ setup(void)
 	};
 	gpio_config(&cfg);
 	Serial.begin(SERIAL_SPEED);
+	WiFi.mode(WIFI_AP);
+	WiFi.softAP(WIFI_SSID, WIFI_PASSWORD, 8);
+	server.begin();
+	delay(1000);
+	Serial.println(WiFi.softAPIP());
+	while (1) {
+		client = server.available();
+		Serial.println("Waiting for a client.");
+		if (client.connected()) {
+			Serial.println("Found a client!");
+			break;
+		}
+		delay(500);
+	}
 }
 
 void

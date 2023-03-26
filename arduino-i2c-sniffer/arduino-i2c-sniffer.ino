@@ -6,9 +6,8 @@
 #define SCL_OR_SDA                       ((digitalReadDirect(SCL_PIN) << 1) | digitalReadDirect(SDA_PIN))
 #define SDA_IS_LOW_AND_SCL_IS_HIGH       (SCL_OR_SDA == 0b10)
 #define SDA_AND_SCL_ARE_HIGH             (SCL_OR_SDA == 0b11)
-#define IS_ACKNOWLEDGED                  256
-#define NOT_ACKNOWLEDGED                 512
-#define MESSAGE_SEPARATOR                1024
+#define IS_ACKNOWLEDGED                  '>'
+#define NOT_ACKNOWLEDGED                 'x'
 
 #ifdef CONNECTION_IS_FLAKY
 #define CHECK_FACTOR                     3
@@ -34,35 +33,14 @@ volatile int j, passes;
 #define WAIT_FOR_SDA_RISE_OR_SCL_DROP    while (SCL_OR_SDA == 0b10)
 #endif
 
-volatile uint16_t d[10000];
-volatile uint16_t *p = d;
-volatile uint16_t *ptr;
-volatile unsigned long timestamp;
+volatile uint8_t b;
+char str[10000];
+volatile size_t str_len = 0;
 
 inline uint8_t
 digitalReadDirect(int pin)
 {
 	return !!(g_APinDescription[pin].pPort->PIO_PDSR & g_APinDescription[pin].ulPin);
-}
-
-void
-print_data(void)
-{
-	for (ptr = d; ptr < p; ptr += 1) {
-		if (*ptr == IS_ACKNOWLEDGED) {
-			Serial.print('>');
-		} else if (*ptr == MESSAGE_SEPARATOR) {
-			Serial.print('\n');
-			Serial.print(timestamp);
-			Serial.print('=');
-		} else if (*ptr == NOT_ACKNOWLEDGED) {
-			Serial.print('x');
-		} else {
-			Serial.print(*ptr);
-		}
-	}
-	Serial.flush();
-	p = d;
 }
 
 uint8_t
@@ -98,11 +76,18 @@ read_sda(void)
 }
 
 void
+print_data(void)
+{
+	Serial.write(str, str_len);
+	Serial.flush();
+}
+
+void
 setup(void)
 {
-	Serial.begin(SERIAL_SPEED);
 	pinMode(SDA_PIN, INPUT);
 	pinMode(SCL_PIN, INPUT);
+	Serial.begin(SERIAL_SPEED);
 }
 
 void
@@ -114,46 +99,47 @@ i2c_idle:
 	WAIT_FOR_SDA_OR_SCL_DROP;
 	if (!i2c_start_condition()) goto i2c_sync;
 i2c_start:
-	*p++ = MESSAGE_SEPARATOR;
-	timestamp = millis();
+	str_len = sprintf(str, "\n%lu=", millis());
 	WAIT_SCL_DROP;
-	WAIT_SCL_RISE; *p  = read_sda(); *p <<= 1; WAIT_SCL_DROP;
-	WAIT_SCL_RISE; *p |= read_sda(); *p <<= 1; WAIT_SCL_DROP;
-	WAIT_SCL_RISE; *p |= read_sda(); *p <<= 1; WAIT_SCL_DROP;
-	WAIT_SCL_RISE; *p |= read_sda(); *p <<= 1; WAIT_SCL_DROP;
-	WAIT_SCL_RISE; *p |= read_sda(); *p <<= 1; WAIT_SCL_DROP;
-	WAIT_SCL_RISE; *p |= read_sda(); *p <<= 1; WAIT_SCL_DROP;
-	WAIT_SCL_RISE; *p |= read_sda(); *p <<= 1; WAIT_SCL_DROP;
-	WAIT_SCL_RISE; *p |= read_sda(); p += 1;   WAIT_SCL_DROP;
+	WAIT_SCL_RISE; b  = read_sda(); b <<= 1; WAIT_SCL_DROP;
+	WAIT_SCL_RISE; b |= read_sda(); b <<= 1; WAIT_SCL_DROP;
+	WAIT_SCL_RISE; b |= read_sda(); b <<= 1; WAIT_SCL_DROP;
+	WAIT_SCL_RISE; b |= read_sda(); b <<= 1; WAIT_SCL_DROP;
+	WAIT_SCL_RISE; b |= read_sda(); b <<= 1; WAIT_SCL_DROP;
+	WAIT_SCL_RISE; b |= read_sda(); b <<= 1; WAIT_SCL_DROP;
+	WAIT_SCL_RISE; b |= read_sda(); b <<= 1; WAIT_SCL_DROP;
+	WAIT_SCL_RISE; b |= read_sda();          WAIT_SCL_DROP;
 	WAIT_SCL_RISE;
+	str_len += sprintf(str + str_len, "%" PRIu8, b);
 	if (read_sda()) {
 		WAIT_SCL_DROP;
-		*p++ = NOT_ACKNOWLEDGED;
+		str[str_len++] = NOT_ACKNOWLEDGED;
 		print_data();
 		goto i2c_sync;
 	} else {
 		WAIT_SCL_DROP;
-		*p++ = IS_ACKNOWLEDGED;
+		str[str_len++] = IS_ACKNOWLEDGED;
 	}
-	WAIT_SCL_RISE; *p  = read_sda(); *p <<= 1; WAIT_SCL_DROP;
+	WAIT_SCL_RISE; b  = read_sda(); b <<= 1; WAIT_SCL_DROP;
 i2c_next:
-	WAIT_SCL_RISE; *p |= read_sda(); *p <<= 1; WAIT_SCL_DROP;
-	WAIT_SCL_RISE; *p |= read_sda(); *p <<= 1; WAIT_SCL_DROP;
-	WAIT_SCL_RISE; *p |= read_sda(); *p <<= 1; WAIT_SCL_DROP;
-	WAIT_SCL_RISE; *p |= read_sda(); *p <<= 1; WAIT_SCL_DROP;
-	WAIT_SCL_RISE; *p |= read_sda(); *p <<= 1; WAIT_SCL_DROP;
-	WAIT_SCL_RISE; *p |= read_sda(); *p <<= 1; WAIT_SCL_DROP;
-	WAIT_SCL_RISE; *p |= read_sda(); p += 1;   WAIT_SCL_DROP;
+	WAIT_SCL_RISE; b |= read_sda(); b <<= 1; WAIT_SCL_DROP;
+	WAIT_SCL_RISE; b |= read_sda(); b <<= 1; WAIT_SCL_DROP;
+	WAIT_SCL_RISE; b |= read_sda(); b <<= 1; WAIT_SCL_DROP;
+	WAIT_SCL_RISE; b |= read_sda(); b <<= 1; WAIT_SCL_DROP;
+	WAIT_SCL_RISE; b |= read_sda(); b <<= 1; WAIT_SCL_DROP;
+	WAIT_SCL_RISE; b |= read_sda(); b <<= 1; WAIT_SCL_DROP;
+	WAIT_SCL_RISE; b |= read_sda();          WAIT_SCL_DROP;
 	WAIT_SCL_RISE;
+	str_len += sprintf(str + str_len, "%" PRIu8, b);
 	if (read_sda()) {
-		*p++ = NOT_ACKNOWLEDGED;
+		str[str_len++] = NOT_ACKNOWLEDGED;
 	} else {
-		*p++ = IS_ACKNOWLEDGED;
+		str[str_len++] = IS_ACKNOWLEDGED;
 	}
 	WAIT_SCL_DROP;
 
-	while (SCL == 0) *p = SDA;
-	if (*p) {
+	while (SCL == 0) b = SDA;
+	if (b) {
 		WAIT_FOR_SDA_OR_SCL_DROP;
 		if (SDA_IS_LOW_AND_SCL_IS_HIGH) { // Repeated start signal.
 			goto i2c_start;
@@ -166,7 +152,7 @@ i2c_next:
 		}
 	}
 
-	*p <<= 1;
+	b <<= 1;
 	WAIT_SCL_DROP;
 	goto i2c_next;
 }
