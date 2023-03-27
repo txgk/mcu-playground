@@ -1,7 +1,6 @@
 #include <WiFi.h>
+#include "wifi-credentials.h"
 
-#define WIFI_SSID "ssid"
-#define WIFI_SECRET "pass"
 #define CONTROL_PORT 882
 #define STREAM_PORT 80
 #define CONTROL_HEADER "HTTP/1.1 200 OK\n\n"
@@ -26,7 +25,7 @@ bool listener_available = false;
 
 void setup() {
 	DEBUGINIT(9600);
-	WiFi.begin(WIFI_SSID, WIFI_SECRET);
+	WiFi.begin(WIFI_SSID, WIFI_PASSWORD);
 	while (WiFi.status() != WL_CONNECTED) {
 		DEBUGLN("Not connected to Wi-Fi yet!");
 		delay(1000);

@@ -1,8 +1,7 @@
 #include <Arduino.h>
 #include <WiFi.h>
+#include "wifi-credentials.h"
 
-#define WIFI_SSID "ssid"
-#define WIFI_PASSWORD "password"
 #define WIFI_DATA_PORT 2222
 #define SERIAL_SPEED 115200
 

@@ -1,7 +1,6 @@
 #include <WiFi.h>
+#include "wifi-credentials.h"
 
-#define WIFI_SSID "ssid"
-#define WIFI_SECRET "secret"
 #define DATA_LIM 42000
 #define DEFAULT_SAMPLING_RESOLUTION 1000
 #define DEFAULT_SAMPLING_PERIOD 100 // us
@@ -206,7 +205,7 @@ setup(void)
 
 	write_default_values_to_output_pins();
 
-	WiFi.begin(WIFI_SSID, WIFI_SECRET);
+	WiFi.begin(WIFI_SSID, WIFI_PASSWORD);
 	while (WiFi.status() != WL_CONNECTED) {
 		DEBUGLN("Not connected to Wi-Fi yet!");
 		delay(1000);

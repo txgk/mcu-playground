@@ -1,11 +1,10 @@
 #include <Arduino.h>
 #include <WiFi.h>
+#include "wifi-credentials.h"
 
 #define SDA_PIN                          32
 #define SCL_PIN                          33
 #define SERIAL_SPEED                     9600
-#define WIFI_SSID                        "Prometheanica"
-#define WIFI_PASSWORD                    "12345678"
 #define WIFI_DATA_PORT                   80
 #define SDA                              ((REG_READ(GPIO_IN1_REG)) & 0b01)
 #define SCL                              ((REG_READ(GPIO_IN1_REG)) & 0b10)
@@ -102,11 +101,15 @@ setup(void)
 	};
 	gpio_config(&cfg);
 	Serial.begin(SERIAL_SPEED);
-	WiFi.mode(WIFI_AP);
-	WiFi.softAP(WIFI_SSID, WIFI_PASSWORD, 8);
+	WiFi.begin(WIFI_SSID, WIFI_PASSWORD);
+	while (WiFi.status() != WL_CONNECTED) {
+		Serial.println("Not connected to Wi-Fi yet!");
+		delay(1000);
+	}
 	server.begin();
 	delay(1000);
-	Serial.println(WiFi.softAPIP());
+	Serial.println(WiFi.localIP());
+	Serial.println(WiFi.macAddress());
 	while (1) {
 		client = server.available();
 		Serial.println("Waiting for a client.");
