@@ -14,21 +14,8 @@
 #define IS_ACKNOWLEDGED                  '>'
 #define NOT_ACKNOWLEDGED                 'x'
 
-#ifdef CONNECTION_IS_FLAKY
-#define CHECK_FACTOR                     3
-#define I2C_START_CONDITION_CHECK_FACTOR 3
-#define I2C_START_CONDITION_PASS_FACTOR  2
-#define I2C_SDA_CHECK_FACTOR             3
-#define I2C_SDA_PASS_FACTOR              2
-#define WAIT_SDA_RISE                    for (j = 0; j < CHECK_FACTOR; ++j) { while (SDA == 0); }
-#define WAIT_SDA_DROP                    for (j = 0; j < CHECK_FACTOR; ++j) { while (SDA != 0); }
-#define WAIT_SCL_RISE                    for (j = 0; j < CHECK_FACTOR; ++j) { while (SCL == 0); }
-#define WAIT_SCL_DROP                    for (j = 0; j < CHECK_FACTOR; ++j) { while (SCL != 0); }
-#define WAIT_FOR_SDA_AND_SCL_RISE        for (j = 0; j < CHECK_FACTOR; ++j) { while (SCL_OR_SDA != 0b11); }
-#define WAIT_FOR_SDA_OR_SCL_DROP         for (j = 0; j < CHECK_FACTOR; ++j) { while (SCL_OR_SDA == 0b11); }
-#define WAIT_FOR_SDA_RISE_OR_SCL_DROP    for (j = 0; j < CHECK_FACTOR; ++j) { while (SCL_OR_SDA == 0b10); }
-volatile int j, passes;
-#else
+#define I2C_BUFFER_SIZE                  10000
+
 #define WAIT_SDA_RISE                    while (SDA == 0)
 #define WAIT_SDA_DROP                    while (SDA != 0)
 #define WAIT_SCL_RISE                    while (SCL == 0)
@@ -36,45 +23,12 @@ volatile int j, passes;
 #define WAIT_FOR_SDA_AND_SCL_RISE        while (SCL_OR_SDA != 0b11)
 #define WAIT_FOR_SDA_OR_SCL_DROP         while (SCL_OR_SDA == 0b11)
 #define WAIT_FOR_SDA_RISE_OR_SCL_DROP    while (SCL_OR_SDA == 0b10)
-#endif
 
 WiFiServer server(WIFI_DATA_PORT);
 WiFiClient client;
 volatile uint8_t b;
-char str[10000];
+char str[I2C_BUFFER_SIZE];
 volatile size_t str_len = 0;
-
-uint8_t
-i2c_start_condition(void)
-{
-#ifdef CONNECTION_IS_FLAKY
-	passes = 0;
-	for (j = 0; j < I2C_START_CONDITION_CHECK_FACTOR; ++j) {
-		if (SDA_IS_LOW_AND_SCL_IS_HIGH) {
-			passes += 1;
-		}
-	}
-	return !!(passes >= I2C_START_CONDITION_PASS_FACTOR);
-#else
-	return !!SDA_IS_LOW_AND_SCL_IS_HIGH;
-#endif
-}
-
-uint8_t
-read_sda(void)
-{
-#ifdef CONNECTION_IS_FLAKY
-	passes = 0;
-	for (j = 0; j < I2C_SDA_CHECK_FACTOR; ++j) {
-		if (SDA) {
-			passes += 1;
-		}
-	}
-	return !!(passes >= I2C_SDA_PASS_FACTOR);
-#else
-	return SDA;
-#endif
-}
 
 void
 print_data(void)
@@ -128,21 +82,21 @@ i2c_sync:
 	WAIT_FOR_SDA_AND_SCL_RISE;
 i2c_idle:
 	WAIT_FOR_SDA_OR_SCL_DROP;
-	if (!i2c_start_condition()) goto i2c_sync;
+	if (!SDA_IS_LOW_AND_SCL_IS_HIGH) goto i2c_sync;
 i2c_start:
 	str_len = sprintf(str, "\n%lu=", millis());
 	WAIT_SCL_DROP;
-	WAIT_SCL_RISE; b  = read_sda(); b <<= 1; WAIT_SCL_DROP;
-	WAIT_SCL_RISE; b |= read_sda(); b <<= 1; WAIT_SCL_DROP;
-	WAIT_SCL_RISE; b |= read_sda(); b <<= 1; WAIT_SCL_DROP;
-	WAIT_SCL_RISE; b |= read_sda(); b <<= 1; WAIT_SCL_DROP;
-	WAIT_SCL_RISE; b |= read_sda(); b <<= 1; WAIT_SCL_DROP;
-	WAIT_SCL_RISE; b |= read_sda(); b <<= 1; WAIT_SCL_DROP;
-	WAIT_SCL_RISE; b |= read_sda(); b <<= 1; WAIT_SCL_DROP;
-	WAIT_SCL_RISE; b |= read_sda();          WAIT_SCL_DROP;
+	WAIT_SCL_RISE; b  = SDA; b <<= 1; WAIT_SCL_DROP;
+	WAIT_SCL_RISE; b |= SDA; b <<= 1; WAIT_SCL_DROP;
+	WAIT_SCL_RISE; b |= SDA; b <<= 1; WAIT_SCL_DROP;
+	WAIT_SCL_RISE; b |= SDA; b <<= 1; WAIT_SCL_DROP;
+	WAIT_SCL_RISE; b |= SDA; b <<= 1; WAIT_SCL_DROP;
+	WAIT_SCL_RISE; b |= SDA; b <<= 1; WAIT_SCL_DROP;
+	WAIT_SCL_RISE; b |= SDA; b <<= 1; WAIT_SCL_DROP;
+	WAIT_SCL_RISE; b |= SDA;          WAIT_SCL_DROP;
 	WAIT_SCL_RISE;
 	str_len += sprintf(str + str_len, "%" PRIu8, b);
-	if (read_sda()) {
+	if (SDA) {
 		WAIT_SCL_DROP;
 		str[str_len++] = NOT_ACKNOWLEDGED;
 		print_data();
@@ -151,18 +105,18 @@ i2c_start:
 		WAIT_SCL_DROP;
 		str[str_len++] = IS_ACKNOWLEDGED;
 	}
-	WAIT_SCL_RISE; b  = read_sda(); b <<= 1; WAIT_SCL_DROP;
+	WAIT_SCL_RISE; b  = SDA; b <<= 1; WAIT_SCL_DROP;
 i2c_next:
-	WAIT_SCL_RISE; b |= read_sda(); b <<= 1; WAIT_SCL_DROP;
-	WAIT_SCL_RISE; b |= read_sda(); b <<= 1; WAIT_SCL_DROP;
-	WAIT_SCL_RISE; b |= read_sda(); b <<= 1; WAIT_SCL_DROP;
-	WAIT_SCL_RISE; b |= read_sda(); b <<= 1; WAIT_SCL_DROP;
-	WAIT_SCL_RISE; b |= read_sda(); b <<= 1; WAIT_SCL_DROP;
-	WAIT_SCL_RISE; b |= read_sda(); b <<= 1; WAIT_SCL_DROP;
-	WAIT_SCL_RISE; b |= read_sda();          WAIT_SCL_DROP;
+	WAIT_SCL_RISE; b |= SDA; b <<= 1; WAIT_SCL_DROP;
+	WAIT_SCL_RISE; b |= SDA; b <<= 1; WAIT_SCL_DROP;
+	WAIT_SCL_RISE; b |= SDA; b <<= 1; WAIT_SCL_DROP;
+	WAIT_SCL_RISE; b |= SDA; b <<= 1; WAIT_SCL_DROP;
+	WAIT_SCL_RISE; b |= SDA; b <<= 1; WAIT_SCL_DROP;
+	WAIT_SCL_RISE; b |= SDA; b <<= 1; WAIT_SCL_DROP;
+	WAIT_SCL_RISE; b |= SDA;          WAIT_SCL_DROP;
 	WAIT_SCL_RISE;
 	str_len += sprintf(str + str_len, "%" PRIu8, b);
-	if (read_sda()) {
+	if (SDA) {
 		str[str_len++] = NOT_ACKNOWLEDGED;
 	} else {
 		str[str_len++] = IS_ACKNOWLEDGED;
