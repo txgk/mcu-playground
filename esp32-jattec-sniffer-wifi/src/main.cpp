@@ -6,7 +6,7 @@
 #define SCL_PIN                          33
 #define SDA2_PIN                         34
 #define SCL2_PIN                         35
-#define SERIAL_SPEED                     115200
+#define SERIAL_SPEED                     9600
 #define WIFI_DATA_PORT                   80
 #define SDA                              ((REG_READ(GPIO_IN1_REG)) & 0b0001)
 #define SCL                              ((REG_READ(GPIO_IN1_REG)) & 0b0010)
@@ -45,6 +45,12 @@
 SemaphoreHandle_t wifi_lock = NULL;
 WiFiServer server(WIFI_DATA_PORT);
 WiFiClient client;
+
+IPAddress ip(192, 168, 102, 41);
+IPAddress gateway(192, 168, 102, 99);
+IPAddress subnet(255, 255, 255, 0);
+IPAddress primary_dns(77, 88, 8, 8);
+IPAddress secondary_dns(77, 88, 8, 1);
 
 volatile uint8_t b, c;
 char i2c1[I2C1_BUFFER_SIZE], i2c2[I2C2_BUFFER_SIZE];
@@ -249,6 +255,7 @@ setup(void)
 	gpio_config(&cfg);
 	Serial.begin(SERIAL_SPEED);
 	wifi_lock = xSemaphoreCreateMutex();
+	WiFi.config(ip, gateway, subnet, primary_dns, secondary_dns);
 	WiFi.begin(WIFI_SSID, WIFI_PASSWORD);
 	while (WiFi.status() != WL_CONNECTED) {
 		Serial.println("Not connected to Wi-Fi yet!");
@@ -256,13 +263,9 @@ setup(void)
 	}
 	server.begin();
 	delay(1000);
-	Serial.println(WiFi.localIP());
-	Serial.println(WiFi.macAddress());
 	while (1) {
 		client = server.available();
-		Serial.println("Waiting for a client.");
 		if (client.connected()) {
-			Serial.println("Found a client!");
 			break;
 		}
 		delay(500);
