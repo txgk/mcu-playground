@@ -1,18 +1,54 @@
 #include "main.h"
 #include <stdlib.h>
+#include <string.h>
 
 static char byte_str[1000];
 static size_t byte_len;
 
+static inline int8_t
+i2c_get_channel_index(const char *channel_name, size_t channel_name_len)
+{
+	for (size_t i = 0; i < channels_len; ++i) {
+		if ((channel_name_len == channels[i].name_len)
+			&& (memcmp(channel_name, channels[i].name, channel_name_len) == 0))
+		{
+			return i;
+		}
+	}
+	channels = xrealloc(channels, sizeof(struct i2c_channel) * (channels_len + 1));
+	channels[channels_len].name = xmalloc(sizeof(char) * (channel_name_len + 1));
+	memcpy(channels[channels_len].name, channel_name, channel_name_len);
+	channels[channels_len].name[channel_name_len] = '\0';
+	channels[channels_len].name_len = channel_name_len;
+	channels[channels_len].nodes = NULL;
+	channels[channels_len].nodes_len = 0;
+	channels_len += 1;
+	return channels_len - 1;
+}
+
 bool
 i2c_packet_parse(struct i2c_packet *dest, const char *src, size_t src_len)
 {
+	const char *i;
 	byte_len = 0;
 	uint8_t value = 0;
+	dest->channel_index = -1;
 	dest->data = NULL;
 	dest->data_len = 0;
 	dest->timestamp_ms = 0;
-	for (const char *i = src; (size_t)(i - src) < src_len; ++i) {
+	for (i = src; (size_t)(i - src) < src_len; ++i) {
+		if (*i == '@') {
+			if ((byte_len > 2) && (memcmp(byte_str, "I2C", 3) == 0)) {
+				dest->channel_index = i2c_get_channel_index(byte_str, byte_len);
+			}
+			break;
+		} else {
+			byte_str[byte_len++] = *i;
+		}
+	}
+	if (dest->channel_index < 0) goto bad_packet;
+	byte_len = 0;
+	for (i = i + 1; (size_t)(i - src) < src_len; ++i) {
 		if (ISDIGIT(*i)) {
 			byte_str[byte_len++] = *i;
 		} else if ((*i == '>') || (*i == 'x')) {
@@ -62,4 +98,10 @@ i2c_packet_convert_to_string(const struct i2c_packet *packet)
 		str_len += sprintf(str + str_len, " %3" PRIu8, packet->data[i]);
 	}
 	return str;
+}
+
+const char *
+get_i2c_channel_name(size_t channel_index)
+{
+	return channel_index < channels_len ? channels[channel_index].name : "None";
 }

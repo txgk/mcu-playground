@@ -17,9 +17,41 @@ enum {
 };
 
 struct i2c_packet {
+	int8_t channel_index;
 	uint8_t *data;
 	size_t data_len;
 	uint32_t timestamp_ms;
+};
+
+struct i2c_packet_sample {
+	size_t packet_index;
+	size_t packets_count;
+	char *packet_string;
+	double period_ms;
+	double frequency_hz;
+};
+
+struct i2c_node {
+	int address;
+	size_t packets_count;
+	size_t reads_count;
+	size_t writes_count;
+	struct i2c_packet_sample *samples;
+	size_t samples_len;
+	size_t samples_lim;
+	size_t min_packet_size;
+	size_t max_packet_size;
+	double avg_packet_size;
+	uint32_t first_timestamp_ms;
+	double period_ms;
+	double frequency_hz;
+};
+
+struct i2c_channel {
+	char *name; // Terminated with NUL character.
+	size_t name_len;
+	struct i2c_node *nodes;
+	size_t nodes_len;
 };
 
 // See "device.c" file for implementation.
@@ -34,6 +66,7 @@ void enter_overview_menu(void);
 bool i2c_packet_parse(struct i2c_packet *dest, const char *src, size_t src_len);
 bool i2c_packets_are_equal(const struct i2c_packet *packet1, const struct i2c_packet *packet2);
 char *i2c_packet_convert_to_string(const struct i2c_packet *packet);
+const char *get_i2c_channel_name(size_t channel_index);
 
 // See "interface.c" file for implementation.
 bool curses_init(void);
@@ -60,6 +93,8 @@ void complain_about_insufficient_memory_and_exit(void);
 void *xmalloc(size_t size);
 void *xrealloc(void *src, size_t size);
 
+extern struct i2c_channel *channels;
+extern size_t channels_len;
 extern size_t list_menu_height;
 extern size_t list_menu_width;
 extern pthread_mutex_t interface_lock;
