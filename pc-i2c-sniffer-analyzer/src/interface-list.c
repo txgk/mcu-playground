@@ -69,30 +69,12 @@ expose_entry_of_the_list_menu_unprotected(size_t index)
 	wrefresh(w);
 }
 
-void
-expose_entry_of_the_list_menu(size_t index)
-{
-	pthread_mutex_lock(&interface_lock);
-	if ((index >= menu->view_min) && (index <= menu->view_max)) {
-		expose_entry_of_the_list_menu_unprotected(index);
-	}
-	pthread_mutex_unlock(&interface_lock);
-}
-
 static inline void
 expose_all_visible_entries_of_the_list_menu_unprotected(void)
 {
 	for (size_t i = menu->view_min; i <= menu->view_max && i < menu->entries_count; ++i) {
 		expose_entry_of_the_list_menu_unprotected(i);
 	}
-}
-
-void
-expose_all_visible_entries_of_the_list_menu(void)
-{
-	pthread_mutex_lock(&interface_lock);
-	expose_all_visible_entries_of_the_list_menu_unprotected();
-	pthread_mutex_unlock(&interface_lock);
 }
 
 static inline void
@@ -207,10 +189,6 @@ handle_list_menu_navigation(int c)
 		list_menu_change_view(menu->view_sel + 1);
 	} else if (c == KEY_UP) {
 		list_menu_change_view(menu->view_sel > 1 ? (menu->view_sel - 1) : 0);
-	} else if (c == 'g') {
-		list_menu_change_view(0);
-	} else if (c == 'G') {
-		list_menu_change_view(menu->entries_count > 1 ? (menu->entries_count - 1) : 0);
 	} else {
 		return false;
 	}
