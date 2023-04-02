@@ -33,7 +33,7 @@ adjust_list_menu(void)
 	for (size_t i = 0; i < list_menu_height; ++i) {
 		windows[i] = newwin(1, list_menu_width, i, 0);
 		if (windows[i] == NULL) {
-			complain_about_insufficient_memory_and_exit();
+			abort();
 			return false;
 		}
 	}
@@ -60,21 +60,16 @@ initialize_settings_of_list_menus(void)
 }
 
 static inline void
-expose_entry_of_the_list_menu_unprotected(size_t index)
-{
-	WINDOW *w = windows[index - menu->view_min];
-	werase(w);
-	mvwaddnstr(w, 0, 0, menu->entry_writer(index), list_menu_width);
-	wbkgd(w, index == menu->view_sel ? A_REVERSE : A_NORMAL);
-	wrefresh(w);
-}
-
-static inline void
 expose_all_visible_entries_of_the_list_menu_unprotected(void)
 {
 	for (size_t i = menu->view_min; i <= menu->view_max && i < menu->entries_count; ++i) {
-		expose_entry_of_the_list_menu_unprotected(i);
+		WINDOW *w = windows[i - menu->view_min];
+		werase(w);
+		mvwaddnstr(w, 0, 0, menu->entry_writer(i), list_menu_width);
+		wbkgd(w, i == menu->view_sel ? A_REVERSE : A_NORMAL);
+		wnoutrefresh(w);
 	}
+	doupdate();
 }
 
 static inline void
@@ -118,9 +113,10 @@ reset_list_menu(void)
 {
 	pthread_mutex_lock(&interface_lock);
 	const size_t new_entries_count = menu->entries_counter();
-	if (new_entries_count < menu->entries_count) {
+	if (new_entries_count <= menu->view_sel) {
 		menu->view_sel = 0;
 		menu->view_min = 0;
+		menu->view_max = menu->view_min + (list_menu_height - 1);
 	}
 	menu->entries_count = new_entries_count;
 	redraw_list_menu_unprotected();

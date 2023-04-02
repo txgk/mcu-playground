@@ -4,8 +4,6 @@
 #include <curses.h>
 #include <math.h>
 
-#define INITIAL_PACKET_SIZE 5000
-
 static FILE *log_stream = NULL;
 static pthread_mutex_t data_lock = PTHREAD_MUTEX_INITIALIZER;
 
@@ -33,21 +31,29 @@ set_log_stream(FILE *stream)
 	log_stream = stream;
 }
 
+static const char *
+get_i2c_channel_name(size_t channel_index)
+{
+	return channel_index < channels_len ? channels[channel_index].name->ptr : "None";
+}
+
 static inline void
 display_history_position(void)
 {
 	pthread_mutex_lock(&data_lock);
-	status_write("Selected channel: %s  Considered packets: %07zu/%07zu  Traverse speed: %zu",
+	pthread_mutex_lock(&interface_lock);
+	status_write_unprotected("Selected channel: %s  Considered packets: %07zu/%07zu  Traverse speed: %zu",
 		get_i2c_channel_name(channels_sel),
 		packets_sel == 0 ? packets_len : packets_sel,
 		packets_len,
 		traverse_speed
 	);
+	pthread_mutex_unlock(&interface_lock);
 	pthread_mutex_unlock(&data_lock);
 }
 
 static inline void
-make_sure_there_is_enough_room_for_another_packet(void)
+make_sure_there_is_enough_room_for_another_i2c_packet(void)
 {
 	if (packets_len >= packets_lim) {
 		packets_lim = 100000 + packets_lim * 2;
@@ -110,6 +116,7 @@ take_packet_into_account(size_t packet_index)
 		if (i2c_packets_are_equal(packet, &packets[node->samples[i].packet_index])) {
 			struct i2c_packet_sample *sample = node->samples + i;
 			sample->packets_count += 1;
+			sample->last_timestamp_ms = packet->timestamp_ms;
 			sample->period_ms = (double)(packet->timestamp_ms - packets[sample->packet_index].timestamp_ms) / sample->packets_count;
 			sample->frequency_hz = 1000.0 / sample->period_ms;
 			return;
@@ -122,6 +129,7 @@ take_packet_into_account(size_t packet_index)
 	}
 	node->samples[node->samples_len].packet_index = packet_index;
 	node->samples[node->samples_len].packets_count = 1;
+	node->samples[node->samples_len].last_timestamp_ms = packet->timestamp_ms;
 	node->samples[node->samples_len].packet_string = i2c_packet_convert_to_string(packet);
 	node->samples[node->samples_len].period_ms = HUGE_VAL;
 	node->samples[node->samples_len].frequency_hz = 0;
@@ -149,45 +157,40 @@ device_handler(void *dummy)
 {
 	(void)dummy;
 	char c;
-	char *packet = xmalloc(sizeof(char) * INITIAL_PACKET_SIZE);
-	size_t packet_len = 0;
-	size_t packet_lim = INITIAL_PACKET_SIZE;
+	str packet = str_big(5000);
 	while (device_handler_must_finish == false) {
 		c = fgetc(log_stream);
 		if (c == '\n') {
-			if (packet_len < 4) {
-				packet_len = 0;
+			if (packet->len < 4) {
+				str_nul(packet);
 				continue;
 			}
 			pthread_mutex_lock(&data_lock);
-			make_sure_there_is_enough_room_for_another_packet();
-			if (i2c_packet_parse(&packets[packets_len], packet, packet_len) == false) {
-				packet_len = 0;
-				pthread_mutex_unlock(&data_lock);
-				continue;
+			if (memcmp(packet->ptr, "I2C", 3) == 0) {
+				make_sure_there_is_enough_room_for_another_i2c_packet();
+				if (i2c_packet_parse(&packets[packets_len], packet) == true) {
+					packets_len += 1;
+					if (packets_sel == 0) {
+						take_packet_into_account(packets_len - 1);
+						pthread_mutex_unlock(&data_lock);
+						try_to_update_menu();
+						pthread_mutex_lock(&data_lock);
+					}
+				}
+			} else if (memcmp(packet->ptr, "UART", 4) == 0) {
+				uart_packet_parse(packet);
 			}
-			packets_len += 1;
 			pthread_mutex_unlock(&data_lock);
-			if (packets_sel == 0) {
-				pthread_mutex_lock(&data_lock);
-				take_packet_into_account(packets_len - 1);
-				pthread_mutex_unlock(&data_lock);
-				try_to_update_menu();
-			}
-			packet_len = 0;
+			str_nul(packet);
 		} else if (c == EOF) {
 			fseek(log_stream, 0, SEEK_CUR);
 			nanosleep(&wait_data_delay, NULL);
 			try_to_update_menu();
 		} else {
-			if (packet_len >= packet_lim) {
-				packet_lim = packet_lim * 2 + 67;
-				packet = xrealloc(packet, sizeof(char) * packet_lim);
-			}
-			packet[packet_len++] = c;
+			str_add(packet, c);
 		}
 	}
-	free(packet);
+	str_free(packet);
 	return NULL;
 }
 
@@ -293,18 +296,25 @@ static void
 discard_one_packet(void)
 {
 	pthread_mutex_lock(&data_lock);
-	pthread_mutex_lock(&interface_lock);
+	// pthread_mutex_lock(&interface_lock); // Leads to deadlocks.
 	if (packets_sel == 0) {
 		packets_sel = packets_len;
 	} else {
 		destroy_nodes();
-		packets_sel = packets_sel > traverse_speed ? packets_sel - traverse_speed : 1;
+		for (size_t i = 0; i < traverse_speed; ++i) {
+			for (size_t j = packets_sel - 1; j > 0; --j) {
+				if (packets[j - 1].channel_index == channels_sel) {
+					packets_sel = j;
+					break;
+				}
+			}
+		}
 		for (size_t i = 0; i < packets_sel; ++i) {
 			take_packet_into_account(i);
 		}
 	}
+	// pthread_mutex_unlock(&interface_lock); // Leads to deadlocks.
 	pthread_mutex_unlock(&data_lock);
-	pthread_mutex_unlock(&interface_lock);
 	reset_list_menu();
 	display_history_position();
 }
@@ -314,12 +324,12 @@ discard_all_packets(void)
 {
 	if (packets_len == 0) return;
 	pthread_mutex_lock(&data_lock);
-	pthread_mutex_lock(&interface_lock);
+	// pthread_mutex_lock(&interface_lock); // Leads to deadlocks.
 	destroy_nodes();
 	packets_sel = 1;
 	take_packet_into_account(0);
+	// pthread_mutex_unlock(&interface_lock); // Leads to deadlocks.
 	pthread_mutex_unlock(&data_lock);
-	pthread_mutex_unlock(&interface_lock);
 	reset_list_menu();
 	display_history_position();
 }
@@ -329,13 +339,21 @@ apply_one_packet(void)
 {
 	if (packets_sel == 0) return;
 	pthread_mutex_lock(&data_lock);
-	pthread_mutex_lock(&interface_lock);
-	for (size_t i = 0; (i < traverse_speed) && (packets_sel < packets_len); ++i) {
-		take_packet_into_account(packets_sel);
-		packets_sel += 1;
+	// pthread_mutex_lock(&interface_lock); // Leads to deadlocks.
+	size_t old_packets_sel = packets_sel;
+	for (size_t i = 0; i < traverse_speed; ++i) {
+		for (size_t j = packets_sel + 1; j <= packets_len; ++j) {
+			if (packets[j - 1].channel_index == channels_sel) {
+				packets_sel = j;
+				break;
+			}
+		}
 	}
+	for (size_t i = old_packets_sel; i < packets_sel; ++i) {
+		take_packet_into_account(i);
+	}
+	// pthread_mutex_unlock(&interface_lock); // Leads to deadlocks.
 	pthread_mutex_unlock(&data_lock);
-	pthread_mutex_unlock(&interface_lock);
 	reset_list_menu();
 	display_history_position();
 }
@@ -345,14 +363,14 @@ apply_all_packets(void)
 {
 	if (packets_sel == 0) return;
 	pthread_mutex_lock(&data_lock);
-	pthread_mutex_lock(&interface_lock);
+	// pthread_mutex_lock(&interface_lock); // Leads to deadlocks.
 	packets_sel = 0;
 	destroy_nodes();
 	for (size_t i = 0; i < packets_len; ++i) {
 		take_packet_into_account(i);
 	}
+	// pthread_mutex_unlock(&interface_lock); // Leads to deadlocks.
 	pthread_mutex_unlock(&data_lock);
-	pthread_mutex_unlock(&interface_lock);
 	reset_list_menu();
 	display_history_position();
 }
@@ -391,7 +409,26 @@ enter_samples_menu(size_t node_index)
 				pthread_mutex_lock(&interface_lock);
 				clear();
 				refresh();
+				pthread_mutex_lock(&data_lock);
 				mvprintw(0, 0, "%s", channels[channels_sel].nodes[nodes_sel].samples[*view_sel - 3].packet_string);
+				pthread_mutex_unlock(&data_lock);
+				while (getch() == ERR) {
+					nanosleep(&input_delay, NULL);
+				}
+				redraw_list_menu_unprotected();
+				pthread_mutex_unlock(&interface_lock);
+			}
+		} else if (c == 'u') {
+			if (*view_sel > 2) {
+				pthread_mutex_lock(&interface_lock);
+				clear();
+				refresh();
+				pthread_mutex_lock(&data_lock);
+				str uart_log = get_uart_packets_string_to_some_point(channels[channels_sel].nodes[nodes_sel].samples[*view_sel - 3].last_timestamp_ms);
+				mvprintw(0, 0, "%s", uart_log->ptr);
+				str_free(uart_log);
+				pthread_mutex_unlock(&data_lock);
+				status_write_unprotected("Лог команд UART. Самые старые команды снизу!");
 				while (getch() == ERR) {
 					nanosleep(&input_delay, NULL);
 				}

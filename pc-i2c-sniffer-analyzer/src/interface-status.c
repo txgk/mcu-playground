@@ -31,9 +31,8 @@ status_recreate_unprotected(void)
 }
 
 void
-status_write(const char *format, ...)
+status_write_unprotected(const char *format, ...)
 {
-	pthread_mutex_lock(&interface_lock);
 	// We need a copy of args because first call to vsnprintf screws original
 	// argument list and we need to call vsnprintf after that.
 	va_list args, args_copy;
@@ -58,7 +57,6 @@ status_write(const char *format, ...)
 	write_status_message_to_status_window();
 undo:
 	va_end(args);
-	pthread_mutex_unlock(&interface_lock);
 }
 
 void

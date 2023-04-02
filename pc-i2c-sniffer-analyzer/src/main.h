@@ -1,14 +1,12 @@
 #ifndef MAIN_H
 #define MAIN_H
+#include "kge.h"
 #include <stdio.h>
 #include <stddef.h>
 #include <stdbool.h>
 #include <inttypes.h>
 #include <time.h>
 #include <pthread.h>
-
-#define ISDIGIT(A) (((A)=='0')||((A)=='1')||((A)=='2')||((A)=='3')||((A)=='4')||((A)=='5')||((A)=='6')||((A)=='7')||((A)=='8')||((A)=='9'))
-#define MIN(A, B) ((A) < (B) ? (A) : (B))
 
 enum {
 	OVERVIEW_MENU,
@@ -27,6 +25,7 @@ struct i2c_packet_sample {
 	size_t packet_index;
 	size_t packets_count;
 	char *packet_string;
+	uint32_t last_timestamp_ms;
 	double period_ms;
 	double frequency_hz;
 };
@@ -48,8 +47,7 @@ struct i2c_node {
 };
 
 struct i2c_channel {
-	char *name; // Terminated with NUL character.
-	size_t name_len;
+	str name;
 	struct i2c_node *nodes;
 	size_t nodes_len;
 };
@@ -63,10 +61,13 @@ size_t samples_menu_entries_counter(void);
 void enter_overview_menu(void);
 
 // See "i2c-packet.c" file for implementation.
-bool i2c_packet_parse(struct i2c_packet *dest, const char *src, size_t src_len);
+bool i2c_packet_parse(struct i2c_packet *dest, const str src);
 bool i2c_packets_are_equal(const struct i2c_packet *packet1, const struct i2c_packet *packet2);
 char *i2c_packet_convert_to_string(const struct i2c_packet *packet);
-const char *get_i2c_channel_name(size_t channel_index);
+
+// See "uart-packets.c" file for implementation.
+void uart_packet_parse(const str src);
+str get_uart_packets_string_to_some_point(uint32_t timestamp_ms);
 
 // See "interface.c" file for implementation.
 bool curses_init(void);
@@ -85,13 +86,8 @@ bool handle_list_menu_navigation(int c);
 
 // See "interface-status.c" file for implementation.
 bool status_recreate_unprotected(void);
-void status_write(const char *format, ...);
+void status_write_unprotected(const char *format, ...);
 void status_delete(void);
-
-// See "xalloc.c" file for implementation.
-void complain_about_insufficient_memory_and_exit(void);
-void *xmalloc(size_t size);
-void *xrealloc(void *src, size_t size);
 
 extern struct i2c_channel *channels;
 extern size_t channels_len;
