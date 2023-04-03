@@ -322,6 +322,10 @@ discard_one_sample(void)
 {
 	if (packets_len == 0) return;
 	pthread_mutex_lock(&data_lock);
+	if (nodes_sel >= channels[channels_sel].nodes_len) {
+		pthread_mutex_unlock(&data_lock);
+		return;
+	}
 	// pthread_mutex_lock(&interface_lock); // Leads to deadlocks.
 	if (packets_sel == 0) packets_sel = packets_len;
 	const size_t desired_address = channels[channels_sel].nodes[nodes_sel].address;
@@ -387,6 +391,10 @@ apply_one_sample(void)
 {
 	if (packets_sel == 0) return;
 	pthread_mutex_lock(&data_lock);
+	if (nodes_sel >= channels[channels_sel].nodes_len) {
+		pthread_mutex_unlock(&data_lock);
+		return;
+	}
 	// pthread_mutex_lock(&interface_lock); // Leads to deadlocks.
 	size_t old_packets_sel = packets_sel;
 	const size_t desired_address = channels[channels_sel].nodes[nodes_sel].address;
