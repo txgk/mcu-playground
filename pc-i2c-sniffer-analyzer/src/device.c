@@ -295,23 +295,47 @@ samples_menu_entries_counter(void)
 static void
 discard_one_packet(void)
 {
+	if (packets_len == 0) return;
 	pthread_mutex_lock(&data_lock);
 	// pthread_mutex_lock(&interface_lock); // Leads to deadlocks.
-	if (packets_sel == 0) {
-		packets_sel = packets_len;
-	} else {
-		destroy_nodes();
-		for (size_t i = 0; i < traverse_speed; ++i) {
-			for (size_t j = packets_sel - 1; j > 0; --j) {
-				if (packets[j - 1].channel_index == channels_sel) {
-					packets_sel = j;
-					break;
-				}
+	if (packets_sel == 0) packets_sel = packets_len;
+	destroy_nodes();
+	for (size_t i = 0; i < traverse_speed; ++i) {
+		for (size_t j = packets_sel - 1; j > 0; --j) {
+			if ((size_t)packets[j - 1].channel_index == channels_sel) {
+				packets_sel = j;
+				break;
 			}
 		}
-		for (size_t i = 0; i < packets_sel; ++i) {
-			take_packet_into_account(i);
+	}
+	for (size_t i = 0; i < packets_sel; ++i) {
+		take_packet_into_account(i);
+	}
+	// pthread_mutex_unlock(&interface_lock); // Leads to deadlocks.
+	pthread_mutex_unlock(&data_lock);
+	reset_list_menu();
+	display_history_position();
+}
+
+static void
+discard_one_sample(void)
+{
+	if (packets_len == 0) return;
+	pthread_mutex_lock(&data_lock);
+	// pthread_mutex_lock(&interface_lock); // Leads to deadlocks.
+	if (packets_sel == 0) packets_sel = packets_len;
+	const size_t desired_address = channels[channels_sel].nodes[nodes_sel].address;
+	destroy_nodes();
+	for (size_t i = 0; i < traverse_speed; ++i) {
+		for (size_t j = packets_sel - 1; j > 0; --j) {
+			if (((size_t)packets[j - 1].channel_index == channels_sel) && ((packets[j - 1].data[0] >> 1) == desired_address)) {
+				packets_sel = j;
+				break;
+			}
 		}
+	}
+	for (size_t i = 0; i < packets_sel; ++i) {
+		take_packet_into_account(i);
 	}
 	// pthread_mutex_unlock(&interface_lock); // Leads to deadlocks.
 	pthread_mutex_unlock(&data_lock);
@@ -343,7 +367,32 @@ apply_one_packet(void)
 	size_t old_packets_sel = packets_sel;
 	for (size_t i = 0; i < traverse_speed; ++i) {
 		for (size_t j = packets_sel + 1; j <= packets_len; ++j) {
-			if (packets[j - 1].channel_index == channels_sel) {
+			if ((size_t)packets[j - 1].channel_index == channels_sel) {
+				packets_sel = j;
+				break;
+			}
+		}
+	}
+	for (size_t i = old_packets_sel; i < packets_sel; ++i) {
+		take_packet_into_account(i);
+	}
+	// pthread_mutex_unlock(&interface_lock); // Leads to deadlocks.
+	pthread_mutex_unlock(&data_lock);
+	reset_list_menu();
+	display_history_position();
+}
+
+static void
+apply_one_sample(void)
+{
+	if (packets_sel == 0) return;
+	pthread_mutex_lock(&data_lock);
+	// pthread_mutex_lock(&interface_lock); // Leads to deadlocks.
+	size_t old_packets_sel = packets_sel;
+	const size_t desired_address = channels[channels_sel].nodes[nodes_sel].address;
+	for (size_t i = 0; i < traverse_speed; ++i) {
+		for (size_t j = packets_sel + 1; j <= packets_len; ++j) {
+			if (((size_t)packets[j - 1].channel_index == channels_sel) && ((packets[j - 1].data[0] >> 1) == desired_address)) {
 				packets_sel = j;
 				break;
 			}
@@ -404,6 +453,14 @@ enter_samples_menu(size_t node_index)
 		pthread_mutex_unlock(&interface_lock);
 		if (handle_list_menu_navigation(c) == true) {
 			// Rest a little.
+		} else if (c == ',') {
+			discard_one_sample();
+		} else if (c == '<') {
+			discard_all_packets();
+		} else if (c == '.') {
+			apply_one_sample();
+		} else if (c == '>') {
+			apply_all_packets();
 		} else if ((c == '\n') || (c == KEY_RIGHT)) {
 			if (*view_sel > 2) {
 				pthread_mutex_lock(&interface_lock);
