@@ -1,6 +1,6 @@
 #!/bin/sh
 
-device_ip='192.168.4.1'
+device_ip='192.168.102.41'
 port='80'
 log_dir='/tmp/i2c-dumps'
 log_path="$log_dir/$(date +'%Y%m%d-%H%M%S')"
