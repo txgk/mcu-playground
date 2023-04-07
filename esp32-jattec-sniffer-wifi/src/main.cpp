@@ -1,3 +1,4 @@
+#include <string.h>
 #include <Arduino.h>
 #include <WiFi.h>
 #include "wifi-credentials.h"
@@ -8,6 +9,7 @@
 #define SCL2_PIN                         35
 #define SERIAL_SPEED                     9600
 #define WIFI_DATA_PORT                   80
+#define WIFI_CTRL_PORT                   81
 #define SDA                              ((REG_READ(GPIO_IN1_REG)) & 0b0001)
 #define SCL                              ((REG_READ(GPIO_IN1_REG)) & 0b0010)
 #define SDA2                             ((REG_READ(GPIO_IN1_REG)) & 0b0100)
@@ -41,10 +43,19 @@
 #define UART_BUFFER_SIZE                 1000
 
 #define LENGTH_OF(A)                     (sizeof(A)/sizeof(*A))
+#define ISDIGIT(A) (((A)=='0')||((A)=='1')||((A)=='2')||((A)=='3')||((A)=='4')||((A)=='5')||((A)=='6')||((A)=='7')||((A)=='8')||((A)=='9'))
+
+struct instruction_entry {
+	char *data;
+	size_t data_len;
+	bool enabled;
+};
 
 SemaphoreHandle_t wifi_lock = NULL;
-WiFiServer server(WIFI_DATA_PORT);
-WiFiClient client;
+WiFiServer streamer(WIFI_DATA_PORT);
+WiFiServer manager(WIFI_CTRL_PORT);
+WiFiClient listener;
+WiFiClient tuner;
 
 IPAddress ip(192, 168, 102, 41);
 IPAddress gateway(192, 168, 102, 99);
@@ -56,27 +67,117 @@ volatile uint8_t b, c;
 char i2c1[I2C1_BUFFER_SIZE], i2c2[I2C2_BUFFER_SIZE];
 volatile size_t i2c1_len = 0, i2c2_len = 0;
 
+char engine_id = '1';
+
+char **fast_queue = NULL;
+volatile size_t fast_queue_pos = 0;
+volatile size_t fast_queue_len = 0;
+SemaphoreHandle_t fast_queue_lock = NULL;
+
+volatile struct instruction_entry *uart_circle = NULL;
+volatile size_t uart_circle_pos = 0;
+volatile size_t uart_circle_len = 0;
+SemaphoreHandle_t uart_circle_lock = NULL;
+
 char uart[UART_BUFFER_SIZE];
 volatile size_t uart_len = 0;
-const char *uart_commands[] = {
-	"1,RAC,1\r",
-	"1,RSS,1\r",
-	"1,RFI,1\r",
-	"1,RAI,1\r",
-	"1,RRC,1\r",
-	"1,RI1,1\r",
-};
+
+void
+add_command_to_fast_queue(const char *cmd, size_t cmd_len)
+{
+	if (xSemaphoreTake(fast_queue_lock, portMAX_DELAY) == pdTRUE) {
+		char **tmp = (char **)realloc(fast_queue, sizeof(char *) * (fast_queue_len + 1));
+		if (tmp != NULL) {
+			fast_queue = tmp;
+			fast_queue[fast_queue_len] = (char *)malloc(sizeof(char) * (cmd_len + 1));
+			memcpy(fast_queue[fast_queue_len], cmd, cmd_len);
+			fast_queue[fast_queue_len][cmd_len] = '\0';
+			fast_queue_len += 1;
+		}
+		xSemaphoreGive(fast_queue_lock);
+	}
+}
+
+bool
+try_to_write_current_command_from_fast_queue_to_serial(void)
+{
+	bool wrote = false;
+	if (xSemaphoreTake(fast_queue_lock, portMAX_DELAY) == pdTRUE) {
+		if ((fast_queue != NULL) && (fast_queue_len != 0)) {
+			if (fast_queue_pos == fast_queue_len) {
+				free(fast_queue);
+				fast_queue = NULL;
+				fast_queue_pos = 0;
+				fast_queue_len = 0;
+			} else {
+				wrote = true;
+				Serial.write(fast_queue[fast_queue_pos]);
+				Serial.write('\r');
+				fast_queue_pos += 1;
+			}
+		}
+		xSemaphoreGive(fast_queue_lock);
+	}
+	return wrote;
+}
+
+void
+add_command_to_uart_circle(const char *cmd, size_t cmd_len, bool enable)
+{
+	if (xSemaphoreTake(uart_circle_lock, portMAX_DELAY) == pdTRUE) {
+		for (size_t i = 0; i < uart_circle_len; ++i) {
+			if ((cmd_len == uart_circle[i].data_len) && (strncmp(cmd, uart_circle[i].data, cmd_len) == 0)) {
+				uart_circle[i].enabled = enable;
+				xSemaphoreGive(uart_circle_lock);
+				return;
+			}
+		}
+		struct instruction_entry *tmp = (struct instruction_entry *)realloc((void *)uart_circle, sizeof(struct instruction_entry) * (uart_circle_len + 1));
+		if (tmp != NULL) {
+			uart_circle = tmp;
+			uart_circle[uart_circle_len].data = (char *)malloc(sizeof(char) * (cmd_len + 1));
+			memcpy(uart_circle[uart_circle_len].data, cmd, cmd_len);
+			uart_circle[uart_circle_len].data[cmd_len] = '\0';
+			uart_circle[uart_circle_len].data_len = cmd_len;
+			uart_circle[uart_circle_len].enabled = enable;
+			uart_circle_len += 1;
+		}
+		xSemaphoreGive(uart_circle_lock);
+	}
+}
+
+bool
+try_to_write_next_command_from_uart_circle(void)
+{
+	if (xSemaphoreTake(uart_circle_lock, portMAX_DELAY) == pdTRUE) {
+		for (size_t i = 0; i < uart_circle_len; ++i) {
+			uart_circle_pos += 1;
+			if (uart_circle_pos >= uart_circle_len) {
+				uart_circle_pos = 0;
+			}
+			if (uart_circle[uart_circle_pos].enabled) {
+				char buf[200];
+				sprintf(buf, "1,%s,%c\r", uart_circle[uart_circle_pos].data, engine_id);
+				Serial.write(buf);
+				xSemaphoreGive(uart_circle_lock);
+				return true;
+			}
+		}
+		xSemaphoreGive(uart_circle_lock);
+	}
+	return false;
+}
 
 void
 print_data(const char *data, size_t data_len)
 {
 	if (xSemaphoreTake(wifi_lock, portMAX_DELAY) == pdTRUE) {
-		if (client.connected()) {
-			client.write(data, data_len);
+		if (listener.connected()) {
+			listener.write(data, data_len);
 		} else {
-			client = server.available();
-			if (client.connected()) {
-				client.write(data, data_len);
+			listener = streamer.available();
+			if (listener.connected()) {
+				listener.write(data, data_len);
 			}
 		}
 		xSemaphoreGive(wifi_lock);
@@ -220,25 +321,77 @@ i2c2_next:
 void IRAM_ATTR
 uart_loop(void *dummy)
 {
-	size_t i = 0;
+	size_t packet_ends;
 	while (true) {
-		Serial.write(uart_commands[i]);
-		vTaskDelay(100 / portTICK_PERIOD_MS);
-		if (Serial.available()) {
-			uart_len = sprintf(uart, "\nUART@%lu=", millis());
+		if (try_to_write_current_command_from_fast_queue_to_serial() == false) {
+			if (try_to_write_next_command_from_uart_circle() == false) {
+				vTaskDelay(50 / portTICK_PERIOD_MS);
+				continue;
+			}
+		}
+		do {
+			vTaskDelay(50 / portTICK_PERIOD_MS);
+		} while (Serial.available() == 0);
+		packet_ends = 0;
+		uart_len = snprintf(uart, UART_BUFFER_SIZE, "\nUART@%lu=", millis());
+		do {
 			do {
 				if (uart_len < UART_BUFFER_SIZE) {
 					uart[uart_len++] = Serial.read();
 					if (uart[uart_len - 1] == '\r') {
 						uart[uart_len - 1] = '~';
+						packet_ends += 1;
 					}
 				}
 			} while (Serial.available());
-			print_data(uart, uart_len);
+			vTaskDelay(50 / portTICK_PERIOD_MS);
+		} while (packet_ends < 2);
+		print_data(uart, uart_len);
+		vTaskDelay(10 / portTICK_PERIOD_MS);
+	}
+}
+
+void IRAM_ATTR
+tuner_handler(void *dummy)
+{
+#define CMD_SIZE 100
+	char cmd[CMD_SIZE];
+	uint8_t cmd_len;
+	while (1) {
+		if (tuner.connected()) {
+			if (tuner.available() > 0) {
+				cmd_len = 0;
+				do {
+					cmd[cmd_len++] = tuner.read();
+				} while ((tuner.available() > 0) && (cmd_len < CMD_SIZE));
+				if (cmd_len > 1) {
+					if (cmd[0] == '1') { // send command once
+						add_command_to_fast_queue(cmd, cmd_len);
+					} else if ((cmd[0] == '+') || (cmd[0] == '-')) { // toggle task/command
+						bool enable = cmd[0] == '+' ? true : false;
+#define INSTRUCTION_SIZE 10
+						char instruction[10];
+						uint8_t instruction_len = 0;
+						for (uint8_t i = 1; i < cmd_len; ++i) {
+							if (cmd[i] == ',') {
+								add_command_to_uart_circle(instruction, instruction_len, enable);
+								instruction_len = 0;
+							} else if (instruction_len < INSTRUCTION_SIZE) {
+								instruction[instruction_len++] = cmd[i];
+							}
+						}
+						if (instruction_len != 0) {
+							add_command_to_uart_circle(instruction, instruction_len, enable);
+						}
+					} else if (cmd[0] == 'n') { // set default engine id
+						engine_id = cmd[1];
+					}
+				}
+			}
+		} else {
+			tuner = manager.available();
 		}
-		vTaskDelay(500 / portTICK_PERIOD_MS);
-		i += 1;
-		if (i >= LENGTH_OF(uart_commands)) i = 0;
+		vTaskDelay(100 / portTICK_PERIOD_MS);
 	}
 }
 
@@ -255,17 +408,21 @@ setup(void)
 	gpio_config(&cfg);
 	Serial.begin(SERIAL_SPEED);
 	wifi_lock = xSemaphoreCreateMutex();
+	fast_queue_lock = xSemaphoreCreateMutex();
+	uart_circle_lock = xSemaphoreCreateMutex();
+	add_command_to_uart_circle("RAC", 3, true);
 	WiFi.config(ip, gateway, subnet, primary_dns, secondary_dns);
 	WiFi.begin(WIFI_SSID, WIFI_PASSWORD);
 	while (WiFi.status() != WL_CONNECTED) {
 		Serial.println("Not connected to Wi-Fi yet!");
 		delay(1000);
 	}
-	server.begin();
+	streamer.begin();
+	manager.begin();
 	delay(1000);
 	while (1) {
-		client = server.available();
-		if (client.connected()) {
+		listener = streamer.available();
+		if (listener.connected()) {
 			break;
 		}
 		delay(500);
@@ -297,10 +454,19 @@ setup(void)
 		NULL, // handle
 		1 // core
 	);
+	xTaskCreatePinnedToCore(
+		&tuner_handler,
+		"tuner_handler",
+		2048, // stack size
+		NULL, // argument
+		1, // priority
+		NULL, // handle
+		1 // core
+	);
 }
 
 void
 loop(void)
 {
-	delay(100);
+	delay(1000);
 }
