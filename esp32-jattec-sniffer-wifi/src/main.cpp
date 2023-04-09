@@ -42,7 +42,6 @@
 #define I2C2_BUFFER_SIZE                 4000
 #define UART_BUFFER_SIZE                 1000
 
-#define LENGTH_OF(A)                     (sizeof(A)/sizeof(*A))
 #define ISDIGIT(A) (((A)=='0')||((A)=='1')||((A)=='2')||((A)=='3')||((A)=='4')||((A)=='5')||((A)=='6')||((A)=='7')||((A)=='8')||((A)=='9'))
 
 struct instruction_entry {
@@ -51,17 +50,21 @@ struct instruction_entry {
 	bool enabled;
 };
 
+void start_i2c1_handler(void);
+void start_i2c2_handler(void);
+void start_uart_handler(void);
+
+IPAddress            ip(192, 168, 102,  41);
+IPAddress       gateway(192, 168, 102,  99);
+IPAddress        subnet(255, 255, 255,   0);
+IPAddress   primary_dns( 77,  88,   8,   8);
+IPAddress secondary_dns( 77,  88,   8,   1);
+
 SemaphoreHandle_t wifi_lock = NULL;
 WiFiServer streamer(WIFI_DATA_PORT);
 WiFiServer manager(WIFI_CTRL_PORT);
 WiFiClient listener;
 WiFiClient tuner;
-
-IPAddress ip(192, 168, 102, 41);
-IPAddress gateway(192, 168, 102, 99);
-IPAddress subnet(255, 255, 255, 0);
-IPAddress primary_dns(77, 88, 8, 8);
-IPAddress secondary_dns(77, 88, 8, 1);
 
 volatile uint8_t b, c;
 char i2c1[I2C1_BUFFER_SIZE], i2c2[I2C2_BUFFER_SIZE];
@@ -81,6 +84,10 @@ SemaphoreHandle_t uart_circle_lock = NULL;
 
 char uart[UART_BUFFER_SIZE];
 volatile size_t uart_len = 0;
+
+volatile bool i2c1_allowed_to_run = true, i2c1_has_stopped = false;
+volatile bool i2c2_allowed_to_run = true, i2c2_has_stopped = false;
+volatile bool uart_allowed_to_run = true, uart_has_stopped = false;
 
 void
 add_command_to_fast_queue(const char *cmd, size_t cmd_len)
@@ -124,6 +131,42 @@ try_to_write_current_command_from_fast_queue_to_serial(void)
 void
 add_command_to_uart_circle(const char *cmd, size_t cmd_len, bool enable)
 {
+	if (cmd_len == 4) {
+		if (strncmp(cmd, "I2C1", 4) == 0) {
+			if (i2c1_allowed_to_run != enable) {
+				if ((enable > i2c1_allowed_to_run) && (i2c1_has_stopped == true)) {
+					i2c1_has_stopped = false;
+					i2c1_allowed_to_run = enable;
+					start_i2c1_handler();
+				} else {
+					i2c1_allowed_to_run = enable;
+				}
+			}
+			return;
+		} else if (strncmp(cmd, "I2C2", 4) == 0) {
+			if (i2c2_allowed_to_run != enable) {
+				if ((enable > i2c2_allowed_to_run) && (i2c2_has_stopped == true)) {
+					i2c2_has_stopped = false;
+					i2c2_allowed_to_run = enable;
+					start_i2c2_handler();
+				} else {
+					i2c2_allowed_to_run = enable;
+				}
+			}
+			return;
+		} else if (strncmp(cmd, "UART", 4) == 0) {
+			if (uart_allowed_to_run != enable) {
+				if ((enable > uart_allowed_to_run) && (uart_has_stopped == true)) {
+					uart_has_stopped = false;
+					uart_allowed_to_run = enable;
+					start_uart_handler();
+				} else {
+					uart_allowed_to_run = enable;
+				}
+			}
+			return;
+		}
+	}
 	if (xSemaphoreTake(uart_circle_lock, portMAX_DELAY) == pdTRUE) {
 		for (size_t i = 0; i < uart_circle_len; ++i) {
 			if ((cmd_len == uart_circle[i].data_len) && (strncmp(cmd, uart_circle[i].data, cmd_len) == 0)) {
@@ -193,6 +236,10 @@ i2c1_idle:
 	WAIT_FOR_SDA_OR_SCL_DROP;
 	if (!SDA_IS_LOW_AND_SCL_IS_HIGH) goto i2c1_sync;
 i2c1_start:
+	if (i2c1_allowed_to_run == false) {
+		i2c1_has_stopped = true;
+		vTaskDelete(NULL);
+	}
 	i2c1_len = sprintf(i2c1, "\nI2C1@%lu=", millis());
 	WAIT_SCL_DROP;
 	WAIT_SCL_RISE; b  = SDA; b <<= 1; WAIT_SCL_DROP;
@@ -260,6 +307,10 @@ i2c2_idle:
 	WAIT_FOR_SDA2_OR_SCL2_DROP;
 	if (!SDA2_IS_LOW_AND_SCL2_IS_HIGH) goto i2c2_sync;
 i2c2_start:
+	if (i2c2_allowed_to_run == false) {
+		i2c2_has_stopped = true;
+		vTaskDelete(NULL);
+	}
 	i2c2_len = sprintf(i2c2, "\nI2C2@%lu=", millis());
 	WAIT_SCL2_DROP;
 	WAIT_SCL2_RISE; c  = SDA2; c <<= 1; WAIT_SCL2_DROP;
@@ -322,7 +373,7 @@ void IRAM_ATTR
 uart_loop(void *dummy)
 {
 	size_t packet_ends;
-	while (true) {
+	while (uart_allowed_to_run == true) {
 		if (try_to_write_current_command_from_fast_queue_to_serial() == false) {
 			if (try_to_write_next_command_from_uart_circle() == false) {
 				vTaskDelay(50 / portTICK_PERIOD_MS);
@@ -349,6 +400,8 @@ uart_loop(void *dummy)
 		print_data(uart, uart_len);
 		vTaskDelay(10 / portTICK_PERIOD_MS);
 	}
+	uart_has_stopped = true;
+	vTaskDelete(NULL);
 }
 
 void IRAM_ATTR
@@ -396,6 +449,48 @@ tuner_handler(void *dummy)
 }
 
 void
+start_i2c1_handler(void)
+{
+	xTaskCreatePinnedToCore(
+		&i2c1_handler,
+		"i2c1_handler",
+		2048, // stack size
+		NULL, // argument
+		1, // priority
+		NULL, // handle
+		1 // core
+	);
+}
+
+void
+start_i2c2_handler(void)
+{
+	xTaskCreatePinnedToCore(
+		&i2c2_handler,
+		"i2c2_handler",
+		2048, // stack size
+		NULL, // argument
+		1, // priority
+		NULL, // handle
+		1 // core
+	);
+}
+
+void
+start_uart_handler(void)
+{
+	xTaskCreatePinnedToCore(
+		&uart_loop,
+		"uart_loop",
+		2048, // stack size
+		NULL, // argument
+		1, // priority
+		NULL, // handle
+		1 // core
+	);
+}
+
+void
 setup(void)
 {
 	gpio_config_t cfg = {
@@ -406,20 +501,19 @@ setup(void)
 		GPIO_INTR_DISABLE,
 	};
 	gpio_config(&cfg);
-	Serial.begin(SERIAL_SPEED);
 	wifi_lock = xSemaphoreCreateMutex();
 	fast_queue_lock = xSemaphoreCreateMutex();
 	uart_circle_lock = xSemaphoreCreateMutex();
+	Serial.begin(SERIAL_SPEED);
 	add_command_to_uart_circle("RAC", 3, true);
 	WiFi.config(ip, gateway, subnet, primary_dns, secondary_dns);
 	WiFi.begin(WIFI_SSID, WIFI_PASSWORD);
 	while (WiFi.status() != WL_CONNECTED) {
-		Serial.println("Not connected to Wi-Fi yet!");
-		delay(1000);
+		delay(500);
 	}
 	streamer.begin();
 	manager.begin();
-	delay(1000);
+	delay(500);
 	while (1) {
 		listener = streamer.available();
 		if (listener.connected()) {
@@ -427,33 +521,9 @@ setup(void)
 		}
 		delay(500);
 	}
-	xTaskCreatePinnedToCore(
-		&i2c1_handler,
-		"i2c1_handler",
-		2048, // stack size
-		NULL, // argument
-		1, // priority
-		NULL, // handle
-		1 // core
-	);
-	xTaskCreatePinnedToCore(
-		&i2c2_handler,
-		"i2c2_handler",
-		2048, // stack size
-		NULL, // argument
-		1, // priority
-		NULL, // handle
-		1 // core
-	);
-	xTaskCreatePinnedToCore(
-		&uart_loop,
-		"uart_loop",
-		2048, // stack size
-		NULL, // argument
-		1, // priority
-		NULL, // handle
-		1 // core
-	);
+	start_i2c1_handler();
+	start_i2c2_handler();
+	start_uart_handler();
 	xTaskCreatePinnedToCore(
 		&tuner_handler,
 		"tuner_handler",
