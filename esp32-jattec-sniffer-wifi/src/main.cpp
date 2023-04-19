@@ -63,7 +63,6 @@ IPAddress secondary_dns( 77,  88,   8,   1);
 SemaphoreHandle_t wifi_lock = NULL;
 WiFiServer streamer(WIFI_DATA_PORT);
 WiFiServer manager(WIFI_CTRL_PORT);
-WiFiClient listener;
 WiFiClient tuner;
 
 volatile uint8_t b, c;
@@ -106,7 +105,7 @@ add_command_to_fast_queue(const char *cmd, size_t cmd_len)
 }
 
 bool
-try_to_write_current_command_from_fast_queue_to_serial(void)
+try_to_write_next_command_from_fast_queue_to_serial(void)
 {
 	bool wrote = false;
 	if (xSemaphoreTake(fast_queue_lock, portMAX_DELAY) == pdTRUE) {
@@ -190,8 +189,9 @@ add_command_to_uart_circle(const char *cmd, size_t cmd_len, bool enable)
 }
 
 bool
-try_to_write_next_command_from_uart_circle(void)
+try_to_write_next_command_from_uart_circle_to_serial(void)
 {
+	bool status = false;
 	if (xSemaphoreTake(uart_circle_lock, portMAX_DELAY) == pdTRUE) {
 		for (size_t i = 0; i < uart_circle_len; ++i) {
 			uart_circle_pos += 1;
@@ -199,30 +199,23 @@ try_to_write_next_command_from_uart_circle(void)
 				uart_circle_pos = 0;
 			}
 			if (uart_circle[uart_circle_pos].enabled) {
-				char buf[200];
-				sprintf(buf, "1,%s,%c\r", uart_circle[uart_circle_pos].data, engine_id);
+				char buf[50];
+				snprintf(buf, 50, "1,%s,%c\r", uart_circle[uart_circle_pos].data, engine_id);
 				Serial.write(buf);
-				xSemaphoreGive(uart_circle_lock);
-				return true;
+				status = true;
+				break;
 			}
 		}
 		xSemaphoreGive(uart_circle_lock);
 	}
-	return false;
+	return status;
 }
 
 void
-print_data(const char *data, size_t data_len)
+send_data(const char *data, size_t data_len)
 {
 	if (xSemaphoreTake(wifi_lock, portMAX_DELAY) == pdTRUE) {
-		if (listener.connected()) {
-			listener.write(data, data_len);
-		} else {
-			listener = streamer.available();
-			if (listener.connected()) {
-				listener.write(data, data_len);
-			}
-		}
+		streamer.write(data, data_len);
 		xSemaphoreGive(wifi_lock);
 	}
 }
@@ -255,7 +248,7 @@ i2c1_start:
 	if (SDA) {
 		WAIT_SCL_DROP;
 		i2c1[i2c1_len++] = NOT_ACKNOWLEDGED;
-		print_data(i2c1, i2c1_len);
+		send_data(i2c1, i2c1_len);
 		goto i2c1_sync;
 	} else {
 		WAIT_SCL_DROP;
@@ -288,7 +281,7 @@ i2c1_next:
 	} else {
 		WAIT_FOR_SDA_RISE_OR_SCL_DROP;
 		if (SDA_AND_SCL_ARE_HIGH) { // Stop signal.
-			print_data(i2c1, i2c1_len);
+			send_data(i2c1, i2c1_len);
 			goto i2c1_sync;
 		}
 	}
@@ -326,7 +319,7 @@ i2c2_start:
 	if (SDA2) {
 		WAIT_SCL2_DROP;
 		i2c2[i2c2_len++] = NOT_ACKNOWLEDGED;
-		print_data(i2c2, i2c2_len);
+		send_data(i2c2, i2c2_len);
 		goto i2c2_sync;
 	} else {
 		WAIT_SCL2_DROP;
@@ -359,7 +352,7 @@ i2c2_next:
 	} else {
 		WAIT_FOR_SDA2_RISE_OR_SCL2_DROP;
 		if (SDA2_AND_SCL2_ARE_HIGH) { // Stop signal.
-			print_data(i2c2, i2c2_len);
+			send_data(i2c2, i2c2_len);
 			goto i2c2_sync;
 		}
 	}
@@ -373,32 +366,42 @@ void IRAM_ATTR
 uart_loop(void *dummy)
 {
 	size_t packet_ends;
+	unsigned long packet_birth;
 	while (uart_allowed_to_run == true) {
-		if (try_to_write_current_command_from_fast_queue_to_serial() == false) {
-			if (try_to_write_next_command_from_uart_circle() == false) {
+		if (try_to_write_next_command_from_fast_queue_to_serial() == false) {
+			if (try_to_write_next_command_from_uart_circle_to_serial() == false) {
 				vTaskDelay(50 / portTICK_PERIOD_MS);
 				continue;
 			}
 		}
-		do {
-			vTaskDelay(50 / portTICK_PERIOD_MS);
-		} while (Serial.available() == 0);
 		packet_ends = 0;
-		uart_len = snprintf(uart, UART_BUFFER_SIZE, "\nUART@%lu=", millis());
-		do {
-			do {
+		packet_birth = millis();
+		uart_len = snprintf(uart, UART_BUFFER_SIZE, "\nUART@%lu=", packet_birth);
+		while (true) {
+			if (Serial.available() > 0) {
 				if (uart_len < UART_BUFFER_SIZE) {
 					uart[uart_len++] = Serial.read();
 					if (uart[uart_len - 1] == '\r') {
 						uart[uart_len - 1] = '~';
 						packet_ends += 1;
+						if (packet_ends > 1) {
+							send_data(uart, uart_len);
+							break;
+						}
 					}
+				} else {
+					Serial.read();
 				}
-			} while (Serial.available());
-			vTaskDelay(50 / portTICK_PERIOD_MS);
-		} while (packet_ends < 2);
-		print_data(uart, uart_len);
-		vTaskDelay(10 / portTICK_PERIOD_MS);
+			} else if (millis() > packet_birth + 2000) {
+				break;
+			} else {
+				vTaskDelay(50 / portTICK_PERIOD_MS);
+			}
+		}
+		// Discard leftovers.
+		while (Serial.available() > 0) {
+			Serial.read();
+		}
 	}
 	uart_has_stopped = true;
 	vTaskDelete(NULL);
@@ -506,6 +509,7 @@ setup(void)
 	uart_circle_lock = xSemaphoreCreateMutex();
 	Serial.begin(SERIAL_SPEED);
 	add_command_to_uart_circle("RAC", 3, true);
+	add_command_to_uart_circle("RFI", 3, true);
 	WiFi.config(ip, gateway, subnet, primary_dns, secondary_dns);
 	WiFi.begin(WIFI_SSID, WIFI_PASSWORD);
 	while (WiFi.status() != WL_CONNECTED) {
@@ -513,14 +517,6 @@ setup(void)
 	}
 	streamer.begin();
 	manager.begin();
-	delay(500);
-	while (1) {
-		listener = streamer.available();
-		if (listener.connected()) {
-			break;
-		}
-		delay(500);
-	}
 	start_i2c1_handler();
 	start_i2c2_handler();
 	start_uart_handler();
