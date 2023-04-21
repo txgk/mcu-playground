@@ -1,5 +1,5 @@
 #include <WiFi.h>
-#include "wifi-credentials.h"
+#include "../../wifi-credentials.h"
 
 #define CONTROL_PORT 882
 #define STREAM_PORT 80

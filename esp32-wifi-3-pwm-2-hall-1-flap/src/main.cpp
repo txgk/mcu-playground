@@ -1,5 +1,5 @@
 #include <WiFi.h>
-#include "wifi-credentials.h"
+#include "../../wifi-credentials.h"
 
 #define DATA_LIM 42000
 #define DEFAULT_SAMPLING_RESOLUTION 1000

@@ -3,7 +3,7 @@
 #include <ESPmDNS.h>
 #include <WiFiUdp.h>
 #include <ArduinoOTA.h>
-#include "wifi-credentials.h"
+#include "../../wifi-credentials.h"
 
 void setup() {
 	Serial.begin(115200);

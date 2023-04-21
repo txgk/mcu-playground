@@ -1,6 +1,6 @@
 #include <Arduino.h>
 #include <WiFi.h>
-#include "wifi-credentials.h"
+#include "../../wifi-credentials.h"
 
 #define SDA_PIN                          32
 #define SCL_PIN                          33
