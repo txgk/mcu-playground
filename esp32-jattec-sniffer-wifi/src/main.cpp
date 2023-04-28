@@ -1,12 +1,15 @@
 #include <string.h>
 #include <Arduino.h>
 #include <WiFi.h>
+#include <ArduinoOTA.h>
 #include "../../wifi-credentials.h"
 
 #define SDA_PIN                          32
 #define SCL_PIN                          33
 #define SDA2_PIN                         34
 #define SCL2_PIN                         35
+#define RX_PIN                           16
+#define TX_PIN                           17
 #define SERIAL_SPEED                     9600
 #define WIFI_DATA_PORT                   80
 #define WIFI_CTRL_PORT                   81
@@ -117,8 +120,8 @@ try_to_write_next_command_from_fast_queue_to_serial(void)
 				fast_queue_len = 0;
 			} else {
 				wrote = true;
-				Serial.write(fast_queue[fast_queue_pos]);
-				Serial.write('\r');
+				Serial1.write(fast_queue[fast_queue_pos]);
+				Serial1.write('\r');
 				fast_queue_pos += 1;
 			}
 		}
@@ -201,7 +204,7 @@ try_to_write_next_command_from_uart_circle_to_serial(void)
 			if (uart_circle[uart_circle_pos].enabled) {
 				char buf[50];
 				snprintf(buf, 50, "1,%s,%c\r", uart_circle[uart_circle_pos].data, engine_id);
-				Serial.write(buf);
+				Serial1.write(buf);
 				status = true;
 				break;
 			}
@@ -215,7 +218,9 @@ void
 send_data(const char *data, size_t data_len)
 {
 	if (xSemaphoreTake(wifi_lock, portMAX_DELAY) == pdTRUE) {
-		streamer.write(data, data_len);
+		if (streamer.available()) {
+			streamer.write(data, data_len);
+		}
 		xSemaphoreGive(wifi_lock);
 	}
 }
@@ -378,9 +383,9 @@ uart_loop(void *dummy)
 		packet_birth = millis();
 		uart_len = snprintf(uart, UART_BUFFER_SIZE, "\nUART@%lu=", packet_birth);
 		while (true) {
-			if (Serial.available() > 0) {
+			if (Serial1.available() > 0) {
 				if (uart_len < UART_BUFFER_SIZE) {
-					uart[uart_len++] = Serial.read();
+					uart[uart_len++] = Serial1.read();
 					if (uart[uart_len - 1] == '\r') {
 						uart[uart_len - 1] = '~';
 						packet_ends += 1;
@@ -390,7 +395,7 @@ uart_loop(void *dummy)
 						}
 					}
 				} else {
-					Serial.read();
+					Serial1.read();
 				}
 			} else if (millis() > packet_birth + 2000) {
 				break;
@@ -399,8 +404,8 @@ uart_loop(void *dummy)
 			}
 		}
 		// Discard leftovers.
-		while (Serial.available() > 0) {
-			Serial.read();
+		while (Serial1.available() > 0) {
+			Serial1.read();
 		}
 	}
 	uart_has_stopped = true;
@@ -507,7 +512,7 @@ setup(void)
 	wifi_lock = xSemaphoreCreateMutex();
 	fast_queue_lock = xSemaphoreCreateMutex();
 	uart_circle_lock = xSemaphoreCreateMutex();
-	Serial.begin(SERIAL_SPEED);
+	Serial1.begin(SERIAL_SPEED, SERIAL_8N1, RX_PIN, TX_PIN);
 	add_command_to_uart_circle("RAC", 3, true);
 	add_command_to_uart_circle("RFI", 3, true);
 	WiFi.config(ip, gateway, subnet, primary_dns, secondary_dns);
@@ -515,6 +520,7 @@ setup(void)
 	while (WiFi.status() != WL_CONNECTED) {
 		delay(500);
 	}
+	ArduinoOTA.begin();
 	streamer.begin();
 	manager.begin();
 	start_i2c1_handler();
@@ -534,5 +540,9 @@ setup(void)
 void
 loop(void)
 {
+	if (xSemaphoreTake(wifi_lock, portMAX_DELAY) == pdTRUE) {
+		ArduinoOTA.handle();
+		xSemaphoreGive(wifi_lock);
+	}
 	delay(1000);
 }
