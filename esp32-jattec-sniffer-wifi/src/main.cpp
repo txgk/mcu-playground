@@ -413,6 +413,22 @@ uart_loop(void *dummy)
 }
 
 void IRAM_ATTR
+heartbeat_loop(void *dummy)
+{
+	char heartbeat_buf[100];
+	unsigned i = 1;
+	while (true) {
+		int heartbeat_len = sprintf(heartbeat_buf, "\nHEARTBEAT@%lu=%u", millis(), i);
+		if (heartbeat_len > 10) {
+			send_data(heartbeat_buf, heartbeat_len);
+		}
+		i = (i * 10) % 10000;
+		vTaskDelay(1000 / portTICK_PERIOD_MS);
+	}
+	vTaskDelete(NULL);
+}
+
+void IRAM_ATTR
 tuner_handler(void *dummy)
 {
 #define CMD_SIZE 100
@@ -454,6 +470,7 @@ tuner_handler(void *dummy)
 		}
 		vTaskDelay(100 / portTICK_PERIOD_MS);
 	}
+	vTaskDelete(NULL);
 }
 
 void
@@ -499,6 +516,34 @@ start_uart_handler(void)
 }
 
 void
+start_heartbeat_handler(void)
+{
+	xTaskCreatePinnedToCore(
+		&heartbeat_loop,
+		"heartbeat_loop",
+		2048, // stack size
+		NULL, // argument
+		1, // priority
+		NULL, // handle
+		1 // core
+	);
+}
+
+void
+start_tuner_handler(void)
+{
+	xTaskCreatePinnedToCore(
+		&tuner_handler,
+		"tuner_handler",
+		2048, // stack size
+		NULL, // argument
+		1, // priority
+		NULL, // handle
+		1 // core
+	);
+}
+
+void
 setup(void)
 {
 	gpio_config_t cfg = {
@@ -526,15 +571,8 @@ setup(void)
 	start_i2c1_handler();
 	start_i2c2_handler();
 	start_uart_handler();
-	xTaskCreatePinnedToCore(
-		&tuner_handler,
-		"tuner_handler",
-		2048, // stack size
-		NULL, // argument
-		1, // priority
-		NULL, // handle
-		1 // core
-	);
+	start_heartbeat_handler();
+	start_tuner_handler();
 }
 
 void
