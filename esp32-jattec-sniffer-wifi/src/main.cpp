@@ -53,9 +53,10 @@ struct instruction_entry {
 	bool enabled;
 };
 
-void start_i2c1_handler(void);
-void start_i2c2_handler(void);
-void start_uart_handler(void);
+void start_i2c1_loop(void);
+void start_i2c2_loop(void);
+void start_uart_loop(void);
+void start_beat_loop(void);
 
 IPAddress            ip(192, 168, 102,  41);
 IPAddress       gateway(192, 168, 102,  99);
@@ -90,6 +91,7 @@ volatile size_t uart_len = 0;
 volatile bool i2c1_allowed_to_run = true, i2c1_has_stopped = false;
 volatile bool i2c2_allowed_to_run = true, i2c2_has_stopped = false;
 volatile bool uart_allowed_to_run = true, uart_has_stopped = false;
+volatile bool beat_allowed_to_run = true, beat_has_stopped = false;
 
 void
 add_command_to_fast_queue(const char *cmd, size_t cmd_len)
@@ -139,7 +141,7 @@ add_command_to_uart_circle(const char *cmd, size_t cmd_len, bool enable)
 				if ((enable > i2c1_allowed_to_run) && (i2c1_has_stopped == true)) {
 					i2c1_has_stopped = false;
 					i2c1_allowed_to_run = enable;
-					start_i2c1_handler();
+					start_i2c1_loop();
 				} else {
 					i2c1_allowed_to_run = enable;
 				}
@@ -150,7 +152,7 @@ add_command_to_uart_circle(const char *cmd, size_t cmd_len, bool enable)
 				if ((enable > i2c2_allowed_to_run) && (i2c2_has_stopped == true)) {
 					i2c2_has_stopped = false;
 					i2c2_allowed_to_run = enable;
-					start_i2c2_handler();
+					start_i2c2_loop();
 				} else {
 					i2c2_allowed_to_run = enable;
 				}
@@ -161,9 +163,20 @@ add_command_to_uart_circle(const char *cmd, size_t cmd_len, bool enable)
 				if ((enable > uart_allowed_to_run) && (uart_has_stopped == true)) {
 					uart_has_stopped = false;
 					uart_allowed_to_run = enable;
-					start_uart_handler();
+					start_uart_loop();
 				} else {
 					uart_allowed_to_run = enable;
+				}
+			}
+			return;
+		} else if (strncmp(cmd, "BEAT", 4) == 0) {
+			if (beat_allowed_to_run != enable) {
+				if ((enable > beat_allowed_to_run) && (beat_has_stopped == true)) {
+					beat_has_stopped = false;
+					beat_allowed_to_run = enable;
+					start_beat_loop();
+				} else {
+					beat_allowed_to_run = enable;
 				}
 			}
 			return;
@@ -226,7 +239,7 @@ send_data(const char *data, size_t data_len)
 }
 
 void IRAM_ATTR
-i2c1_handler(void *dummy)
+i2c1_loop(void *dummy)
 {
 i2c1_sync:
 	WAIT_FOR_SDA_AND_SCL_RISE;
@@ -297,7 +310,7 @@ i2c1_next:
 }
 
 void IRAM_ATTR
-i2c2_handler(void *dummy)
+i2c2_loop(void *dummy)
 {
 i2c2_sync:
 	WAIT_FOR_SDA2_AND_SCL2_RISE;
@@ -413,23 +426,24 @@ uart_loop(void *dummy)
 }
 
 void IRAM_ATTR
-heartbeat_loop(void *dummy)
+beat_loop(void *dummy)
 {
-	char heartbeat_buf[100];
+	char beat_buf[100];
 	unsigned i = 1;
-	while (true) {
-		int heartbeat_len = sprintf(heartbeat_buf, "\nHEARTBEAT@%lu=%u", millis(), i);
-		if (heartbeat_len > 10) {
-			send_data(heartbeat_buf, heartbeat_len);
+	while (beat_allowed_to_run == true) {
+		int beat_len = sprintf(beat_buf, "\nBEAT@%lu=%u", millis(), i);
+		if (beat_len > 10) {
+			send_data(beat_buf, beat_len);
 		}
 		i = (i * 10) % 10000;
 		vTaskDelay(1000 / portTICK_PERIOD_MS);
 	}
+	beat_has_stopped = true;
 	vTaskDelete(NULL);
 }
 
 void IRAM_ATTR
-tuner_handler(void *dummy)
+tuner_loop(void *dummy)
 {
 #define CMD_SIZE 100
 	char cmd[CMD_SIZE];
@@ -474,11 +488,11 @@ tuner_handler(void *dummy)
 }
 
 void
-start_i2c1_handler(void)
+start_i2c1_loop(void)
 {
 	xTaskCreatePinnedToCore(
-		&i2c1_handler,
-		"i2c1_handler",
+		&i2c1_loop,
+		"i2c1_loop",
 		2048, // stack size
 		NULL, // argument
 		1, // priority
@@ -488,11 +502,11 @@ start_i2c1_handler(void)
 }
 
 void
-start_i2c2_handler(void)
+start_i2c2_loop(void)
 {
 	xTaskCreatePinnedToCore(
-		&i2c2_handler,
-		"i2c2_handler",
+		&i2c2_loop,
+		"i2c2_loop",
 		2048, // stack size
 		NULL, // argument
 		1, // priority
@@ -502,7 +516,7 @@ start_i2c2_handler(void)
 }
 
 void
-start_uart_handler(void)
+start_uart_loop(void)
 {
 	xTaskCreatePinnedToCore(
 		&uart_loop,
@@ -516,11 +530,11 @@ start_uart_handler(void)
 }
 
 void
-start_heartbeat_handler(void)
+start_beat_loop(void)
 {
 	xTaskCreatePinnedToCore(
-		&heartbeat_loop,
-		"heartbeat_loop",
+		&beat_loop,
+		"beat_loop",
 		2048, // stack size
 		NULL, // argument
 		1, // priority
@@ -530,11 +544,11 @@ start_heartbeat_handler(void)
 }
 
 void
-start_tuner_handler(void)
+start_tuner_loop(void)
 {
 	xTaskCreatePinnedToCore(
-		&tuner_handler,
-		"tuner_handler",
+		&tuner_loop,
+		"tuner_loop",
 		2048, // stack size
 		NULL, // argument
 		1, // priority
@@ -568,11 +582,11 @@ setup(void)
 	ArduinoOTA.begin();
 	streamer.begin();
 	manager.begin();
-	start_i2c1_handler();
-	start_i2c2_handler();
-	start_uart_handler();
-	start_heartbeat_handler();
-	start_tuner_handler();
+	start_i2c1_loop();
+	start_i2c2_loop();
+	start_uart_loop();
+	start_beat_loop();
+	start_tuner_loop();
 }
 
 void
