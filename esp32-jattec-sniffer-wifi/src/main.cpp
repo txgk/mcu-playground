@@ -45,6 +45,7 @@
 #define I2C2_BUFFER_SIZE                 4000
 #define UART_BUFFER_SIZE                 1000
 
+#define TASK_DELAY_MS(A) vTaskDelay(A / portTICK_PERIOD_MS)
 #define ISDIGIT(A) (((A)=='0')||((A)=='1')||((A)=='2')||((A)=='3')||((A)=='4')||((A)=='5')||((A)=='6')||((A)=='7')||((A)=='8')||((A)=='9'))
 
 struct instruction_entry {
@@ -387,7 +388,7 @@ uart_loop(void *dummy)
 	while (uart_allowed_to_run == true) {
 		if (try_to_write_next_command_from_fast_queue_to_serial() == false) {
 			if (try_to_write_next_command_from_uart_circle_to_serial() == false) {
-				vTaskDelay(50 / portTICK_PERIOD_MS);
+				TASK_DELAY_MS(50);
 				continue;
 			}
 		}
@@ -412,7 +413,7 @@ uart_loop(void *dummy)
 			} else if (millis() > packet_birth + 2000) {
 				break;
 			} else {
-				vTaskDelay(50 / portTICK_PERIOD_MS);
+				TASK_DELAY_MS(50);
 			}
 		}
 		// Discard leftovers.
@@ -435,7 +436,7 @@ beat_loop(void *dummy)
 			send_data(beat_buf, beat_len);
 		}
 		i = (i * 10) % 10000;
-		vTaskDelay(1000 / portTICK_PERIOD_MS);
+		TASK_DELAY_MS(1000);
 	}
 	beat_has_stopped = true;
 	vTaskDelete(NULL);
@@ -481,7 +482,7 @@ tuner_loop(void *dummy)
 		} else {
 			tuner = manager.available();
 		}
-		vTaskDelay(100 / portTICK_PERIOD_MS);
+		TASK_DELAY_MS(100);
 	}
 	vTaskDelete(NULL);
 }
