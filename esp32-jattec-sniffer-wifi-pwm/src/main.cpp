@@ -1,4 +1,5 @@
 #include <string.h>
+#include "driver/ledc.h"
 #include <Arduino.h>
 #include <WiFi.h>
 #include <ArduinoOTA.h>
@@ -10,6 +11,7 @@
 #define SCL2_PIN                         35
 #define RX_PIN                           16
 #define TX_PIN                           17
+#define PWM1_PIN                         18
 #define SERIAL_SPEED                     9600
 #define WIFI_DATA_PORT                   80
 #define WIFI_CTRL_PORT                   81
@@ -486,6 +488,39 @@ tuner_loop(void *dummy)
 	vTaskDelete(NULL);
 }
 
+void IRAM_ATTR
+fake_tachometer_loop(void *dummy)
+{
+	ledc_timer_config_t timer_config = {
+		.speed_mode = LEDC_HIGH_SPEED_MODE,
+		.duty_resolution = LEDC_TIMER_8_BIT,
+		.timer_num = LEDC_TIMER_0,
+		.freq_hz = 23,
+		.clk_cfg = LEDC_USE_REF_TICK, // 1 MHz, high speed, frequency scaling
+		// .deconfigure = false,
+	};
+	ledc_channel_config_t channel_config = {
+		.gpio_num = PWM1_PIN,
+		.speed_mode = LEDC_HIGH_SPEED_MODE,
+		.channel = LEDC_CHANNEL_0,
+		.intr_type = LEDC_INTR_DISABLE,
+		.timer_sel = LEDC_TIMER_0,
+		.duty = 127,
+		.hpoint = 0,
+	};
+	ledc_timer_config(&timer_config);
+	ledc_channel_config(&channel_config);
+	int i = 10;
+	while (true) {
+		vTaskDelay(500 / portTICK_PERIOD_MS);
+		i = (i + 10) % 1000 + 10;
+		ledc_set_freq(LEDC_HIGH_SPEED_MODE, LEDC_TIMER_0, i);
+	}
+	// timer_config.deconfigure = true;
+	// ledc_timer_config(&timer_config);
+	vTaskDelete(NULL);
+}
+
 void
 start_i2c1_loop(void)
 {
@@ -557,6 +592,20 @@ start_tuner_loop(void)
 }
 
 void
+start_fake_tachometer_loop(void)
+{
+	xTaskCreatePinnedToCore(
+		&fake_tachometer_loop,
+		"fake_tachometer_loop",
+		2048, // stack size
+		NULL, // argument
+		1, // priority
+		NULL, // handle
+		1 // core
+	);
+}
+
+void
 setup(void)
 {
 	gpio_config_t cfg = {
@@ -586,6 +635,7 @@ setup(void)
 	start_uart_loop();
 	// start_beat_loop();
 	start_tuner_loop();
+	start_fake_tachometer_loop();
 }
 
 void
