@@ -11,7 +11,9 @@
 #define SCL2_PIN                         35
 #define RX_PIN                           16
 #define TX_PIN                           17
-#define PWM1_PIN                         18
+#define PWM_IN_1_PIN                     18
+#define PWM_IN_2_PIN                     19
+#define PWM_OUT_1_PIN                    4
 #define SERIAL_SPEED                     9600
 #define WIFI_DATA_PORT                   80
 #define WIFI_CTRL_PORT                   81
@@ -47,6 +49,7 @@
 #define I2C2_BUFFER_SIZE                 4000
 #define UART_BUFFER_SIZE                 1000
 
+#define TASK_DELAY_MS(A) vTaskDelay(A / portTICK_PERIOD_MS)
 #define ISDIGIT(A) (((A)=='0')||((A)=='1')||((A)=='2')||((A)=='3')||((A)=='4')||((A)=='5')||((A)=='6')||((A)=='7')||((A)=='8')||((A)=='9'))
 
 struct instruction_entry {
@@ -389,7 +392,7 @@ uart_loop(void *dummy)
 	while (uart_allowed_to_run == true) {
 		if (try_to_write_next_command_from_fast_queue_to_serial() == false) {
 			if (try_to_write_next_command_from_uart_circle_to_serial() == false) {
-				vTaskDelay(50 / portTICK_PERIOD_MS);
+				TASK_DELAY_MS(50);
 				continue;
 			}
 		}
@@ -414,7 +417,7 @@ uart_loop(void *dummy)
 			} else if (millis() > packet_birth + 2000) {
 				break;
 			} else {
-				vTaskDelay(50 / portTICK_PERIOD_MS);
+				TASK_DELAY_MS(50);
 			}
 		}
 		// Discard leftovers.
@@ -437,7 +440,7 @@ beat_loop(void *dummy)
 			send_data(beat_buf, beat_len);
 		}
 		i = (i * 10) % 10000;
-		vTaskDelay(1000 / portTICK_PERIOD_MS);
+		TASK_DELAY_MS(1000);
 	}
 	beat_has_stopped = true;
 	vTaskDelete(NULL);
@@ -483,13 +486,44 @@ tuner_loop(void *dummy)
 		} else {
 			tuner = manager.available();
 		}
-		vTaskDelay(100 / portTICK_PERIOD_MS);
+		TASK_DELAY_MS(100);
 	}
 	vTaskDelete(NULL);
 }
 
 void IRAM_ATTR
-fake_tachometer_loop(void *dummy)
+pwm_monitor_loop(void *dummy)
+{
+#define PWMS_BUFFER_SIZE 500
+	char pwms[PWMS_BUFFER_SIZE];
+	size_t pwms_len;
+	while (true) {
+		// pulseIn returns microseconds!
+		unsigned long packet_birth = millis();
+		unsigned long pwm1_high = pulseIn(PWM_IN_1_PIN, HIGH);
+		unsigned long pwm2_high = pulseIn(PWM_IN_2_PIN, HIGH);
+		unsigned long pwm1_low = pulseIn(PWM_IN_1_PIN, LOW);
+		unsigned long pwm2_low = pulseIn(PWM_IN_2_PIN, LOW);
+		double pwm1_freq = 1000000.0 / (pwm1_high + pwm1_low);
+		double pwm2_freq = 1000000.0 / (pwm2_high + pwm2_low);
+		double pwm1_duty = (double)pwm1_high / (pwm1_high + pwm1_low);
+		double pwm2_duty = (double)pwm2_high / (pwm2_high + pwm2_low);
+		pwms_len = snprintf(pwms, PWMS_BUFFER_SIZE,
+			"\nPWMRC@%lu=%.1lf,%.1lf,%.1lf,%.1lf",
+			packet_birth,
+			pwm1_freq,
+			pwm1_duty,
+			pwm2_freq,
+			pwm2_duty
+		);
+		if (pwms_len < PWMS_BUFFER_SIZE) send_data(pwms, pwms_len);
+		TASK_DELAY_MS(1000);
+	}
+	vTaskDelete(NULL);
+}
+
+void IRAM_ATTR
+tachometer_faker_loop(void *dummy)
 {
 	ledc_timer_config_t timer_config = {
 		.speed_mode = LEDC_HIGH_SPEED_MODE,
@@ -500,7 +534,7 @@ fake_tachometer_loop(void *dummy)
 		// .deconfigure = false,
 	};
 	ledc_channel_config_t channel_config = {
-		.gpio_num = PWM1_PIN,
+		.gpio_num = PWM_OUT_1_PIN,
 		.speed_mode = LEDC_HIGH_SPEED_MODE,
 		.channel = LEDC_CHANNEL_0,
 		.intr_type = LEDC_INTR_DISABLE,
@@ -512,12 +546,13 @@ fake_tachometer_loop(void *dummy)
 	ledc_channel_config(&channel_config);
 	int i = 10;
 	while (true) {
-		vTaskDelay(500 / portTICK_PERIOD_MS);
+		TASK_DELAY_MS(500);
 		i = (i + 10) % 1000 + 10;
 		ledc_set_freq(LEDC_HIGH_SPEED_MODE, LEDC_TIMER_0, i);
 	}
 	// timer_config.deconfigure = true;
 	// ledc_timer_config(&timer_config);
+	ledc_stop(LEDC_HIGH_SPEED_MODE, LEDC_CHANNEL_0, 0);
 	vTaskDelete(NULL);
 }
 
@@ -592,11 +627,25 @@ start_tuner_loop(void)
 }
 
 void
-start_fake_tachometer_loop(void)
+start_pwm_monitor_loop(void)
 {
 	xTaskCreatePinnedToCore(
-		&fake_tachometer_loop,
-		"fake_tachometer_loop",
+		&pwm_monitor_loop,
+		"pwm_monitor_loop",
+		2048, // stack size
+		NULL, // argument
+		1, // priority
+		NULL, // handle
+		1 // core
+	);
+}
+
+void
+start_tachometer_faker_loop(void)
+{
+	xTaskCreatePinnedToCore(
+		&tachometer_faker_loop,
+		"tachometer_faker_loop",
 		2048, // stack size
 		NULL, // argument
 		1, // priority
@@ -608,8 +657,15 @@ start_fake_tachometer_loop(void)
 void
 setup(void)
 {
+	uint64_t input_pins_mask = 0;
+	input_pins_mask |= 1ULL << SDA_PIN;
+	input_pins_mask |= 1ULL << SCL_PIN;
+	input_pins_mask |= 1ULL << SDA2_PIN;
+	input_pins_mask |= 1ULL << SCL2_PIN;
+	input_pins_mask |= 1ULL << PWM_IN_1_PIN;
+	input_pins_mask |= 1ULL << PWM_IN_2_PIN;
 	gpio_config_t cfg = {
-		(1ULL << SDA_PIN) | (1ULL << SCL_PIN) | (1ULL << SDA2_PIN) | (1ULL << SCL2_PIN),
+		input_pins_mask,
 		GPIO_MODE_INPUT,
 		GPIO_PULLUP_DISABLE,
 		GPIO_PULLDOWN_DISABLE,
@@ -635,7 +691,8 @@ setup(void)
 	start_uart_loop();
 	// start_beat_loop();
 	start_tuner_loop();
-	start_fake_tachometer_loop();
+	start_pwm_monitor_loop();
+	start_tachometer_faker_loop();
 }
 
 void
