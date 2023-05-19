@@ -15,6 +15,8 @@
 #define PWM_IN_2_PIN                     19
 #define WIFI_DATA_PORT                   80
 
+#define HEART_BEAT_PERIODICITY           2000 // milliseconds
+
 #define TASK_DELAY_MS(A) vTaskDelay(A / portTICK_PERIOD_MS)
 #define ISDIGIT(A) (((A)=='0')||((A)=='1')||((A)=='2')||((A)=='3')||((A)=='4')||((A)=='5')||((A)=='6')||((A)=='7')||((A)=='8')||((A)=='9'))
 
@@ -56,11 +58,9 @@ beat_loop(void *dummy)
 	unsigned i = 1;
 	while (beat_allowed_to_run == true) {
 		int beat_len = sprintf(beat_buf, "\nBEAT@%lu=%u", millis(), i);
-		if (beat_len > 10) {
-			send_data(beat_buf, beat_len);
-		}
-		i = (i * 10) % 10000;
-		TASK_DELAY_MS(10000);
+		if (beat_len > 0 && beat_len < 100) send_data(beat_buf, beat_len);
+		i = (i * 10) % 9999;
+		TASK_DELAY_MS(HEART_BEAT_PERIODICITY);
 	}
 	beat_has_stopped = true;
 	vTaskDelete(NULL);
@@ -77,10 +77,10 @@ pwm_monitor_loop(void *dummy)
 	while (true) {
 		// pulseIn returns microseconds!
 		unsigned long packet_birth = millis();
-		unsigned long pwm1_high    = pulseIn(PWM_IN_1_PIN, HIGH, 100000);
-		unsigned long pwm1_low     = pulseIn(PWM_IN_1_PIN, LOW,  100000);
-		unsigned long pwm2_high    = pulseIn(PWM_IN_2_PIN, HIGH, 100000);
-		unsigned long pwm2_low     = pulseIn(PWM_IN_2_PIN, LOW,  100000);
+		unsigned long pwm1_high    = pulseIn(PWM_IN_1_PIN, HIGH, 50000);
+		unsigned long pwm1_low     = pulseIn(PWM_IN_1_PIN, LOW,  50000);
+		unsigned long pwm2_high    = pulseIn(PWM_IN_2_PIN, HIGH, 50000);
+		unsigned long pwm2_low     = pulseIn(PWM_IN_2_PIN, LOW,  50000);
 		unsigned long pwm1_min     = pwm1_high < pwm1_low || pwm1_low == 0 ? pwm1_high : pwm1_low;
 		unsigned long pwm2_min     = pwm2_high < pwm2_low || pwm2_low == 0 ? pwm2_high : pwm2_low;
 		unsigned long pwm1_period  = pwm1_high + pwm1_low;
@@ -101,22 +101,22 @@ pwm_monitor_loop(void *dummy)
 		} else {
 			dac_output_voltage(DAC_CHANNEL_2, (pwm2_min - 1000) * 255 / 1000);
 		}
-		pwms_len = snprintf(pwms, PWMS_BUFFER_SIZE,
-			"\nPWMRC1@%lu=%.1lf,%lu,%lu",
-			packet_birth,
-			pwm1_freq,
-			pwm1_min,
-			pwm1_period
-		);
-		if (pwms_len < PWMS_BUFFER_SIZE) send_data(pwms, pwms_len);
-		pwms_len = snprintf(pwms, PWMS_BUFFER_SIZE,
-			"\nPWMRC2@%lu=%.1lf,%lu,%lu",
-			packet_birth,
-			pwm2_freq,
-			pwm2_min,
-			pwm2_period
-		);
-		if (pwms_len < PWMS_BUFFER_SIZE) send_data(pwms, pwms_len);
+		// pwms_len = snprintf(pwms, PWMS_BUFFER_SIZE,
+		// 	"\nPWMRC1@%lu=%.1lf,%lu,%lu",
+		// 	packet_birth,
+		// 	pwm1_freq,
+		// 	pwm1_min,
+		// 	pwm1_period
+		// );
+		// if (pwms_len < PWMS_BUFFER_SIZE) send_data(pwms, pwms_len);
+		// pwms_len = snprintf(pwms, PWMS_BUFFER_SIZE,
+		// 	"\nPWMRC2@%lu=%.1lf,%lu,%lu",
+		// 	packet_birth,
+		// 	pwm2_freq,
+		// 	pwm2_min,
+		// 	pwm2_period
+		// );
+		// if (pwms_len < PWMS_BUFFER_SIZE) send_data(pwms, pwms_len);
 		TASK_DELAY_MS(50);
 	}
 	vTaskDelete(NULL);
@@ -162,13 +162,13 @@ setup(void)
 	};
 	gpio_config(&input_cfg);
 	wifi_lock = xSemaphoreCreateMutex();
-	WiFi.config(ip, gateway, subnet, primary_dns, secondary_dns);
-	WiFi.begin(WIFI_SSID, WIFI_PASSWORD);
-	while (WiFi.status() != WL_CONNECTED) {
-		delay(500);
-	}
-	ArduinoOTA.begin();
-	streamer.begin();
+	// WiFi.config(ip, gateway, subnet, primary_dns, secondary_dns);
+	// WiFi.begin(WIFI_SSID, WIFI_PASSWORD);
+	// while (WiFi.status() != WL_CONNECTED) {
+	// 	delay(500);
+	// }
+	// ArduinoOTA.begin();
+	// streamer.begin();
 	start_beat_loop();
 	start_pwm_monitor_loop();
 }
@@ -176,9 +176,9 @@ setup(void)
 void
 loop(void)
 {
-	if (xSemaphoreTake(wifi_lock, portMAX_DELAY) == pdTRUE) {
-		ArduinoOTA.handle();
-		xSemaphoreGive(wifi_lock);
-	}
+	// if (xSemaphoreTake(wifi_lock, portMAX_DELAY) == pdTRUE) {
+	// 	ArduinoOTA.handle();
+	// 	xSemaphoreGive(wifi_lock);
+	// }
 	delay(1000);
 }

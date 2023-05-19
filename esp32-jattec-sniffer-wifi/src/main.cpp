@@ -45,6 +45,8 @@
 #define I2C2_BUFFER_SIZE                 4000
 #define UART_BUFFER_SIZE                 1000
 
+#define HEART_BEAT_PERIODICITY           2000 // milliseconds
+
 #define TASK_DELAY_MS(A) vTaskDelay(A / portTICK_PERIOD_MS)
 #define ISDIGIT(A) (((A)=='0')||((A)=='1')||((A)=='2')||((A)=='3')||((A)=='4')||((A)=='5')||((A)=='6')||((A)=='7')||((A)=='8')||((A)=='9'))
 
@@ -439,11 +441,9 @@ beat_loop(void *dummy)
 	unsigned i = 1;
 	while (beat_allowed_to_run == true) {
 		int beat_len = sprintf(beat_buf, "\nBEAT@%lu=%u", millis(), i);
-		if (beat_len > 10) {
-			send_data(beat_buf, beat_len);
-		}
-		i = (i * 10) % 10000;
-		TASK_DELAY_MS(10000);
+		if (beat_len > 0 && beat_len < 100) send_data(beat_buf, beat_len);
+		i = (i * 10) % 9999;
+		TASK_DELAY_MS(HEART_BEAT_PERIODICITY);
 	}
 	beat_has_stopped = true;
 	vTaskDelete(NULL);

@@ -47,6 +47,8 @@
 #define I2C2_BUFFER_SIZE                 4000
 #define UART_BUFFER_SIZE                 1000
 
+#define HEART_BEAT_PERIODICITY           2000 // milliseconds
+
 #define TASK_DELAY_MS(A) vTaskDelay(A / portTICK_PERIOD_MS)
 #define ISDIGIT(A) (((A)=='0')||((A)=='1')||((A)=='2')||((A)=='3')||((A)=='4')||((A)=='5')||((A)=='6')||((A)=='7')||((A)=='8')||((A)=='9'))
 
@@ -99,6 +101,24 @@ volatile bool beat_allowed_to_run = true, beat_has_stopped = false;
 
 volatile long rpm = 0;
 SemaphoreHandle_t rpm_lock = NULL;
+
+ledc_timer_config_t timer_config = {
+	.speed_mode = LEDC_HIGH_SPEED_MODE,
+	.duty_resolution = LEDC_TIMER_13_BIT,
+	.timer_num = LEDC_TIMER_0,
+	.freq_hz = 0,
+	.clk_cfg = LEDC_USE_REF_TICK, // 1 MHz, high speed, frequency scaling
+	// .deconfigure = false,
+};
+ledc_channel_config_t channel_config = {
+	.gpio_num = PWM_OUT_1_PIN,
+	.speed_mode = LEDC_HIGH_SPEED_MODE,
+	.channel = LEDC_CHANNEL_0,
+	.intr_type = LEDC_INTR_DISABLE,
+	.timer_sel = LEDC_TIMER_0,
+	.duty = 820, // Заполнение ~10% для имитации датчика Холла.
+	.hpoint = 0,
+};
 
 void
 add_command_to_fast_queue(const char *cmd, size_t cmd_len)
@@ -460,11 +480,9 @@ beat_loop(void *dummy)
 	unsigned i = 1;
 	while (beat_allowed_to_run == true) {
 		int beat_len = sprintf(beat_buf, "\nBEAT@%lu=%u", millis(), i);
-		if (beat_len > 10) {
-			send_data(beat_buf, beat_len);
-		}
-		i = (i * 10) % 10000;
-		TASK_DELAY_MS(10000);
+		if (beat_len > 0 && beat_len < 100) send_data(beat_buf, beat_len);
+		i = (i * 10) % 9999;
+		TASK_DELAY_MS(HEART_BEAT_PERIODICITY);
 	}
 	beat_has_stopped = true;
 	vTaskDelete(NULL);
@@ -523,12 +541,16 @@ tachometer_faker_loop(void *dummy)
 		if (current_rpm != rpm) {
 			if (xSemaphoreTake(rpm_lock, portMAX_DELAY) == pdTRUE) {
 				current_rpm = rpm;
-				// Делим на 60, т. к. 10 Гц = 600 об/м
-				// Делим на 20, т. к. max(rpm1) = 160, max(rpm2) = 8
-				// Устанавливаем первый бит, чтобы частота не была равна 0
-				ledc_set_freq(LEDC_HIGH_SPEED_MODE, LEDC_TIMER_0, (current_rpm / 60 / 20) | 1);
 				xSemaphoreGive(rpm_lock);
 			}
+			// Делим на 60, т. к. 10 Гц = 600 об/м
+			// Делим на 20, т. к. max(rpm1) = 160, max(rpm2) = 8
+			// ledc_set_freq(LEDC_HIGH_SPEED_MODE, LEDC_TIMER_0, current_rpm / 60 / 20);
+			timer_config.freq_hz = current_rpm / 60 / 20;
+			ledc_timer_config(&timer_config);
+			// char shft[100];
+			// size_t shft_len = snprintf(shft, 100, "\nSHFT=%lu", current_rpm / 60 / 20);
+			// if (shft_len < 100) send_data(shft, shft_len);
 		}
 		TASK_DELAY_MS(50);
 	}
@@ -633,23 +655,6 @@ setup(void)
 		GPIO_INTR_DISABLE,
 	};
 	gpio_config(&input_cfg);
-	ledc_timer_config_t timer_config = {
-		.speed_mode = LEDC_HIGH_SPEED_MODE,
-		.duty_resolution = LEDC_TIMER_9_BIT,
-		.timer_num = LEDC_TIMER_0,
-		.freq_hz = 1,
-		.clk_cfg = LEDC_USE_REF_TICK, // 1 MHz, high speed, frequency scaling
-		// .deconfigure = false,
-	};
-	ledc_channel_config_t channel_config = {
-		.gpio_num = PWM_OUT_1_PIN,
-		.speed_mode = LEDC_HIGH_SPEED_MODE,
-		.channel = LEDC_CHANNEL_0,
-		.intr_type = LEDC_INTR_DISABLE,
-		.timer_sel = LEDC_TIMER_0,
-		.duty = 51, // Заполнение 10% для имитации датчика Холла.
-		.hpoint = 0,
-	};
 	ledc_timer_config(&timer_config);
 	ledc_channel_config(&channel_config);
 	wifi_lock = xSemaphoreCreateMutex();
