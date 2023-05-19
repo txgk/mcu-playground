@@ -1,8 +1,8 @@
 #include <string.h>
-#include "driver/ledc.h"
 #include <Arduino.h>
 #include <WiFi.h>
 #include <ArduinoOTA.h>
+#include "driver/ledc.h"
 #include "../../wifi-credentials.h"
 
 #define SDA_PIN                          32
@@ -11,9 +11,7 @@
 #define SCL2_PIN                         35
 #define RX_PIN                           16
 #define TX_PIN                           17
-#define PWM_IN_1_PIN                     18
-#define PWM_IN_2_PIN                     19
-#define PWM_OUT_1_PIN                    4
+#define PWM_OUT_1_PIN                    5
 #define SERIAL_SPEED                     9600
 #define WIFI_DATA_PORT                   80
 #define WIFI_CTRL_PORT                   81
@@ -72,6 +70,7 @@ IPAddress secondary_dns( 77,  88,   8,   1);
 SemaphoreHandle_t wifi_lock = NULL;
 WiFiServer streamer(WIFI_DATA_PORT);
 WiFiServer manager(WIFI_CTRL_PORT);
+WiFiClient listener;
 WiFiClient tuner;
 
 volatile uint8_t b, c;
@@ -97,6 +96,9 @@ volatile bool i2c1_allowed_to_run = true, i2c1_has_stopped = false;
 volatile bool i2c2_allowed_to_run = true, i2c2_has_stopped = false;
 volatile bool uart_allowed_to_run = true, uart_has_stopped = false;
 volatile bool beat_allowed_to_run = true, beat_has_stopped = false;
+
+volatile long rpm = 0;
+SemaphoreHandle_t rpm_lock = NULL;
 
 void
 add_command_to_fast_queue(const char *cmd, size_t cmd_len)
@@ -236,8 +238,14 @@ void
 send_data(const char *data, size_t data_len)
 {
 	if (xSemaphoreTake(wifi_lock, portMAX_DELAY) == pdTRUE) {
-		WiFiClient listener = streamer.available();
-		if (listener) listener.write(data, data_len);
+		if (listener) {
+			listener.write(data, data_len);
+		} else {
+			listener = streamer.available();
+			if (listener) {
+				listener.write(data, data_len);
+			}
+		}
 		xSemaphoreGive(wifi_lock);
 	}
 }
@@ -387,8 +395,6 @@ i2c2_next:
 void IRAM_ATTR
 uart_loop(void *dummy)
 {
-	size_t packet_ends;
-	unsigned long packet_birth;
 	while (uart_allowed_to_run == true) {
 		if (try_to_write_next_command_from_fast_queue_to_serial() == false) {
 			if (try_to_write_next_command_from_uart_circle_to_serial() == false) {
@@ -396,23 +402,41 @@ uart_loop(void *dummy)
 				continue;
 			}
 		}
-		packet_ends = 0;
-		packet_birth = millis();
-		uart_len = snprintf(uart, UART_BUFFER_SIZE, "\nUART@%lu=", packet_birth);
+		size_t packet_ends = 0;
+		unsigned long packet_birth = millis();
+		size_t uart_prefix_len = snprintf(uart, UART_BUFFER_SIZE, "\nUART@%lu=", packet_birth);
+		uart_len = uart_prefix_len;
 		while (true) {
 			if (Serial1.available() > 0) {
-				if (uart_len < UART_BUFFER_SIZE) {
-					uart[uart_len++] = Serial1.read();
-					if (uart[uart_len - 1] == '\r') {
-						uart[uart_len - 1] = '~';
-						packet_ends += 1;
-						if (packet_ends > 1) {
-							send_data(uart, uart_len);
-							break;
+				if (uart_len >= UART_BUFFER_SIZE) {
+					Serial1.read(); // Ignore bytes for which there is no room.
+					continue;
+				}
+				uart[uart_len++] = Serial1.read();
+				if (uart[uart_len - 1] == '\r') {
+					uart[uart_len - 1] = '~';
+					packet_ends += 1;
+					if (packet_ends > 1) {
+						send_data(uart, uart_len);
+						if ((uart_len - uart_prefix_len > 25)
+							&& (strncmp(uart + uart_prefix_len, "1,RAC,1~1,HS,OK,", 16) == 0))
+						{
+							if (xSemaphoreTake(rpm_lock, portMAX_DELAY) == pdTRUE) {
+								rpm = 0;
+								for (const char *i = uart + uart_prefix_len + 16; ISDIGIT(*i); ++i) {
+									rpm = rpm * 10 + (*i - '0');
+								}
+								// char shft[100];
+								// size_t shft_len;
+								// shft_len = snprintf(shft, 100, "\nSHFT=%lu", rpm);
+								// if (shft_len < 100) {
+								// 	send_data(shft, shft_len);
+								// }
+								xSemaphoreGive(rpm_lock);
+							}
 						}
+						break;
 					}
-				} else {
-					Serial1.read();
 				}
 			} else if (millis() > packet_birth + 2000) {
 				break;
@@ -440,7 +464,7 @@ beat_loop(void *dummy)
 			send_data(beat_buf, beat_len);
 		}
 		i = (i * 10) % 10000;
-		TASK_DELAY_MS(1000);
+		TASK_DELAY_MS(10000);
 	}
 	beat_has_stopped = true;
 	vTaskDelete(NULL);
@@ -492,67 +516,25 @@ tuner_loop(void *dummy)
 }
 
 void IRAM_ATTR
-pwm_monitor_loop(void *dummy)
-{
-#define PWMS_BUFFER_SIZE 500
-	char pwms[PWMS_BUFFER_SIZE];
-	size_t pwms_len;
-	while (true) {
-		// pulseIn returns microseconds!
-		unsigned long packet_birth = millis();
-		unsigned long pwm1_high = pulseIn(PWM_IN_1_PIN, HIGH);
-		unsigned long pwm2_high = pulseIn(PWM_IN_2_PIN, HIGH);
-		unsigned long pwm1_low = pulseIn(PWM_IN_1_PIN, LOW);
-		unsigned long pwm2_low = pulseIn(PWM_IN_2_PIN, LOW);
-		double pwm1_freq = 1000000.0 / (pwm1_high + pwm1_low);
-		double pwm2_freq = 1000000.0 / (pwm2_high + pwm2_low);
-		double pwm1_duty = (double)pwm1_high / (pwm1_high + pwm1_low);
-		double pwm2_duty = (double)pwm2_high / (pwm2_high + pwm2_low);
-		pwms_len = snprintf(pwms, PWMS_BUFFER_SIZE,
-			"\nPWMRC@%lu=%.1lf,%.1lf,%.1lf,%.1lf",
-			packet_birth,
-			pwm1_freq,
-			pwm1_duty,
-			pwm2_freq,
-			pwm2_duty
-		);
-		if (pwms_len < PWMS_BUFFER_SIZE) send_data(pwms, pwms_len);
-		TASK_DELAY_MS(1000);
-	}
-	vTaskDelete(NULL);
-}
-
-void IRAM_ATTR
 tachometer_faker_loop(void *dummy)
 {
-	ledc_timer_config_t timer_config = {
-		.speed_mode = LEDC_HIGH_SPEED_MODE,
-		.duty_resolution = LEDC_TIMER_8_BIT,
-		.timer_num = LEDC_TIMER_0,
-		.freq_hz = 23,
-		.clk_cfg = LEDC_USE_REF_TICK, // 1 MHz, high speed, frequency scaling
-		// .deconfigure = false,
-	};
-	ledc_channel_config_t channel_config = {
-		.gpio_num = PWM_OUT_1_PIN,
-		.speed_mode = LEDC_HIGH_SPEED_MODE,
-		.channel = LEDC_CHANNEL_0,
-		.intr_type = LEDC_INTR_DISABLE,
-		.timer_sel = LEDC_TIMER_0,
-		.duty = 127,
-		.hpoint = 0,
-	};
-	ledc_timer_config(&timer_config);
-	ledc_channel_config(&channel_config);
-	int i = 10;
+	long current_rpm = rpm;
 	while (true) {
-		TASK_DELAY_MS(500);
-		i = (i + 10) % 1000 + 10;
-		ledc_set_freq(LEDC_HIGH_SPEED_MODE, LEDC_TIMER_0, i);
+		if (current_rpm != rpm) {
+			if (xSemaphoreTake(rpm_lock, portMAX_DELAY) == pdTRUE) {
+				current_rpm = rpm;
+				// Делим на 60, т. к. 10 Гц = 600 об/м
+				// Делим на 20, т. к. max(rpm1) = 160, max(rpm2) = 8
+				// Устанавливаем первый бит, чтобы частота не была равна 0
+				ledc_set_freq(LEDC_HIGH_SPEED_MODE, LEDC_TIMER_0, (current_rpm / 60 / 20) | 1);
+				xSemaphoreGive(rpm_lock);
+			}
+		}
+		TASK_DELAY_MS(50);
 	}
 	// timer_config.deconfigure = true;
 	// ledc_timer_config(&timer_config);
-	ledc_stop(LEDC_HIGH_SPEED_MODE, LEDC_CHANNEL_0, 0);
+	// ledc_stop(LEDC_HIGH_SPEED_MODE, LEDC_CHANNEL_0, 0);
 	vTaskDelete(NULL);
 }
 
@@ -627,20 +609,6 @@ start_tuner_loop(void)
 }
 
 void
-start_pwm_monitor_loop(void)
-{
-	xTaskCreatePinnedToCore(
-		&pwm_monitor_loop,
-		"pwm_monitor_loop",
-		2048, // stack size
-		NULL, // argument
-		1, // priority
-		NULL, // handle
-		1 // core
-	);
-}
-
-void
 start_tachometer_faker_loop(void)
 {
 	xTaskCreatePinnedToCore(
@@ -657,24 +625,37 @@ start_tachometer_faker_loop(void)
 void
 setup(void)
 {
-	uint64_t input_pins_mask = 0;
-	input_pins_mask |= 1ULL << SDA_PIN;
-	input_pins_mask |= 1ULL << SCL_PIN;
-	input_pins_mask |= 1ULL << SDA2_PIN;
-	input_pins_mask |= 1ULL << SCL2_PIN;
-	input_pins_mask |= 1ULL << PWM_IN_1_PIN;
-	input_pins_mask |= 1ULL << PWM_IN_2_PIN;
-	gpio_config_t cfg = {
-		input_pins_mask,
+	gpio_config_t input_cfg = {
+		(1ULL << SDA_PIN) | (1ULL << SCL_PIN) | (1ULL << SDA2_PIN) | (1ULL << SCL2_PIN),
 		GPIO_MODE_INPUT,
 		GPIO_PULLUP_DISABLE,
 		GPIO_PULLDOWN_DISABLE,
 		GPIO_INTR_DISABLE,
 	};
-	gpio_config(&cfg);
+	gpio_config(&input_cfg);
+	ledc_timer_config_t timer_config = {
+		.speed_mode = LEDC_HIGH_SPEED_MODE,
+		.duty_resolution = LEDC_TIMER_9_BIT,
+		.timer_num = LEDC_TIMER_0,
+		.freq_hz = 1,
+		.clk_cfg = LEDC_USE_REF_TICK, // 1 MHz, high speed, frequency scaling
+		// .deconfigure = false,
+	};
+	ledc_channel_config_t channel_config = {
+		.gpio_num = PWM_OUT_1_PIN,
+		.speed_mode = LEDC_HIGH_SPEED_MODE,
+		.channel = LEDC_CHANNEL_0,
+		.intr_type = LEDC_INTR_DISABLE,
+		.timer_sel = LEDC_TIMER_0,
+		.duty = 51, // Заполнение 10% для имитации датчика Холла.
+		.hpoint = 0,
+	};
+	ledc_timer_config(&timer_config);
+	ledc_channel_config(&channel_config);
 	wifi_lock = xSemaphoreCreateMutex();
 	fast_queue_lock = xSemaphoreCreateMutex();
 	uart_circle_lock = xSemaphoreCreateMutex();
+	rpm_lock = xSemaphoreCreateMutex();
 	Serial1.begin(SERIAL_SPEED, SERIAL_8N1, RX_PIN, TX_PIN);
 	add_command_to_uart_circle("RAC", 3, true);
 	add_command_to_uart_circle("RFI", 3, true);
@@ -689,9 +670,8 @@ setup(void)
 	start_i2c1_loop();
 	start_i2c2_loop();
 	start_uart_loop();
-	// start_beat_loop();
+	start_beat_loop();
 	start_tuner_loop();
-	start_pwm_monitor_loop();
 	start_tachometer_faker_loop();
 }
 

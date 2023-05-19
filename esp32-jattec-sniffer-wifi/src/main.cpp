@@ -68,6 +68,7 @@ IPAddress secondary_dns( 77,  88,   8,   1);
 SemaphoreHandle_t wifi_lock = NULL;
 WiFiServer streamer(WIFI_DATA_PORT);
 WiFiServer manager(WIFI_CTRL_PORT);
+WiFiClient listener;
 WiFiClient tuner;
 
 volatile uint8_t b, c;
@@ -232,8 +233,14 @@ void
 send_data(const char *data, size_t data_len)
 {
 	if (xSemaphoreTake(wifi_lock, portMAX_DELAY) == pdTRUE) {
-		WiFiClient listener = streamer.available();
-		if (listener) listener.write(data, data_len);
+		if (listener) {
+			listener.write(data, data_len);
+		} else {
+			listener = streamer.available();
+			if (listener) {
+				listener.write(data, data_len);
+			}
+		}
 		xSemaphoreGive(wifi_lock);
 	}
 }
@@ -436,7 +443,7 @@ beat_loop(void *dummy)
 			send_data(beat_buf, beat_len);
 		}
 		i = (i * 10) % 10000;
-		TASK_DELAY_MS(1000);
+		TASK_DELAY_MS(10000);
 	}
 	beat_has_stopped = true;
 	vTaskDelete(NULL);
@@ -560,14 +567,14 @@ start_tuner_loop(void)
 void
 setup(void)
 {
-	gpio_config_t cfg = {
+	gpio_config_t input_cfg = {
 		(1ULL << SDA_PIN) | (1ULL << SCL_PIN) | (1ULL << SDA2_PIN) | (1ULL << SCL2_PIN),
 		GPIO_MODE_INPUT,
 		GPIO_PULLUP_DISABLE,
 		GPIO_PULLDOWN_DISABLE,
 		GPIO_INTR_DISABLE,
 	};
-	gpio_config(&cfg);
+	gpio_config(&input_cfg);
 	wifi_lock = xSemaphoreCreateMutex();
 	fast_queue_lock = xSemaphoreCreateMutex();
 	uart_circle_lock = xSemaphoreCreateMutex();
@@ -585,7 +592,7 @@ setup(void)
 	start_i2c1_loop();
 	start_i2c2_loop();
 	start_uart_loop();
-	// start_beat_loop();
+	start_beat_loop();
 	start_tuner_loop();
 }
 
