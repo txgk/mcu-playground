@@ -9,17 +9,7 @@
 #include "esp_wifi.h"
 #include "esp_event.h"
 #include "driver/uart.h"
-#include "../../wifi-credentials.h"
-
-#define UART0_TX_PIN 1
-#define UART0_RX_PIN 3
-#define UART0_SPEED  115200
-#define UART1_TX_PIN 17
-#define UART1_RX_PIN 16
-#define UART1_SPEED  115200
-
-#define TASK_DELAY_MS(A) vTaskDelay(A / portTICK_PERIOD_MS)
-#define INIT_IP4_LOL(a, b, c, d) { .type = ESP_IPADDR_TYPE_V4, .u_addr = { .ip4 = { .addr = ESP_IP4TOADDR(a, b, c, d) }}}
+#include "nosedive.h"
 
 static EventGroupHandle_t wifi_event_group; // For signaling when we are connected.
 #define WIFI_CONNECTED_BIT BIT0
@@ -104,6 +94,8 @@ app_main(void)
 	esp_wifi_set_mode(WIFI_MODE_STA);
 	esp_wifi_set_config(WIFI_IF_STA, &wifi_cfg);
 	esp_wifi_start();
+
+	start_http_server();
 
 	while (true) {
 		TASK_DELAY_MS(1000);
