@@ -1,7 +1,8 @@
 idf_component_register(
 	SRCS
 	"main.c"
-	"http-server.c"
+	"http-streamer.c"
+	"http-tuner.c"
 	INCLUDE_DIRS
 	"."
 )
