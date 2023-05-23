@@ -3,6 +3,9 @@ idf_component_register(
 	"main.c"
 	"http-streamer.c"
 	"http-tuner.c"
+	"heartbeat.c"
+	"driver-bmx280.c"
+	"sensor-bmx280.c"
 	INCLUDE_DIRS
 	"."
 )

@@ -11,6 +11,8 @@
 #include "nvs_flash.h"
 #include "nosedive.h"
 
+SemaphoreHandle_t system_mutexes[NUMBER_OF_MUTEXES];
+
 static EventGroupHandle_t wifi_event_group; // For signaling when we are connected.
 #define WIFI_CONNECTED_BIT BIT0
 
@@ -76,6 +78,10 @@ wifi_loop(void *dummy)
 void
 app_main(void)
 {
+	for (int i = 0; i < NUMBER_OF_MUTEXES; ++i) {
+		system_mutexes[i] = xSemaphoreCreateMutex();
+	}
+
 	wifi_event_group = xEventGroupCreate();
 
 	nvs_flash_init();
@@ -85,8 +91,20 @@ app_main(void)
 	setup_serial(&uart0_cfg, UART_NUM_0, UART0_SPEED, UART0_TX_PIN, UART0_RX_PIN);
 	setup_serial(&uart1_cfg, UART_NUM_1, UART1_SPEED, UART1_TX_PIN, UART1_RX_PIN);
 
+	i2c_config_t i2c_cfg = {
+		.mode = I2C_MODE_MASTER,
+		.sda_io_num = I2C1_SDA_PIN,
+		.scl_io_num = I2C1_SCL_PIN,
+		.sda_pullup_en = GPIO_PULLUP_ENABLE,
+		.scl_pullup_en = GPIO_PULLUP_ENABLE,
+		.master.clk_speed = I2C1_SPEED
+	};
+	i2c_param_config(I2C_NUM_0, &i2c_cfg);
+	i2c_driver_install(I2C_NUM_0, I2C_MODE_MASTER, 0, 0, 0);
+
 	esp_netif_init();
 	esp_event_loop_create_default();
+#if 0
 	esp_netif_t *sta = esp_netif_create_default_wifi_sta();
 	esp_netif_dhcpc_stop(sta);
 	esp_netif_ip_info_t ip_info = {
@@ -115,9 +133,34 @@ app_main(void)
 	esp_wifi_set_config(WIFI_IF_STA, &wifi_cfg);
 	xTaskCreatePinnedToCore(&wifi_loop, "wifi_loop", 2048, NULL, 1, NULL, 1);
 	esp_wifi_start();
+#else
+	esp_netif_create_default_wifi_ap();
+	wifi_init_config_t wifi_init_cfg = WIFI_INIT_CONFIG_DEFAULT();
+	esp_wifi_init(&wifi_init_cfg);
+	wifi_config_t wifi_cfg = {
+		.ap = {
+			.ssid = "demoproshivka",
+			.ssid_len = 13,
+			.password = "elbereth",
+			.channel = 7,
+			.max_connection = 3,
+			.authmode = WIFI_AUTH_WPA2_PSK,
+			.pmf_cfg = {
+				.required = true,
+			},
+		}
+	};
+	esp_wifi_set_mode(WIFI_MODE_AP);
+	esp_wifi_set_config(WIFI_IF_AP, &wifi_cfg);
+	esp_wifi_start();
+	start_http_streamer();
+	start_http_tuner();
+#endif
+
+	xTaskCreatePinnedToCore(&heartbeat_task, "heartbeat_task", 1024, NULL, 1, NULL, 1);
+	xTaskCreatePinnedToCore(&bmx280_task, "bmx280_task", 2048, NULL, 1, NULL, 1);
 
 	while (true) {
-		uart_write_bytes(UART_NUM_0, "Hello, world!\n", 14);
-		TASK_DELAY_MS(1000);
+		TASK_DELAY_MS(1337);
 	}
 }
