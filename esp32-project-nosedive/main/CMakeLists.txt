@@ -5,7 +5,9 @@ idf_component_register(
 	"http-tuner.c"
 	"heartbeat.c"
 	"driver-bmx280.c"
+	"driver-tpa626.c"
 	"sensor-bmx280.c"
+	"sensor-tpa626.c"
 	INCLUDE_DIRS
 	"."
 )

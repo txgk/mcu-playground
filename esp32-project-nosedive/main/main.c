@@ -131,8 +131,8 @@ app_main(void)
 	};
 	esp_wifi_set_mode(WIFI_MODE_STA);
 	esp_wifi_set_config(WIFI_IF_STA, &wifi_cfg);
-	xTaskCreatePinnedToCore(&wifi_loop, "wifi_loop", 2048, NULL, 1, NULL, 1);
 	esp_wifi_start();
+	xTaskCreatePinnedToCore(&wifi_loop, "wifi_loop", 2048, NULL, 1, NULL, 1);
 #else
 	esp_netif_create_default_wifi_ap();
 	wifi_init_config_t wifi_init_cfg = WIFI_INIT_CONFIG_DEFAULT();
@@ -159,6 +159,7 @@ app_main(void)
 
 	xTaskCreatePinnedToCore(&heartbeat_task, "heartbeat_task", 1024, NULL, 1, NULL, 1);
 	xTaskCreatePinnedToCore(&bmx280_task, "bmx280_task", 2048, NULL, 1, NULL, 1);
+	xTaskCreatePinnedToCore(&tpa626_task, "tpa626_task", 2048, NULL, 1, NULL, 1);
 
 	while (true) {
 		TASK_DELAY_MS(1337);

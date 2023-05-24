@@ -24,11 +24,14 @@
 
 #define WIFI_RECONNECTION_PERIOD_MS 2000
 
+#define TPA626_I2C_ADDRESS 65
+
 #define TASK_DELAY_MS(A) vTaskDelay((A) / portTICK_PERIOD_MS)
 #define INIT_IP4_LOL(a, b, c, d) { .type = ESP_IPADDR_TYPE_V4, .u_addr = { .ip4 = { .addr = ESP_IP4TOADDR(a, b, c, d) }}}
 
 enum {
-	MUX_HTTP_STREAMER = 0,
+	MUX_I2C_DRIVER = 0,
+	MUX_HTTP_STREAMER,
 	MUX_HTTP_STREAMER_ACTIVITY_INDICATOR,
 	NUMBER_OF_MUTEXES,
 };
@@ -47,6 +50,9 @@ void heartbeat_task(void *dummy);
 
 // Реализация находится в файле "sensor-bmx280.c"
 void bmx280_task(void *dummy);
+
+// Реализация находится в файле "sensor-tpa626.c"
+void tpa626_task(void *dummy);
 
 extern SemaphoreHandle_t system_mutexes[NUMBER_OF_MUTEXES];
 #endif // NOSEDIVE_H

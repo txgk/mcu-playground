@@ -4,7 +4,7 @@
 static char heartbeat_text_buf[100];
 static int heartbeat_text_len;
 
-void
+void IRAM_ATTR
 heartbeat_task(void *dummy)
 {
 	int32_t i = 1;
