@@ -160,6 +160,7 @@ app_main(void)
 	xTaskCreatePinnedToCore(&heartbeat_task, "heartbeat_task", 1024, NULL, 1, NULL, 1);
 	xTaskCreatePinnedToCore(&bmx280_task, "bmx280_task", 2048, NULL, 1, NULL, 1);
 	xTaskCreatePinnedToCore(&tpa626_task, "tpa626_task", 2048, NULL, 1, NULL, 1);
+	xTaskCreatePinnedToCore(&lis3dh_task, "lis3dh_task", 2048, NULL, 1, NULL, 1);
 
 	while (true) {
 		TASK_DELAY_MS(1337);

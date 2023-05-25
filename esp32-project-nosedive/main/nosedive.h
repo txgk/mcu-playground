@@ -5,7 +5,7 @@
 #include "driver/i2c.h"
 #include "esp_timer.h"
 #include "esp_log.h"
-#include "../../wifi-credentials.h"
+// #include "../../wifi-credentials.h"
 
 #define UART0_TX_PIN       1
 #define UART0_RX_PIN       3
@@ -25,6 +25,7 @@
 #define WIFI_RECONNECTION_PERIOD_MS 2000
 
 #define TPA626_I2C_ADDRESS 65
+#define LIS3DH_I2C_ADDRESS 25
 
 #define TASK_DELAY_MS(A) vTaskDelay((A) / portTICK_PERIOD_MS)
 #define INIT_IP4_LOL(a, b, c, d) { .type = ESP_IPADDR_TYPE_V4, .u_addr = { .ip4 = { .addr = ESP_IP4TOADDR(a, b, c, d) }}}
@@ -53,6 +54,9 @@ void bmx280_task(void *dummy);
 
 // Реализация находится в файле "sensor-tpa626.c"
 void tpa626_task(void *dummy);
+
+// Реализация находится в файле "sensor-lis3dh.c"
+void lis3dh_task(void *dummy);
 
 extern SemaphoreHandle_t system_mutexes[NUMBER_OF_MUTEXES];
 #endif // NOSEDIVE_H
