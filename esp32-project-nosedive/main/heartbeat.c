@@ -16,7 +16,7 @@ heartbeat_task(void *dummy)
 			uart_write_bytes(UART_NUM_0, heartbeat_text_buf, heartbeat_text_len);
 		}
 		i = (i * 10) % 999999999;
-		TASK_DELAY_MS(1000);
+		TASK_DELAY_MS(HEARTBEAT_PERIOD_MS);
 	}
 	vTaskDelete(NULL);
 }

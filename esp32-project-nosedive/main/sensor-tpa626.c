@@ -10,7 +10,11 @@ tpa626_task(void *dummy)
 {
 	while (true) {
 		int64_t ms = esp_timer_get_time() / 1000;
-		int cfg = tpa626_read_configuration();
+		int cfg = 0;
+		if (xSemaphoreTake(system_mutexes[MUX_I2C_DRIVER], portMAX_DELAY) == pdTRUE) {
+			cfg = tpa626_read_configuration();
+			xSemaphoreGive(system_mutexes[MUX_I2C_DRIVER]);
+		}
 		tpa626_text_len = snprintf(
 			tpa626_text_buf,
 			200,
@@ -22,7 +26,7 @@ tpa626_task(void *dummy)
 			send_data(tpa626_text_buf, tpa626_text_len);
 			uart_write_bytes(UART_NUM_0, tpa626_text_buf, tpa626_text_len);
 		}
-		TASK_DELAY_MS(1000);
+		TASK_DELAY_MS(TPA626_POLLING_PERIOD_MS);
 	}
 	vTaskDelete(NULL);
 }

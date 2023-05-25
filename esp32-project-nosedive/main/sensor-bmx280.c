@@ -45,7 +45,7 @@ bmx280_task(void *dummy)
 			send_data(bmx280_text_buf, bmx280_text_len);
 			uart_write_bytes(UART_NUM_0, bmx280_text_buf, bmx280_text_len);
 		}
-		TASK_DELAY_MS(1000);
+		TASK_DELAY_MS(BMX280_POLLING_PERIOD_MS);
 	}
 	vTaskDelete(NULL);
 }
