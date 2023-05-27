@@ -19,7 +19,7 @@ init_adc_for_ntc_task(void)
 	adc_unit_t adc_unit_id = ADC_UNIT_1;
 	adc_oneshot_io_to_channel(NTC_PIN, &adc_unit_id, &ntc_adc_channel_id);
 	adc_oneshot_config_channel(adc1_handle, ntc_adc_channel_id, &ntc_adc_cfg);
-	example_adc_calibration_init(adc_unit_id, ntc_adc_channel_id, ntc_adc_cfg.atten, &ntc_adc_cali_handle);
+	ntc_adc_cali_handle = get_adc_channel_calibration_profile(adc_unit_id, ntc_adc_channel_id, ntc_adc_cfg.bitwidth, ntc_adc_cfg.atten);
 }
 
 void IRAM_ATTR
@@ -34,8 +34,11 @@ ntc_task(void *dummy)
 			adc_oneshot_read(adc1_handle, ntc_adc_channel_id, &read_sample);
 			read_sum += read_sample;
 		}
-		// float voltage = (float)read_sum * 2450.0 / NTC_SAMPLES_COUNT / 4095.0;
-		adc_cali_raw_to_voltage(ntc_adc_cali_handle, read_sum / NTC_SAMPLES_COUNT, &millivolts);
+		if (ntc_adc_cali_handle != NULL) {
+			adc_cali_raw_to_voltage(ntc_adc_cali_handle, read_sum / NTC_SAMPLES_COUNT, &millivolts);
+		} else {
+			millivolts = read_sum * 2450 / NTC_SAMPLES_COUNT / 4095;
+		}
 		ntc_text_len = snprintf(
 			ntc_text_buf,
 			100,

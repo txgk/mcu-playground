@@ -1,6 +1,6 @@
 #include <stdio.h>
 #include "nosedive.h"
-#include "lis3dh.h"
+#include "driver-lis3dh.h"
 
 static char lis3dh_text_buf[200];
 static int lis3dh_text_len;

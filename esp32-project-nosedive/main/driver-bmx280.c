@@ -15,7 +15,7 @@
 // Sensortec GmbH and it is not clearly licensed, therefore this code is not 
 // covered by the MIT of this repository. Use at your own risk.
 
-#include "bmx280.h"
+#include "driver-bmx280.h"
 #include "esp_log.h"
 
 #include <stdlib.h>

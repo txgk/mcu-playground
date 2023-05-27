@@ -3,11 +3,11 @@
 #include <stdbool.h>
 #include "driver/uart.h"
 #include "driver/i2c.h"
+#include "esp_timer.h"
+#include "esp_log.h"
 #include "esp_adc/adc_oneshot.h"
 #include "esp_adc/adc_cali.h"
 #include "esp_adc/adc_cali_scheme.h"
-#include "esp_timer.h"
-#include "esp_log.h"
 // #include "../../wifi-credentials.h"
 
 #define UART0_TX_PIN       1
@@ -61,7 +61,7 @@ void init_adc_for_ntc_task(void); // См. файл "sensor-ntc.c"
 void ntc_task(void *dummy);       // См. файл "sensor-ntc.c"
 
 // См. файл "adc-common.c"
-bool example_adc_calibration_init(adc_unit_t unit, adc_channel_t channel, adc_atten_t atten, adc_cali_handle_t *out_handle);
+adc_cali_handle_t get_adc_channel_calibration_profile(adc_unit_t id, adc_channel_t ch, adc_bitwidth_t res, adc_atten_t db);
 
 extern SemaphoreHandle_t system_mutexes[NUMBER_OF_MUTEXES];
 extern adc_oneshot_unit_handle_t adc1_handle;

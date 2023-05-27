@@ -1,6 +1,6 @@
 #include <stdio.h>
 #include "nosedive.h"
-#include "tpa626.h"
+#include "driver-tpa626.h"
 
 static char tpa626_text_buf[200];
 static int tpa626_text_len;

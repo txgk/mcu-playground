@@ -1,53 +1,44 @@
 #include "nosedive.h"
 
-#define ADC_CALIBRATION_TAG "ADCCALI"
+#define ADC_CALIBRATION_TAG "ADC"
 
-bool
-example_adc_calibration_init(adc_unit_t unit, adc_channel_t channel, adc_atten_t atten, adc_cali_handle_t *out_handle)
+adc_cali_handle_t
+get_adc_channel_calibration_profile(adc_unit_t id, adc_channel_t ch, adc_bitwidth_t res, adc_atten_t db)
 {
 	adc_cali_handle_t handle = NULL;
-	esp_err_t ret = ESP_FAIL;
-	bool calibrated = false;
+	esp_err_t status = ESP_FAIL;
 
 #if ADC_CALI_SCHEME_CURVE_FITTING_SUPPORTED
-	if (!calibrated) {
-		ESP_LOGI(ADC_CALIBRATION_TAG, "calibration scheme version is %s", "Curve Fitting");
-		adc_cali_curve_fitting_config_t cali_config = {
-			.unit_id = unit,
-			.chan = channel,
-			.atten = atten,
-			.bitwidth = ADC_BITWIDTH_DEFAULT,
-		};
-		ret = adc_cali_create_scheme_curve_fitting(&cali_config, &handle);
-		if (ret == ESP_OK) {
-			calibrated = true;
-		}
-	}
+	ESP_LOGI(ADC_CALIBRATION_TAG, "calibration scheme version is curve fitting");
+	adc_cali_curve_fitting_config_t cali_curve_cfg = {
+		.unit_id = id,
+		.chan = ch,
+		.atten = db,
+		.bitwidth = res,
+	};
+	status = adc_cali_create_scheme_curve_fitting(&cali_curve_cfg, &handle);
 #endif
 
 #if ADC_CALI_SCHEME_LINE_FITTING_SUPPORTED
-	if (!calibrated) {
-		ESP_LOGI(ADC_CALIBRATION_TAG, "calibration scheme version is %s", "Line Fitting");
-		adc_cali_line_fitting_config_t cali_config = {
-			.unit_id = unit,
-			.atten = atten,
-			.bitwidth = ADC_BITWIDTH_DEFAULT,
+	if (status != ESP_OK) {
+		ESP_LOGI(ADC_CALIBRATION_TAG, "calibration scheme version is line fitting");
+		adc_cali_line_fitting_config_t cali_line_cfg = {
+			.unit_id = id,
+			.atten = db,
+			.bitwidth = res,
 		};
-		ret = adc_cali_create_scheme_line_fitting(&cali_config, &handle);
-		if (ret == ESP_OK) {
-			calibrated = true;
-		}
+		status = adc_cali_create_scheme_line_fitting(&cali_line_cfg, &handle);
 	}
 #endif
 
-	*out_handle = handle;
-	if (ret == ESP_OK) {
+	if (status == ESP_OK) {
 		ESP_LOGI(ADC_CALIBRATION_TAG, "Calibration Success");
-	} else if (ret == ESP_ERR_NOT_SUPPORTED || !calibrated) {
-		ESP_LOGW(ADC_CALIBRATION_TAG, "eFuse not burnt, skip software calibration");
+		return handle;
+	} else if (status == ESP_ERR_NOT_SUPPORTED) {
+		ESP_LOGW(ADC_CALIBRATION_TAG, "No software calibration");
 	} else {
-		ESP_LOGE(ADC_CALIBRATION_TAG, "Invalid arg or no memory");
+		ESP_LOGE(ADC_CALIBRATION_TAG, "Invalid arg or OOM");
 	}
 
-	return calibrated;
+	return NULL;
 }

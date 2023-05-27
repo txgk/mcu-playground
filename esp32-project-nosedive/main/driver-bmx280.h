@@ -28,7 +28,7 @@ extern "C" {
  */
 typedef struct bmx280_t bmx280_t;
 
-#include "bmx280_bits.h"
+#include "driver-bmx280-bits.h"
 
 /**
  * Create an instance of the BMX280 driver.

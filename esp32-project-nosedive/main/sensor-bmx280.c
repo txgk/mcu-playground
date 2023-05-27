@@ -1,6 +1,6 @@
 #include <stdio.h>
 #include "nosedive.h"
-#include "bmx280.h"
+#include "driver-bmx280.h"
 
 static char bmx280_text_buf[200];
 static int bmx280_text_len;
