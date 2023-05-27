@@ -10,6 +10,8 @@ idf_component_register(
 	"sensor-bmx280.c"
 	"sensor-tpa626.c"
 	"sensor-lis3dh.c"
+	"sensor-ntc.c"
+	"adc-common.c"
 	INCLUDE_DIRS
 	"."
 )

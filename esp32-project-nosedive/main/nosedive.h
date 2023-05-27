@@ -3,6 +3,9 @@
 #include <stdbool.h>
 #include "driver/uart.h"
 #include "driver/i2c.h"
+#include "esp_adc/adc_oneshot.h"
+#include "esp_adc/adc_cali.h"
+#include "esp_adc/adc_cali_scheme.h"
 #include "esp_timer.h"
 #include "esp_log.h"
 // #include "../../wifi-credentials.h"
@@ -16,6 +19,7 @@
 #define I2C1_SDA_PIN       27
 #define I2C1_SCL_PIN       26
 #define I2C1_SPEED         1000000
+#define NTC_PIN            33
 
 #define HTTP_STREAMER_PORT 222
 #define HTTP_TUNER_PORT    333
@@ -27,6 +31,7 @@
 #define BMX280_POLLING_PERIOD_MS    1000
 #define TPA626_POLLING_PERIOD_MS    1000
 #define LIS3DH_POLLING_PERIOD_MS    1000
+#define NTC_POLLING_PERIOD_MS       1000
 
 #define BME280_I2C_ADDRESS 118
 #define TPA626_I2C_ADDRESS 65
@@ -42,26 +47,22 @@ enum {
 	NUMBER_OF_MUTEXES,
 };
 
-// Реализация находится в файле "http-streamer.c"
-bool start_http_streamer(void);
-void send_data(const char *new_data_buf, size_t new_data_len);
-void stop_http_streamer(void);
+bool start_http_streamer(void);                                // См. файл "http-streamer.c"
+void send_data(const char *new_data_buf, size_t new_data_len); // См. файл "http-streamer.c"
+void stop_http_streamer(void);                                 // См. файл "http-streamer.c"
+bool start_http_tuner(void);                                   // См. файл "http-tuner.c"
+void stop_http_tuner(void);                                    // См. файл "http-tuner.c"
 
-// Реализация находится в файле "http-tuner.c"
-bool start_http_tuner(void);
-void stop_http_tuner(void);
+void heartbeat_task(void *dummy); // См. файл "heartbeat.c"
+void bmx280_task(void *dummy);    // См. файл "sensor-bmx280.c"
+void tpa626_task(void *dummy);    // См. файл "sensor-tpa626.c"
+void lis3dh_task(void *dummy);    // См. файл "sensor-lis3dh.c"
+void init_adc_for_ntc_task(void); // См. файл "sensor-ntc.c"
+void ntc_task(void *dummy);       // См. файл "sensor-ntc.c"
 
-// Реализация находится в файле "heartbeat.c"
-void heartbeat_task(void *dummy);
-
-// Реализация находится в файле "sensor-bmx280.c"
-void bmx280_task(void *dummy);
-
-// Реализация находится в файле "sensor-tpa626.c"
-void tpa626_task(void *dummy);
-
-// Реализация находится в файле "sensor-lis3dh.c"
-void lis3dh_task(void *dummy);
+// См. файл "adc-common.c"
+bool example_adc_calibration_init(adc_unit_t unit, adc_channel_t channel, adc_atten_t atten, adc_cali_handle_t *out_handle);
 
 extern SemaphoreHandle_t system_mutexes[NUMBER_OF_MUTEXES];
+extern adc_oneshot_unit_handle_t adc1_handle;
 #endif // NOSEDIVE_H

@@ -16,6 +16,8 @@ SemaphoreHandle_t system_mutexes[NUMBER_OF_MUTEXES];
 static EventGroupHandle_t wifi_event_group; // For signaling when we are connected.
 #define WIFI_CONNECTED_BIT BIT0
 
+adc_oneshot_unit_handle_t adc1_handle;
+
 static inline void
 setup_serial(uart_config_t *cfg, uart_port_t port, int speed, int tx_pin, int rx_pin)
 {
@@ -102,6 +104,12 @@ app_main(void)
 	i2c_param_config(I2C_NUM_0, &i2c_cfg);
 	i2c_driver_install(I2C_NUM_0, I2C_MODE_MASTER, 0, 0, 0);
 
+	adc_oneshot_unit_init_cfg_t adc1_init_cfg = {
+		.unit_id = ADC_UNIT_1,
+	};
+	adc_oneshot_new_unit(&adc1_init_cfg, &adc1_handle);
+	init_adc_for_ntc_task();
+
 	esp_netif_init();
 	esp_event_loop_create_default();
 #if 0
@@ -161,6 +169,7 @@ app_main(void)
 	xTaskCreatePinnedToCore(&bmx280_task, "bmx280_task", 2048, NULL, 1, NULL, 1);
 	xTaskCreatePinnedToCore(&tpa626_task, "tpa626_task", 2048, NULL, 1, NULL, 1);
 	xTaskCreatePinnedToCore(&lis3dh_task, "lis3dh_task", 2048, NULL, 1, NULL, 1);
+	xTaskCreatePinnedToCore(&ntc_task, "ntc_task", 2048, NULL, 1, NULL, 1);
 
 	while (true) {
 		TASK_DELAY_MS(1337);
