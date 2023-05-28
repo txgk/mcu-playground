@@ -140,6 +140,7 @@ app_main(void)
 	esp_wifi_set_mode(WIFI_MODE_STA);
 	esp_wifi_set_config(WIFI_IF_STA, &wifi_cfg);
 	esp_wifi_start();
+	esp_wifi_set_ps(WIFI_PS_NONE);
 	xTaskCreatePinnedToCore(&wifi_loop, "wifi_loop", 2048, NULL, 1, NULL, 1);
 #else
 	esp_netif_create_default_wifi_ap();
@@ -161,6 +162,7 @@ app_main(void)
 	esp_wifi_set_mode(WIFI_MODE_AP);
 	esp_wifi_set_config(WIFI_IF_AP, &wifi_cfg);
 	esp_wifi_start();
+	esp_wifi_set_ps(WIFI_PS_NONE);
 	start_http_streamer();
 	start_http_tuner();
 #endif
