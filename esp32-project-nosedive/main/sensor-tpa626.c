@@ -2,7 +2,9 @@
 #include "nosedive.h"
 #include "driver-tpa626.h"
 
-static char tpa626_text_buf[200];
+#define TPA626_MESSAGE_SIZE 200
+
+static char tpa626_text_buf[TPA626_MESSAGE_SIZE];
 static int tpa626_text_len;
 
 void IRAM_ATTR
@@ -17,12 +19,12 @@ tpa626_task(void *dummy)
 		}
 		tpa626_text_len = snprintf(
 			tpa626_text_buf,
-			200,
+			TPA626_MESSAGE_SIZE,
 			"TPA626@%lld=%d\n",
 			ms,
 			cfg
 		);
-		if (tpa626_text_len > 0 && tpa626_text_len < 200) {
+		if (tpa626_text_len > 0 && tpa626_text_len < TPA626_MESSAGE_SIZE) {
 			send_data(tpa626_text_buf, tpa626_text_len);
 			uart_write_bytes(UART_NUM_0, tpa626_text_buf, tpa626_text_len);
 		}

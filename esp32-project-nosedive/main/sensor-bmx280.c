@@ -2,7 +2,9 @@
 #include "nosedive.h"
 #include "driver-bmx280.h"
 
-static char bmx280_text_buf[200];
+#define BMX280_MESSAGE_SIZE 200
+
+static char bmx280_text_buf[BMX280_MESSAGE_SIZE];
 static int bmx280_text_len;
 
 void IRAM_ATTR
@@ -34,14 +36,14 @@ bmx280_task(void *dummy)
 		}
 		bmx280_text_len = snprintf(
 			bmx280_text_buf,
-			200,
+			BMX280_MESSAGE_SIZE,
 			"BME280@%lld=%.2f,%.2f,%.2f\n",
 			ms,
 			temp,
 			pres,
 			hum
 		);
-		if (bmx280_text_len > 0 && bmx280_text_len < 200) {
+		if (bmx280_text_len > 0 && bmx280_text_len < BMX280_MESSAGE_SIZE) {
 			send_data(bmx280_text_buf, bmx280_text_len);
 			uart_write_bytes(UART_NUM_0, bmx280_text_buf, bmx280_text_len);
 		}

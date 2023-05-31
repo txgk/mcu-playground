@@ -2,8 +2,9 @@
 #include "nosedive.h"
 
 #define NTC_SAMPLES_COUNT 64
+#define NTC_MESSAGE_SIZE 100
 
-static char ntc_text_buf[100];
+static char ntc_text_buf[NTC_MESSAGE_SIZE];
 static int ntc_text_len;
 
 static adc_channel_t ntc_adc_channel_id = ADC_CHANNEL_5;
@@ -41,12 +42,12 @@ ntc_task(void *dummy)
 		}
 		ntc_text_len = snprintf(
 			ntc_text_buf,
-			100,
+			NTC_MESSAGE_SIZE,
 			"NTC@%lld=%d\n",
 			ms,
 			millivolts
 		);
-		if (ntc_text_len > 0 && ntc_text_len < 100) {
+		if (ntc_text_len > 0 && ntc_text_len < NTC_MESSAGE_SIZE) {
 			send_data(ntc_text_buf, ntc_text_len);
 			uart_write_bytes(UART_NUM_0, ntc_text_buf, ntc_text_len);
 		}

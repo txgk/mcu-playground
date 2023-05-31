@@ -2,7 +2,9 @@
 #include "nosedive.h"
 #include "driver-lis3dh.h"
 
-static char lis3dh_text_buf[200];
+#define LIS3DH_MESSAGE_SIZE 200
+
+static char lis3dh_text_buf[LIS3DH_MESSAGE_SIZE];
 static int lis3dh_text_len;
 
 void IRAM_ATTR
@@ -17,12 +19,12 @@ lis3dh_task(void *dummy)
 		}
 		lis3dh_text_len = snprintf(
 			lis3dh_text_buf,
-			200,
+			LIS3DH_MESSAGE_SIZE,
 			"LIS3DH@%lld=%d\n",
 			ms,
 			id
 		);
-		if (lis3dh_text_len > 0 && lis3dh_text_len < 200) {
+		if (lis3dh_text_len > 0 && lis3dh_text_len < LIS3DH_MESSAGE_SIZE) {
 			send_data(lis3dh_text_buf, lis3dh_text_len);
 			uart_write_bytes(UART_NUM_0, lis3dh_text_buf, lis3dh_text_len);
 		}
