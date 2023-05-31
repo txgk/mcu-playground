@@ -3,6 +3,7 @@
 #include <WiFi.h>
 #include <ArduinoOTA.h>
 #include "driver/ledc.h"
+#include "HX711.h"
 #include "../../wifi-credentials.h"
 
 #define SDA_PIN                          32
@@ -11,6 +12,8 @@
 #define SCL2_PIN                         35
 #define RX_PIN                           16
 #define TX_PIN                           17
+#define I2C1_BUS_SDA_PIN                 27
+#define I2C1_BUS_SCL_PIN                 26
 #define PWM_OUT_1_PIN                    5
 #define SERIAL_SPEED                     9600
 #define WIFI_DATA_PORT                   80
@@ -119,6 +122,9 @@ ledc_channel_config_t channel_config = {
 	.duty = 820, // Заполнение ~10% для имитации датчика Холла.
 	.hpoint = 0,
 };
+
+HX711 loadcell;
+SemaphoreHandle_t loadcell_lock = NULL;
 
 void
 add_command_to_fast_queue(const char *cmd, size_t cmd_len)
@@ -560,6 +566,37 @@ tachometer_faker_loop(void *dummy)
 	vTaskDelete(NULL);
 }
 
+void IRAM_ATTR
+loadcell_loop(void *dummy)
+{
+	char loadcell_buf[200];
+	unsigned long packet_birth;
+	while (true) {
+		long value = 0;
+		bool read_thrust = false;
+		if (xSemaphoreTake(loadcell_lock, portMAX_DELAY) == pdTRUE) {
+			if (loadcell.is_ready()) {
+				value = loadcell.read();
+				packet_birth = millis();
+				read_thrust = true;
+			}
+			xSemaphoreGive(loadcell_lock);
+		}
+		if (read_thrust == true) {
+			int loadcell_buf_len = snprintf(
+				loadcell_buf,
+				200,
+				"\nTHR@%lu=%ld",
+				packet_birth,
+				value
+			);
+			if (loadcell_buf_len > 0 && loadcell_buf_len < 200) send_data(loadcell_buf, loadcell_buf_len);
+		}
+		TASK_DELAY_MS(500);
+	}
+	vTaskDelete(NULL);
+}
+
 void
 start_i2c1_loop(void)
 {
@@ -645,6 +682,20 @@ start_tachometer_faker_loop(void)
 }
 
 void
+start_loadcell_loop(void)
+{
+	xTaskCreatePinnedToCore(
+		&loadcell_loop,
+		"loadcell_loop",
+		2048, // stack size
+		NULL, // argument
+		1, // priority
+		NULL, // handle
+		1 // core
+	);
+}
+
+void
 setup(void)
 {
 	gpio_config_t input_cfg = {
@@ -661,7 +712,9 @@ setup(void)
 	fast_queue_lock = xSemaphoreCreateMutex();
 	uart_circle_lock = xSemaphoreCreateMutex();
 	rpm_lock = xSemaphoreCreateMutex();
+	loadcell_lock = xSemaphoreCreateMutex();
 	Serial1.begin(SERIAL_SPEED, SERIAL_8N1, RX_PIN, TX_PIN);
+	loadcell.begin(I2C1_BUS_SDA_PIN, I2C1_BUS_SCL_PIN);
 	add_command_to_uart_circle("RAC", 3, true);
 	add_command_to_uart_circle("RFI", 3, true);
 	WiFi.config(ip, gateway, subnet, primary_dns, secondary_dns);
@@ -678,6 +731,7 @@ setup(void)
 	start_beat_loop();
 	start_tuner_loop();
 	start_tachometer_faker_loop();
+	start_loadcell_loop();
 }
 
 void
