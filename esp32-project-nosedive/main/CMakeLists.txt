@@ -7,11 +7,13 @@ idf_component_register(
 	"driver-bmx280.c"
 	"driver-tpa626.c"
 	"driver-lis3dh.c"
+	"driver-pca9685.c"
 	"sensor-bmx280.c"
 	"sensor-tpa626.c"
 	"sensor-lis3dh.c"
+	"sensor-pca9685.c"
 	"sensor-ntc.c"
-	"adc-common.c"
+	"common-adc.c"
 	INCLUDE_DIRS
 	"."
 )
