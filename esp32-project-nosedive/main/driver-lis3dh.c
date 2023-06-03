@@ -5,7 +5,7 @@ lis3dh_read_one_byte_from_register(uint8_t cmd)
 {
 	uint8_t data = 0;
 	i2c_master_write_read_device(
-		I2C_NUM_0,
+		LIS3DH_I2C_PORT,
 		LIS3DH_I2C_ADDRESS,
 		&cmd,
 		sizeof(cmd),

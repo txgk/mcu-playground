@@ -5,7 +5,7 @@ tpa626_read_two_bytes_from_register(uint8_t cmd)
 {
 	uint8_t data[2] = {0};
 	i2c_master_write_read_device(
-		I2C_NUM_0,
+		TPA626_I2C_PORT,
 		TPA626_I2C_ADDRESS,
 		&cmd,
 		sizeof(cmd),

@@ -11,7 +11,7 @@ void IRAM_ATTR
 bmx280_task(void *dummy)
 {
 	// It just allocates memory, so wrapping it into I2C driver mutex is not needed.
-	bmx280_t *bmx280 = bmx280_create(I2C_NUM_0);
+	bmx280_t *bmx280 = bmx280_create(BME280_I2C_PORT);
 	if (bmx280 == NULL) {
 		vTaskDelete(NULL);
 	}
