@@ -13,6 +13,7 @@ idf_component_register(
 	"sensor-lis3dh.c"
 	"sensor-pca9685.c"
 	"sensor-ntc.c"
+	"common-i2c.c"
 	"common-adc.c"
 	INCLUDE_DIRS
 	"."
