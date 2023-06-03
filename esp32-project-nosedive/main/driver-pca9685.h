@@ -25,8 +25,6 @@ void pca9685_initialize(void);
 
 int pca9685_read_mode1(void);
 int pca9685_read_subadr1(void);
-int pca9685_read_subadr2(void);
-int pca9685_read_subadr3(void);
 
 void pca9685_channel_setup(pca9685_ch_t ch, int duty_percent, int shift_percent);
 void pca9685_channel_full_toggle(pca9685_ch_t ch, bool on);

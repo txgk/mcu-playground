@@ -2,13 +2,80 @@
 #include "nosedive.h"
 #include "driver-pca9685.h"
 
-#define PCA9685_MESSAGE_SIZE 100
-static char pca9685_text_buf[PCA9685_MESSAGE_SIZE];
-static int pca9685_text_len;
+void
+pca9685_http_handler_pcaset(const char *value)
+{
+	long ch = 0, duty = 100;
+	uint8_t field = 0;
+	char buf[10];
+	uint8_t buf_len = 0;
+	for (const char *i = value; ; ++i) {
+		if (*i == ',' || *i == '\0') {
+			buf[buf_len] = '\0';
+			buf_len = 0;
+			field += 1;
+			if (field == 1) {
+				ch = strtol(buf, NULL, 10);
+			} else if (field == 2) {
+				duty = strtol(buf, NULL, 10);
+			}
+			if (*i == '\0') {
+				break;
+			}
+		} else if (buf_len < 9) {
+			buf[buf_len++] = *i;
+		}
+	}
+	if (field > 0) {
+		if (xSemaphoreTake(system_mutexes[MUX_I2C_DRIVER], portMAX_DELAY) == pdTRUE) {
+			pca9685_channel_setup(PCA9685_CH0 + ch, duty, 0);
+			xSemaphoreGive(system_mutexes[MUX_I2C_DRIVER]);
+		}
+	}
+}
 
 static void
+pca9685_http_handler_pcamax_pcaoff(const char *value, bool on)
+{
+	if (xSemaphoreTake(system_mutexes[MUX_I2C_DRIVER], portMAX_DELAY) == pdTRUE) {
+		if (strcmp(value, "all") == 0) {
+			pca9685_channel_full_toggle(PCA9685_ALL, on);
+		} else {
+			long ch = strtol(value, NULL, 10);
+			pca9685_channel_full_toggle(PCA9685_CH0 + ch, on);
+		}
+		xSemaphoreGive(system_mutexes[MUX_I2C_DRIVER]);
+	}
+}
+
+void
+pca9685_http_handler_pcamax(const char *value)
+{
+	pca9685_http_handler_pcamax_pcaoff(value, true);
+}
+
+void
+pca9685_http_handler_pcaoff(const char *value)
+{
+	pca9685_http_handler_pcamax_pcaoff(value, false);
+}
+
+void
+pca9685_http_handler_pcafreq(const char *value)
+{
+	if (xSemaphoreTake(system_mutexes[MUX_I2C_DRIVER], portMAX_DELAY) == pdTRUE) {
+		long freq = strtol(value, NULL, 10);
+		pca9685_change_frequency(freq);
+		xSemaphoreGive(system_mutexes[MUX_I2C_DRIVER]);
+	}
+}
+
+void
 pca9685_print_some_registers(void)
 {
+#define PCA9685_MESSAGE_SIZE 100
+	char pca9685_text_buf[PCA9685_MESSAGE_SIZE];
+	int pca9685_text_len;
 	int mode1 = 0, subadr1 = 0;
 	int64_t ms = esp_timer_get_time() / 1000;
 	if (xSemaphoreTake(system_mutexes[MUX_I2C_DRIVER], portMAX_DELAY) == pdTRUE) {
@@ -28,38 +95,4 @@ pca9685_print_some_registers(void)
 		send_data(pca9685_text_buf, pca9685_text_len);
 		uart_write_bytes(UART_NUM_0, pca9685_text_buf, pca9685_text_len);
 	}
-
-}
-
-void IRAM_ATTR
-pca9685_task(void *dummy)
-{
-	if (xSemaphoreTake(system_mutexes[MUX_I2C_DRIVER], portMAX_DELAY) == pdTRUE) {
-		pca9685_initialize();
-		pca9685_change_frequency(1);
-		pca9685_channel_full_toggle(PCA9685_ALL, false);
-		xSemaphoreGive(system_mutexes[MUX_I2C_DRIVER]);
-	}
-	while (true) {
-		for (pca9685_ch_t ch = PCA9685_CH6; ch < PCA9685_CH10; ++ch) {
-			if (xSemaphoreTake(system_mutexes[MUX_I2C_DRIVER], portMAX_DELAY) == pdTRUE) {
-				pca9685_channel_full_toggle(ch, true);
-				pca9685_channel_full_toggle(ch == PCA9685_CH6 ? PCA9685_CH9 : ch - 1, false);
-				// pca9685_text_len = sprintf(pca9685_text_buf, "ch is %d\n", ch);
-				// uart_write_bytes(UART_NUM_0, pca9685_text_buf, pca9685_text_len);
-				xSemaphoreGive(system_mutexes[MUX_I2C_DRIVER]);
-			}
-			TASK_DELAY_MS(400);
-		}
-		for (int i = 1; i < 9; ++i) {
-			if (xSemaphoreTake(system_mutexes[MUX_I2C_DRIVER], portMAX_DELAY) == pdTRUE) {
-				pca9685_channel_full_toggle(PCA9685_ALL, i % 2);
-				xSemaphoreGive(system_mutexes[MUX_I2C_DRIVER]);
-			}
-			TASK_DELAY_MS(500);
-		}
-		// pca9685_print_some_registers();
-		// TASK_DELAY_MS(PCA9685_POLLING_PERIOD_MS);
-	}
-	vTaskDelete(NULL);
 }

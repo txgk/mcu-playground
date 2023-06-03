@@ -10,6 +10,7 @@
 #include "esp_event.h"
 #include "nvs_flash.h"
 #include "nosedive.h"
+#include "driver-pca9685.h"
 
 SemaphoreHandle_t system_mutexes[NUMBER_OF_MUTEXES];
 
@@ -104,6 +105,10 @@ app_main(void)
 	i2c_param_config(I2C_NUM_0, &i2c_cfg);
 	i2c_driver_install(I2C_NUM_0, I2C_MODE_MASTER, 0, 0, 0);
 
+	pca9685_initialize();
+	pca9685_change_frequency(1);
+	pca9685_channel_full_toggle(PCA9685_ALL, false);
+
 	adc_oneshot_unit_init_cfg_t adc1_init_cfg = {
 		.unit_id = ADC_UNIT_1,
 	};
@@ -112,7 +117,7 @@ app_main(void)
 
 	esp_netif_init();
 	esp_event_loop_create_default();
-#if 0
+#if 0 // WIFI STATION
 	esp_netif_t *sta = esp_netif_create_default_wifi_sta();
 	esp_netif_dhcpc_stop(sta);
 	esp_netif_ip_info_t ip_info = {
@@ -142,7 +147,7 @@ app_main(void)
 	esp_wifi_start();
 	esp_wifi_set_ps(WIFI_PS_NONE);
 	xTaskCreatePinnedToCore(&wifi_loop, "wifi_loop", 2048, NULL, 1, NULL, 1);
-#else
+#else // WIFI ACCESS POINT
 	esp_netif_create_default_wifi_ap();
 	wifi_init_config_t wifi_init_cfg = WIFI_INIT_CONFIG_DEFAULT();
 	esp_wifi_init(&wifi_init_cfg);
@@ -171,7 +176,6 @@ app_main(void)
 	xTaskCreatePinnedToCore(&bmx280_task, "bmx280_task", 2048, NULL, 1, NULL, 1);
 	xTaskCreatePinnedToCore(&tpa626_task, "tpa626_task", 2048, NULL, 1, NULL, 1);
 	xTaskCreatePinnedToCore(&lis3dh_task, "lis3dh_task", 2048, NULL, 1, NULL, 1);
-	xTaskCreatePinnedToCore(&pca9685_task, "pca9685_task", 2048, NULL, 1, NULL, 1);
 	xTaskCreatePinnedToCore(&ntc_task, "ntc_task", 2048, NULL, 1, NULL, 1);
 
 	while (true) {

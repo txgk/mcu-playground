@@ -2,6 +2,7 @@
 #define NOSEDIVE_H
 #include <stdbool.h>
 #include <stdint.h>
+#include <string.h>
 #include "driver/uart.h"
 #include "driver/i2c.h"
 #include "esp_timer.h"
@@ -43,6 +44,7 @@
 #define LIS3DH_I2C_PORT     I2C_NUM_0
 #define PCA9685_I2C_PORT    I2C_NUM_0
 
+#define LENGTH(A) (sizeof((A))/sizeof(*(A)))
 #define MS_TO_TICKS(A) ((A) / portTICK_PERIOD_MS)
 #define TASK_DELAY_MS(A) vTaskDelay((A) / portTICK_PERIOD_MS)
 #define INIT_IP4_LOL(a, b, c, d) { .type = ESP_IPADDR_TYPE_V4, .u_addr = { .ip4 = { .addr = ESP_IP4TOADDR(a, b, c, d) }}}
@@ -64,9 +66,14 @@ void heartbeat_task(void *dummy); // См. файл "heartbeat.c"
 void bmx280_task(void *dummy);    // См. файл "sensor-bmx280.c"
 void tpa626_task(void *dummy);    // См. файл "sensor-tpa626.c"
 void lis3dh_task(void *dummy);    // См. файл "sensor-lis3dh.c"
-void pca9685_task(void *dummy);   // См. файл "sensor-pca9685.c"
 void init_adc_for_ntc_task(void); // См. файл "sensor-ntc.c"
 void ntc_task(void *dummy);       // См. файл "sensor-ntc.c"
+
+// См. файл "sensor-pca9685.c"
+void pca9685_http_handler_pcaset(const char *value);
+void pca9685_http_handler_pcamax(const char *value);
+void pca9685_http_handler_pcaoff(const char *value);
+void pca9685_http_handler_pcafreq(const char *value);
 
 // См. файл "common-adc.c"
 adc_cali_handle_t get_adc_channel_calibration_profile(adc_unit_t id, adc_channel_t ch, adc_bitwidth_t res, adc_atten_t db);

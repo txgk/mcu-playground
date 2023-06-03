@@ -1,22 +1,65 @@
 #include "esp_http_server.h"
 #include "nosedive.h"
 
+struct param_handler {
+	const char *prefix;
+	const size_t prefix_len;
+	void (*handler)(const char *value);
+};
+
 static httpd_handle_t http_tuner = NULL;
 static httpd_config_t http_tuner_config = HTTPD_DEFAULT_CONFIG();
 
+static const struct param_handler handlers[] = {
+	{"pcaset=",  7, &pca9685_http_handler_pcaset},
+	{"pcamax=",  7, &pca9685_http_handler_pcamax},
+	{"pcaoff=",  7, &pca9685_http_handler_pcaoff},
+	{"pcafreq=", 8, &pca9685_http_handler_pcafreq},
+};
+
 static esp_err_t
-http_tuner_heart_beat_handler(httpd_req_t *req)
+http_tuner_parse_set(httpd_req_t *req)
 {
-	uart_write_bytes(UART_NUM_0, req->uri, strlen(req->uri));
-	uart_write_bytes(UART_NUM_0, "\n", 1);
+	const char *i = req->uri;
+	while (true) {
+		if (*i == '?') {
+			i += 1;
+			break;
+		} else if (*i == '\0') {
+			goto finish;
+		}
+		i += 1;
+	}
+#define URL_PARAM_SIZE 100
+	char param[URL_PARAM_SIZE + 1];
+	uint8_t param_len = 0;
+	while (true) {
+		if (*i == '&' || *i == '\0') {
+			param[param_len] = '\0';
+			param_len = 0;
+			for (size_t j = 0; j < LENGTH(handlers); ++j) {
+				if (strncmp(param, handlers[j].prefix, handlers[j].prefix_len) == 0) {
+					handlers[j].handler(param + handlers[j].prefix_len);
+					break;
+				}
+			}
+			if (*i == '\0') {
+				break;
+			}
+		} else if (param_len < URL_PARAM_SIZE) {
+			param[param_len++] = *i;
+		}
+		i += 1;
+	}
+finish:
 	httpd_resp_send_chunk(req, NULL, 0); // End response.
 	return ESP_OK;
 }
 
-static const httpd_uri_t http_tuner_heart_beat_handler_setup = {
-	.uri       = "/beat",
+static const httpd_uri_t http_tuner_set_handler = {
+	.uri       = "/set",
 	.method    = HTTP_GET,
-	.handler   = &http_tuner_heart_beat_handler,
+	.handler   = &http_tuner_parse_set,
 	.user_ctx  = NULL
 };
 
@@ -29,7 +72,7 @@ start_http_tuner(void)
 	if (httpd_start(&http_tuner, &http_tuner_config) != ESP_OK) {
 		return false;
 	}
-	httpd_register_uri_handler(http_tuner, &http_tuner_heart_beat_handler_setup);
+	httpd_register_uri_handler(http_tuner, &http_tuner_set_handler);
 	return true;
 }
 

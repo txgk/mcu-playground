@@ -1,8 +1,6 @@
 #include "nosedive.h"
 #include "driver-pca9685.h"
 
-#define PCA9685_RES 4096 // Разрешение.
-
 struct pca9685_channel_setup {
 	uint8_t on_l;
 	uint8_t on_h;
@@ -52,23 +50,14 @@ pca9685_read_subadr1(void)
 	return i2c_read_one_byte_from_register(PCA9685_I2C_PORT, PCA9685_I2C_ADDRESS, 2, 2000);
 }
 
-int
-pca9685_read_subadr2(void)
-{
-	return i2c_read_one_byte_from_register(PCA9685_I2C_PORT, PCA9685_I2C_ADDRESS, 3, 2000);
-}
-
-int
-pca9685_read_subadr3(void)
-{
-	return i2c_read_one_byte_from_register(PCA9685_I2C_PORT, PCA9685_I2C_ADDRESS, 4, 2000);
-}
-
 void
 pca9685_channel_setup(pca9685_ch_t ch, int duty_percent, int shift_percent)
 {
-	int moment_on = PCA9685_RES * shift_percent / 100;
-	int moment_off = moment_on + (PCA9685_RES * duty_percent / 100);
+	if (ch > PCA9685_ALL) {
+		return;
+	}
+	int moment_on = 4095 * shift_percent / 100;
+	int moment_off = moment_on + (4095 * duty_percent / 100);
 	uint8_t data[] = {
 		channels[ch].on_l,
 		moment_on         & 0xFF,
@@ -82,6 +71,9 @@ pca9685_channel_setup(pca9685_ch_t ch, int duty_percent, int shift_percent)
 void
 pca9685_channel_full_toggle(pca9685_ch_t ch, bool on)
 {
+	if (ch > PCA9685_ALL) {
+		return;
+	}
 	uint8_t data[] = {
 		channels[ch].on_l,
 		on ? 0xFF : 0x00,
@@ -114,5 +106,11 @@ pca9685_change_frequency(long frequency_hz)
 
 	// Leave sleep mode.
 	data1[1] = 0b00100001;
+	i2c_master_write_to_device(PCA9685_I2C_PORT, PCA9685_I2C_ADDRESS, data1, sizeof(data1), MS_TO_TICKS(2000));
+
+	TASK_DELAY_MS(1); // Give oscillator time to stabilize.
+
+	// Restart PWM channels (without this they will keep sleeping).
+	data1[1] = 0b10100001;
 	i2c_master_write_to_device(PCA9685_I2C_PORT, PCA9685_I2C_ADDRESS, data1, sizeof(data1), MS_TO_TICKS(2000));
 }
