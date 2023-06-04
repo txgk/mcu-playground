@@ -15,7 +15,11 @@ pca9685_http_handler_pcaset(const char *value)
 			buf_len = 0;
 			field += 1;
 			if (field == 1) {
-				ch = strtol(buf, NULL, 10);
+				if (strcmp(buf, "all") == 0) {
+					ch = PCA9685_ALL;
+				} else {
+					ch = strtol(buf, NULL, 10);
+				}
 			} else if (field == 2) {
 				duty = strtol(buf, NULL, 10);
 			}

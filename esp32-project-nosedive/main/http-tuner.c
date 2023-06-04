@@ -10,6 +10,9 @@ struct param_handler {
 static httpd_handle_t http_tuner = NULL;
 static httpd_config_t http_tuner_config = HTTPD_DEFAULT_CONFIG();
 
+extern const unsigned char panel_html_start[] asm("_binary_panel_html_start");
+extern const unsigned char panel_html_end[]   asm("_binary_panel_html_end");
+
 static const struct param_handler handlers[] = {
 	{"pcaset=",  7, &pca9685_http_handler_pcaset},
 	{"pcamax=",  7, &pca9685_http_handler_pcamax},
@@ -56,10 +59,26 @@ finish:
 	return ESP_OK;
 }
 
+static esp_err_t
+http_tuner_panel(httpd_req_t *req)
+{
+	httpd_resp_set_type(req, "text/html");
+	httpd_resp_send(req, (const char *)panel_html_start, panel_html_end - panel_html_start);
+	httpd_resp_send_chunk(req, NULL, 0); // End response.
+	return ESP_OK;
+}
+
 static const httpd_uri_t http_tuner_set_handler = {
 	.uri       = "/set",
 	.method    = HTTP_GET,
 	.handler   = &http_tuner_parse_set,
+	.user_ctx  = NULL
+};
+
+static const httpd_uri_t http_tuner_panel_handler = {
+	.uri       = "/panel",
+	.method    = HTTP_GET,
+	.handler   = &http_tuner_panel,
 	.user_ctx  = NULL
 };
 
@@ -73,6 +92,7 @@ start_http_tuner(void)
 		return false;
 	}
 	httpd_register_uri_handler(http_tuner, &http_tuner_set_handler);
+	httpd_register_uri_handler(http_tuner, &http_tuner_panel_handler);
 	return true;
 }
 

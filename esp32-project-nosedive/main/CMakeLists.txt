@@ -17,4 +17,6 @@ idf_component_register(
 	"common-adc.c"
 	INCLUDE_DIRS
 	"."
+	EMBED_FILES
+	"panel.html"
 )
