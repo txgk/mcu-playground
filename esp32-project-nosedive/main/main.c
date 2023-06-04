@@ -105,6 +105,16 @@ app_main(void)
 	i2c_param_config(I2C_NUM_0, &i2c_cfg);
 	i2c_driver_install(I2C_NUM_0, I2C_MODE_MASTER, 0, 0, 0);
 
+	spi_bus_config_t spi_cfg = {
+		.mosi_io_num = SPI1_MOSI_PIN,
+		.miso_io_num = SPI1_MISO_PIN,
+		.sclk_io_num = SPI1_SCLK_PIN,
+		.quadwp_io_num = -1,
+		.quadhd_io_num = -1,
+		.max_transfer_sz = 32,
+	};
+	spi_bus_initialize(SPI2_HOST, &spi_cfg, SPI_DMA_CH_AUTO);
+
 	pca9685_initialize();
 	pca9685_change_frequency(1);
 	pca9685_channel_full_toggle(PCA9685_ALL, false);
@@ -177,6 +187,7 @@ app_main(void)
 	xTaskCreatePinnedToCore(&tpa626_task, "tpa626_task", 2048, NULL, 1, NULL, 1);
 	xTaskCreatePinnedToCore(&lis3dh_task, "lis3dh_task", 2048, NULL, 1, NULL, 1);
 	xTaskCreatePinnedToCore(&ntc_task, "ntc_task", 2048, NULL, 1, NULL, 1);
+	xTaskCreatePinnedToCore(&max6675_task, "max6675_task", 2048, NULL, 1, NULL, 1);
 
 	while (true) {
 		TASK_DELAY_MS(1337);

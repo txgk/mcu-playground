@@ -5,6 +5,7 @@
 #include <string.h>
 #include "driver/uart.h"
 #include "driver/i2c.h"
+#include "driver/spi_master.h"
 #include "esp_timer.h"
 #include "esp_log.h"
 #include "esp_adc/adc_oneshot.h"
@@ -21,7 +22,11 @@
 #define I2C1_SDA_PIN       27
 #define I2C1_SCL_PIN       26
 #define I2C1_SPEED         1000000
+#define SPI1_MOSI_PIN      23
+#define SPI1_MISO_PIN      19
+#define SPI1_SCLK_PIN      18
 #define NTC_PIN            33
+#define MAX6675_CS_PIN     0
 
 #define HTTP_STREAMER_PORT 222
 #define HTTP_TUNER_PORT    333
@@ -34,6 +39,7 @@
 #define TPA626_POLLING_PERIOD_MS    1000
 #define LIS3DH_POLLING_PERIOD_MS    1000
 #define NTC_POLLING_PERIOD_MS       1000
+#define MAX6675_POLLING_PERIOD_MS   1000
 
 #define BME280_I2C_ADDRESS  118
 #define TPA626_I2C_ADDRESS  65
@@ -43,6 +49,8 @@
 #define TPA626_I2C_PORT     I2C_NUM_0
 #define LIS3DH_I2C_PORT     I2C_NUM_0
 #define PCA9685_I2C_PORT    I2C_NUM_0
+
+#define MAX6675_SPI_HOST    SPI2_HOST
 
 #define LENGTH(A) (sizeof((A))/sizeof(*(A)))
 #define MS_TO_TICKS(A) ((A) / portTICK_PERIOD_MS)
@@ -68,6 +76,7 @@ void tpa626_task(void *dummy);    // См. файл "sensor-tpa626.c"
 void lis3dh_task(void *dummy);    // См. файл "sensor-lis3dh.c"
 void init_adc_for_ntc_task(void); // См. файл "sensor-ntc.c"
 void ntc_task(void *dummy);       // См. файл "sensor-ntc.c"
+void max6675_task(void *dummy);   // См. файл "sensor-max6675.c"
 
 // См. файл "sensor-pca9685.c"
 void pca9685_http_handler_pcaset(const char *value);
