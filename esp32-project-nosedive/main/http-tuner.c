@@ -18,6 +18,7 @@ static const struct param_handler handlers[] = {
 	{"pcamax=",  7, &pca9685_http_handler_pcamax},
 	{"pcaoff=",  7, &pca9685_http_handler_pcaoff},
 	{"pcafreq=", 8, &pca9685_http_handler_pcafreq},
+	{"restart",  7, &tell_esp_to_restart},
 };
 
 static esp_err_t

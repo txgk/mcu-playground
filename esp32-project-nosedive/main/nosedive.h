@@ -64,13 +64,14 @@ enum {
 	NUMBER_OF_MUTEXES,
 };
 
+void tell_esp_to_restart(const char *dummy); // См. файл "main.c"
+
 bool start_http_streamer(void);                                // См. файл "http-streamer.c"
 void send_data(const char *new_data_buf, size_t new_data_len); // См. файл "http-streamer.c"
 void stop_http_streamer(void);                                 // См. файл "http-streamer.c"
 bool start_http_tuner(void);                                   // См. файл "http-tuner.c"
 void stop_http_tuner(void);                                    // См. файл "http-tuner.c"
 
-void heartbeat_task(void *dummy); // См. файл "heartbeat.c"
 void bmx280_task(void *dummy);    // См. файл "sensor-bmx280.c"
 void tpa626_task(void *dummy);    // См. файл "sensor-tpa626.c"
 void lis3dh_task(void *dummy);    // См. файл "sensor-lis3dh.c"

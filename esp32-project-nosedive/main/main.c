@@ -13,6 +13,7 @@
 #include "driver-pca9685.h"
 
 SemaphoreHandle_t system_mutexes[NUMBER_OF_MUTEXES];
+volatile bool they_want_us_to_restart = false;
 
 static EventGroupHandle_t wifi_event_group; // For signaling when we are connected.
 #define WIFI_CONNECTED_BIT BIT0
@@ -76,6 +77,12 @@ wifi_loop(void *dummy)
 		}
 	}
 	vTaskDelete(NULL);
+}
+
+void
+tell_esp_to_restart(const char *dummy)
+{
+	they_want_us_to_restart = true;
 }
 
 void
@@ -182,14 +189,25 @@ app_main(void)
 	start_http_tuner();
 #endif
 
-	xTaskCreatePinnedToCore(&heartbeat_task, "heartbeat_task", 1024, NULL, 1, NULL, 1);
 	xTaskCreatePinnedToCore(&bmx280_task, "bmx280_task", 2048, NULL, 1, NULL, 1);
 	xTaskCreatePinnedToCore(&tpa626_task, "tpa626_task", 2048, NULL, 1, NULL, 1);
 	xTaskCreatePinnedToCore(&lis3dh_task, "lis3dh_task", 2048, NULL, 1, NULL, 1);
 	xTaskCreatePinnedToCore(&ntc_task, "ntc_task", 2048, NULL, 1, NULL, 1);
 	xTaskCreatePinnedToCore(&max6675_task, "max6675_task", 2048, NULL, 1, NULL, 1);
 
-	while (true) {
-		TASK_DELAY_MS(1337);
+	// Здесь мы формируем heartbeat пакеты, пока не придёт команда перезагрузки.
+	char heartbeat_text_buf[100];
+	int32_t i = 1;
+	while (they_want_us_to_restart == false) {
+		int64_t ms = esp_timer_get_time() / 1000;
+		int heartbeat_text_len = snprintf(heartbeat_text_buf, 100, "BEAT@%lld=%ld\n", ms, i);
+		if (heartbeat_text_len > 0 && heartbeat_text_len < 100) {
+			send_data(heartbeat_text_buf, heartbeat_text_len);
+			uart_write_bytes(UART_NUM_0, heartbeat_text_buf, heartbeat_text_len);
+		}
+		i = (i * 10) % 999999999;
+		TASK_DELAY_MS(HEARTBEAT_PERIOD_MS);
 	}
+
+	esp_restart();
 }

@@ -3,7 +3,6 @@ idf_component_register(
 	"main.c"
 	"http-streamer.c"
 	"http-tuner.c"
-	"heartbeat.c"
 	"driver-bmx280.c"
 	"driver-tpa626.c"
 	"driver-lis3dh.c"
