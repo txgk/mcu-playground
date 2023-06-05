@@ -6,22 +6,22 @@
 	var entries = [
 		{
 			cmd: 'pcaset',
-			values: ['all,50','0,50','1,50','2,50','3,50','4,50','5,50','6,50','7,50','8,50','9,50','10,50','11,50','12,50','13,50','14,50','15,50'],
+			values: ['0,50','1,50','2,50','3,50','4,50','5,50','6,50','7,50','8,50','9,50','10,50','11,50','12,50','13,50','14,50','15,50','all,50'],
 			iter: 0,
 		},
 		{
 			cmd: 'pcamax',
-			values: ['all', '0', '1', '2', '3', '4', '5', '6', '7', '8', '9', '10', '11', '12', '13', '14', '15'],
+			values: ['0', '1', '2', '3', '4', '5', '6', '7', '8', '9', '10', '11', '12', '13', '14', '15', 'all'],
 			iter: 0,
 		},
 		{
 			cmd: 'pcaoff',
-			values: ['all', '0', '1', '2', '3', '4', '5', '6', '7', '8', '9', '10', '11', '12', '13', '14', '15'],
+			values: ['0', '1', '2', '3', '4', '5', '6', '7', '8', '9', '10', '11', '12', '13', '14', '15', 'all'],
 			iter: 0,
 		},
 		{
 			cmd: 'pcafreq',
-			values: ['25', '50', '100', '250', '500', '750', '1000', '1250', '1500'],
+			values: ['25', '50', '75', '100', '250', '500', '750', '1000', '1250', '1500'],
 			iter: 0,
 		},
 		{
@@ -40,57 +40,74 @@
 		const dest = document.getElementById(index).value
 		localStorage.setItem(index, dest)
 	}
-	function del_field(id) {
-		document.getElementById(id).remove()
-	}
-	function add_field(id, value) {
+	function add_value_field_to_setting_row(id, value) {
+		entries[id].iter += 1
 		var field = document.createElement('span')
 		field.id = '' + id + '-' + entries[id].iter
+		field.className = 'settingValue' + id
 		field.style.display = 'inline-block' // Input and button elements are as one block.
 		field.style.margin = '0.15em'
-		entries[id].iter += 1
 		var input = document.createElement('input')
 		input.id = field.id + '-data'
 		input.style.width = '6em'
 		input.value = value
-		field.appendChild(input)
 		var send_button = document.createElement('button')
 		send_button.setAttribute('onclick', 'send_act(' + id + ', "' + input.id + '")')
 		send_button.innerHTML = '⬆️'
-		field.appendChild(send_button)
 		var trash_button = document.createElement('button')
-		trash_button.setAttribute('onclick', 'del_field("' + field.id + '")')
+		trash_button.setAttribute('onclick', 'document.getElementById("' + field.id + '").remove()')
 		trash_button.innerHTML = '❎'
+		field.appendChild(input)
+		field.appendChild(send_button)
 		field.appendChild(trash_button)
 		document.getElementById(id).appendChild(field)
 	}
+	function restore_default_setting_values(setting_index) {
+		var setting_selector = '.settingValue' + setting_index
+		document.querySelectorAll(setting_selector).forEach(e => e.parentNode.removeChild(e))
+		for (let i = 0; i < entries[setting_index].values.length; ++i) {
+			add_value_field_to_setting_row(setting_index, entries[setting_index].values[i])
+		}
+	}
 	window.onload = function() {
 		var table = document.createElement('table')
+		table.style.borderCollapse = 'collapse'
 		document.body.appendChild(table)
 		for (let i = 0; i < entries.length; ++i) {
 			var row = document.createElement('tr')
-			var label_cell = document.createElement('td')
-			label_cell.innerHTML = entries[i].cmd
-			row.appendChild(label_cell)
-			var button_cell = document.createElement('td')
-			var button = document.createElement('button')
-			button.setAttribute('onclick', 'add_field(' + i + ', "")')
-			button.innerHTML = '➕'
-			button_cell.appendChild(button)
-			row.appendChild(button_cell)
+			var prefix_cell = document.createElement('td')
+			prefix_cell.style.padding = '0.5em'
+			prefix_cell.style.border = '0.2em solid #AAAAAA'
+			var setting_name = document.createElement('div')
+			setting_name.innerHTML = entries[i].cmd
+			setting_name.style.marginBottom = prefix_cell.style.padding
+			var add_button = document.createElement('button')
+			add_button.setAttribute('onclick', 'add_value_field_to_setting_row(' + i + ', "")')
+			add_button.innerHTML = '➕'
+			var reset_button = document.createElement('button')
+			reset_button.setAttribute('onclick', 'restore_default_setting_values(' + i + ')')
+			reset_button.innerHTML = '↺'
+			prefix_cell.appendChild(setting_name)
+			prefix_cell.appendChild(add_button)
+			prefix_cell.appendChild(reset_button)
+			row.appendChild(prefix_cell)
 			var list = document.createElement('td')
 			list.id = i
-			list.style.padding = '0.1em'
+			list.style.padding = prefix_cell.style.padding
+			list.style.border = prefix_cell.style.border
 			row.appendChild(list)
 			table.appendChild(row)
 			for (let j = 0; j < entries[i].values.length; ++j) {
-				add_field(i, entries[i].values[j])
+				add_value_field_to_setting_row(i, entries[i].values[j])
 			}
 		}
 	}
 </script>
 </head>
-<body>
-	REQUEST = <input id="request" value="http://192.168.4.1:333/set"><br>
+<body bgcolor="#DDDDDD">
+	REQUEST BASE: <input id="request" value="http://192.168.4.1:333/set">
+	<button onclick="document.getElementById('request').value='http://192.168.4.1:333/set'">↺</button>
+	<br>
+	<br>
 </body>
 </html>
