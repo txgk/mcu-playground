@@ -14,6 +14,7 @@ idf_component_register(
 	"sensor-pca9685.c"
 	"sensor-max6675.c"
 	"sensor-ntc.c"
+	"sensor-speed.c"
 	"common-i2c.c"
 	INCLUDE_DIRS
 	"."

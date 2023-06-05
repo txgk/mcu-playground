@@ -29,6 +29,10 @@
 #define NTC_PIN            33
 #define NTC_ADC_UNIT       ADC_UNIT_1
 #define NTC_ADC_CHANNEL    ADC_CHANNEL_5 // Потому что это GPIO 33
+#define SPEEP_PIN          32
+#define SPEED_ADC_UNIT     ADC_UNIT_1
+#define SPEED_ADC_CHANNEL  ADC_CHANNEL_4 // Потому что это GPIO 32
+// Связь ADC каналов с GPIO упоминается в soc/esp32/include/soc/adc_channel.h
 
 #define HTTP_STREAMER_PORT 222
 #define HTTP_TUNER_PORT    333
@@ -40,8 +44,9 @@
 #define BMX280_POLLING_PERIOD_MS    1000
 #define TPA626_POLLING_PERIOD_MS    1000
 #define LIS3DH_POLLING_PERIOD_MS    1000
-#define NTC_POLLING_PERIOD_MS       1000
 #define MAX6675_POLLING_PERIOD_MS   1000
+#define NTC_POLLING_PERIOD_MS       1000
+#define SPEED_POLLING_PERIOD_MS     1000
 
 #define BME280_I2C_ADDRESS  118
 #define TPA626_I2C_ADDRESS  65
@@ -74,11 +79,12 @@ void stop_http_streamer(void);                                 // См. файл
 bool start_http_tuner(void);                                   // См. файл "http-tuner.c"
 void stop_http_tuner(void);                                    // См. файл "http-tuner.c"
 
-void bmx280_task(void *dummy);    // См. файл "sensor-bmx280.c"
-void tpa626_task(void *dummy);    // См. файл "sensor-tpa626.c"
-void lis3dh_task(void *dummy);    // См. файл "sensor-lis3dh.c"
-void ntc_task(void *dummy);       // См. файл "sensor-ntc.c"
-void max6675_task(void *dummy);   // См. файл "sensor-max6675.c"
+void bmx280_task(void *dummy);  // См. файл "sensor-bmx280.c"
+void tpa626_task(void *dummy);  // См. файл "sensor-tpa626.c"
+void lis3dh_task(void *dummy);  // См. файл "sensor-lis3dh.c"
+void max6675_task(void *dummy); // См. файл "sensor-max6675.c"
+void ntc_task(void *dummy);     // См. файл "sensor-ntc.c"
+void speed_task(void *dummy);   // См. файл "sensor-speed.c"
 
 // См. файл "sensor-pca9685.c"
 void pca9685_http_handler_pcaset(const char *value);

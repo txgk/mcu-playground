@@ -134,7 +134,12 @@ app_main(void)
 		.bitwidth = ADC_BITWIDTH_13,
 		.atten = ADC_ATTEN_DB_11,
 	};
+	adc_oneshot_chan_cfg_t speed_adc_cfg = {
+		.bitwidth = ADC_BITWIDTH_13,
+		.atten = ADC_ATTEN_DB_11,
+	};
 	adc_oneshot_config_channel(adc1_handle, NTC_ADC_CHANNEL, &ntc_adc_cfg);
+	adc_oneshot_config_channel(adc1_handle, SPEED_ADC_CHANNEL, &speed_adc_cfg);
 
 	esp_netif_init();
 	esp_event_loop_create_default();
@@ -193,11 +198,12 @@ app_main(void)
 	start_http_tuner();
 #endif
 
-	xTaskCreatePinnedToCore(&bmx280_task, "bmx280_task", 2048, NULL, 1, NULL, 1);
-	xTaskCreatePinnedToCore(&tpa626_task, "tpa626_task", 2048, NULL, 1, NULL, 1);
-	xTaskCreatePinnedToCore(&lis3dh_task, "lis3dh_task", 2048, NULL, 1, NULL, 1);
-	xTaskCreatePinnedToCore(&ntc_task, "ntc_task", 2048, NULL, 1, NULL, 1);
+	xTaskCreatePinnedToCore(&bmx280_task,  "bmx280_task",  2048, NULL, 1, NULL, 1);
+	xTaskCreatePinnedToCore(&tpa626_task,  "tpa626_task",  2048, NULL, 1, NULL, 1);
+	xTaskCreatePinnedToCore(&lis3dh_task,  "lis3dh_task",  2048, NULL, 1, NULL, 1);
 	xTaskCreatePinnedToCore(&max6675_task, "max6675_task", 2048, NULL, 1, NULL, 1);
+	xTaskCreatePinnedToCore(&ntc_task,     "ntc_task",     2048, NULL, 1, NULL, 1);
+	xTaskCreatePinnedToCore(&speed_task,   "speed_task",   2048, NULL, 1, NULL, 1);
 
 	// Здесь мы формируем heartbeat пакеты, пока не придёт команда перезагрузки.
 	char heartbeat_text_buf[100];
