@@ -25,8 +25,10 @@
 #define SPI1_MOSI_PIN      23
 #define SPI1_MISO_PIN      19
 #define SPI1_SCLK_PIN      18
-#define NTC_PIN            33
 #define MAX6675_CS_PIN     0
+#define NTC_PIN            33
+#define NTC_ADC_UNIT       ADC_UNIT_1
+#define NTC_ADC_CHANNEL    ADC_CHANNEL_5 // Потому что это GPIO 33
 
 #define HTTP_STREAMER_PORT 222
 #define HTTP_TUNER_PORT    333
@@ -75,7 +77,6 @@ void stop_http_tuner(void);                                    // См. файл
 void bmx280_task(void *dummy);    // См. файл "sensor-bmx280.c"
 void tpa626_task(void *dummy);    // См. файл "sensor-tpa626.c"
 void lis3dh_task(void *dummy);    // См. файл "sensor-lis3dh.c"
-void init_adc_for_ntc_task(void); // См. файл "sensor-ntc.c"
 void ntc_task(void *dummy);       // См. файл "sensor-ntc.c"
 void max6675_task(void *dummy);   // См. файл "sensor-max6675.c"
 
@@ -84,9 +85,6 @@ void pca9685_http_handler_pcaset(const char *value);
 void pca9685_http_handler_pcamax(const char *value);
 void pca9685_http_handler_pcaoff(const char *value);
 void pca9685_http_handler_pcafreq(const char *value);
-
-// См. файл "common-adc.c"
-adc_cali_handle_t get_adc_channel_calibration_profile(adc_unit_t id, adc_channel_t ch, adc_bitwidth_t res, adc_atten_t db);
 
 // См. файл "common-i2c.c"
 uint8_t i2c_read_one_byte_from_register(i2c_port_t port, uint8_t addr, uint8_t reg, long timeout_ms);

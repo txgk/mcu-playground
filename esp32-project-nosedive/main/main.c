@@ -130,7 +130,11 @@ app_main(void)
 		.unit_id = ADC_UNIT_1,
 	};
 	adc_oneshot_new_unit(&adc1_init_cfg, &adc1_handle);
-	init_adc_for_ntc_task();
+	adc_oneshot_chan_cfg_t ntc_adc_cfg = {
+		.bitwidth = ADC_BITWIDTH_13,
+		.atten = ADC_ATTEN_DB_11,
+	};
+	adc_oneshot_config_channel(adc1_handle, NTC_ADC_CHANNEL, &ntc_adc_cfg);
 
 	esp_netif_init();
 	esp_event_loop_create_default();

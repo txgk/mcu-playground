@@ -15,7 +15,6 @@ idf_component_register(
 	"sensor-max6675.c"
 	"sensor-ntc.c"
 	"common-i2c.c"
-	"common-adc.c"
 	INCLUDE_DIRS
 	"."
 	EMBED_FILES
