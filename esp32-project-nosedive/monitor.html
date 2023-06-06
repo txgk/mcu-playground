@@ -2,91 +2,79 @@
 <html>
 <head>
 <meta charset="UTF-8">
-<script src="https://cdn.plot.ly/plotly-latest.min.js"></script>
+</head>
+<body>
+	<input id="address" value="http://192.168.4.1:222/all">
+	<button id="connect" onclick="connect_device()">Подкл.</button>
+	<button id="connect" onclick="disconnect_device()">Откл.</button>
+	<span id="status">(отключен)</span>
+	<input id="limiter" type="number" min="0" onchange="update_follow_mode_threshold()" placeholder="Режим следования" autocomplete="off" style="width: 12em">
+	<button onclick="download_messages()">Сохранить</button>
+	<button>Загрузить</button>
+	Количество сообщений в памяти: <span id='messages_counter'>0</span>
+	<div><canvas id="myChart"></canvas></div>
+<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
 <script>
+	var chart = null
 	var messages = ''
+	var messages_count = 0
 	var data = []
 	var stream = null
+	var follow_mode_threshold = 0
+	function update_plots() {
+		if (follow_mode_threshold == '0') {
+			for (var i = 0; i < data.length; ++i) {
+				chart.data.datasets[i].data = data[i]
+			}
+		} else {
+			for (var i = 0; i < data.length; ++i) {
+				chart.data.datasets[i].data = data[i].slice(-follow_mode_threshold)
+			}
+		}
+		chart.update()
+	}
+	function update_follow_mode_threshold() {
+		follow_mode_threshold = document.getElementById("limiter").value
+		update_plots()
+	}
 	function get_color(index) {
-		var base = 80 + 20 * Math.floor(index / 8)
+		var base = 175 + 40 * Math.floor(index / 8)
+		if (base > 255) base = 255
 		r = g = b = base
 		if (index & 4) {
-			r *= 2
-			if (r > 255) r = 255
+			r -= 50 * (3 - Math.floor(index / 8))
+			if (r < 0) r = 0
 		}
-		if (index & 2) {
-			g *= 2
-			if (g > 255) g = 255
+		if (!(index & 2)) {
+			g -= 50 * (3 - Math.floor(index / 8))
+			if (g < 0) g = 0
 		}
-		if (index & 1) {
-			b *= 2
-			if (b > 255) b = 255
+		if (!(index & 1)) {
+			b -= 50 * (3 - Math.floor(index / 8))
+			if (b < 0) b = 0
 		}
 		return '#' + r.toString(16) + g.toString(16) + b.toString(16)
 	}
-	var plotly_plots = []
-	var plotly_layout = {uirevision: true, datarevision: 0, margin: {b: 30, l: 30, r: 0, t: 30}}
-	function update_plots() {
-		const limiter_value = document.getElementById("limiter").value
-		for (var i = 0; i < data.length; ++i) {
-			if (plotly_plots[i].visible) {
-				if (limiter_value == '0') {
-					plotly_plots[i].x = data[i].x
-					plotly_plots[i].y = data[i].y
-				} else {
-					plotly_plots[i].x = data[i].x.slice(-limiter_value)
-					plotly_plots[i].y = data[i].y.slice(-limiter_value)
-				}
-			}
-		}
-		plotly_layout.datarevision += 1
-		Plotly.react(document.getElementById("plots"), plotly_plots, plotly_layout)
-	}
-	function setup_plots() {
-		var plot_offset = 0
-		plotly_layout['yaxis'].position = plot_offset
-		for (let i = 1; i < data.length; ++i) {
-			plot_offset += 0.02
-			plotly_layout['yaxis' + (i + 1)].position = plot_offset
-		}
-	}
 	function get_data_set_index(data_set_name) {
-		for (let i = 0; i < data.length; ++i) {
-			if (data_set_name == data[i].name) {
+		for (let i = 0; i < chart.data.datasets.length; ++i) {
+			if (data_set_name == chart.data.datasets[i].label) {
 				return i
 			}
 		}
-		data[data.length] = {name: data_set_name, x: [], y: []}
-		if (data.length == 1) {
-			axis_name = 'y'
-			plotly_layout['yaxis'] = {
-				visible: true,
-				showline: true,
-				color: get_color(data.length - 1),
-				linewidth: 5,
-			}
-		} else {
-			axis_name = 'y' + data.length
-			plotly_layout['yaxis' + data.length] = {
-				visible: true,
-				showline: true,
-				color: get_color(data.length - 1),
-				linewidth: 5,
-				overlaying: 'y',
-				anchor: 'free',
-			}
-		}
-		plotly_plots[data.length - 1] = {
-			name: data_set_name,
-			visible: true,
-			type: 'scatter',
-			x: [],
-			y: [],
-			yaxis: axis_name,
-			marker: {color: get_color(data.length - 1)},
-		}
-		setup_plots()
-		return data.length - 1
+		const index = chart.data.datasets.length
+		const scale = 'y' + index
+		chart.options.scales[scale] = {display: 'auto', border: {color: get_color(index), width: 4}, title: {display: true, text: data_set_name, padding: 0}}
+		chart.data.datasets.push({
+			label: data_set_name,
+			data: [],
+			showLine: true,
+			animations: false,
+			borderColor: get_color(index),
+			backgroundColor: get_color(index),
+			yAxisID: scale,
+		})
+		data[index] = []
+		return index
 	}
 	function connect_device() {
 		if (stream != null) {
@@ -96,6 +84,7 @@
 		stream.onmessage = (event) => {
 			console.log(event.data)
 			messages += event.data + '\n'
+			messages_count += 1
 			data_divided_by_at = event.data.split('@')
 			data_time_and_values = data_divided_by_at[1].split('=')
 			data_name = data_divided_by_at[0]
@@ -103,8 +92,7 @@
 			data_values = data_time_and_values[1].split(',')
 			for (let i = 0; i < data_values.length; ++i) {
 				data_index = get_data_set_index(data_name + '-' + i)
-				data[data_index].x.push(data_time)
-				data[data_index].y.push(data_values[i])
+				data[data_index].push([data_time, data_values[i]])
 			}
 			update_plots()
 		}
@@ -125,8 +113,26 @@
 		var downloader = document.createElement('a')
 		var blob = new Blob([messages], {type: 'text/plain;charset=utf-8;'})
 		downloader.href = URL.createObjectURL(blob)
-		downloader.setAttribute('download', 'log.txt')
+		const current_date = new Date().toJSON()
+		const file_name = current_date.slice(0, 10) + '-' + current_date.slice(11, 19).replace(/:/g, '-') + '.txt'
+		downloader.setAttribute('download', file_name)
 		downloader.click()
+	}
+	window.onload = function() {
+		const ctx = document.getElementById('myChart')
+		chart = new Chart(ctx, {
+			type: 'scatter',
+			data: {datasets: []},
+			options: {
+				plugins: {
+					legend: {
+						display: true,
+					},
+				},
+				scales: {},
+				animation: false,
+			},
+		})
 	}
 	function refresh_status() {
 		if (stream == null || stream.readyState == 2) {
@@ -136,18 +142,9 @@
 		} else {
 			document.getElementById("status").innerHTML = '(подключение)'
 		}
+		document.getElementById("messages_counter").innerHTML = messages_count
 	}
 	setInterval(refresh_status, 1000)
 </script>
-</head>
-<body>
-	<input id="address" value="http://192.168.4.1:222/all">
-	<button id="connect" onclick="connect_device()">Подкл.</button>
-	<button id="connect" onclick="disconnect_device()">Откл.</button>
-	<span id="status">(отключен)</span>
-	<input id="limiter" type="number" min="0" onchange="update_plots()" placeholder="Режим следования" autocomplete="off" style="width: 12em">
-	<button onclick="download_messages()">Сохранить</button>
-	<button>Загрузить</button>
-	<div id="plots" style="width: 98vw; height: 95vh;"></div>
 </body>
 </html>
