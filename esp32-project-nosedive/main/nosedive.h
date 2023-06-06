@@ -34,6 +34,9 @@
 #define SPEED_ADC_CHANNEL  ADC_CHANNEL_4 // Потому что это GPIO 32
 // Связь ADC каналов с GPIO упоминается в soc/esp32/include/soc/adc_channel.h
 
+#define WIFI_AP_SSID       "demoproshivka"
+#define WIFI_AP_PASS       "elbereth"
+
 #define HTTP_STREAMER_PORT 222
 #define HTTP_TUNER_PORT    333
 #define HTTP_STREAMER_CTRL 2222

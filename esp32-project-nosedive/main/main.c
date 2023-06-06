@@ -23,10 +23,6 @@ adc_oneshot_unit_handle_t adc1_handle;
 static inline void
 setup_serial(uart_config_t *cfg, uart_port_t port, int speed, int tx_pin, int rx_pin)
 {
-	int intr_alloc_flags = 0;
-#if CONFIG_UART_ISR_IN_IRAM
-	intr_alloc_flags = ESP_INTR_FLAG_IRAM;
-#endif
 	cfg->baud_rate = speed;
 	cfg->data_bits = UART_DATA_8_BITS;
 	cfg->parity    = UART_PARITY_DISABLE;
@@ -34,7 +30,11 @@ setup_serial(uart_config_t *cfg, uart_port_t port, int speed, int tx_pin, int rx
 	cfg->flow_ctrl = UART_HW_FLOWCTRL_CTS_RTS;
 	cfg->rx_flow_ctrl_thresh = 122;
 	// cfg->source_clk = UART_SCLK_DEFAULT;
-	uart_driver_install(port, 1024, 1024, 0, NULL, intr_alloc_flags);
+#if CONFIG_UART_ISR_IN_IRAM
+	uart_driver_install(port, 1024, 1024, 0, NULL, ESP_INTR_FLAG_IRAM);
+#else
+	uart_driver_install(port, 1024, 1024, 0, NULL, 0);
+#endif
 	uart_param_config(port, cfg);
 	uart_set_pin(port, tx_pin, rx_pin, -1, -1);
 }
@@ -179,9 +179,9 @@ app_main(void)
 	esp_wifi_init(&wifi_init_cfg);
 	wifi_config_t wifi_cfg = {
 		.ap = {
-			.ssid = "demoproshivka",
-			.ssid_len = 13,
-			.password = "elbereth",
+			.ssid = WIFI_AP_SSID,
+			.ssid_len = sizeof(WIFI_AP_SSID) - 1,
+			.password = WIFI_AP_PASS,
 			.channel = 7,
 			.max_connection = 3,
 			.authmode = WIFI_AUTH_WPA2_PSK,
