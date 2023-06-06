@@ -1,6 +1,14 @@
 #ifndef TPA626_H
 #define TPA626_H
-int tpa626_read_configuration(void);
-int tpa626_read_shunt_voltage(void);
-int tpa626_read_bus_voltage(void);
+enum {
+	TPA626_REGISTER_CONFIGURATION = 0,
+	TPA626_REGISTER_SHUNT_VOLTAGE = 1,
+	TPA626_REGISTER_BUS_VOLTAGE = 2,
+	TPA626_REGISTER_POWER = 3,
+	TPA626_REGISTER_CURRENT = 4,
+	TPA626_REGISTER_CALIBRATION = 5,
+	TPA626_REGISTER_UNIQUE_ID = 255,
+};
+bool tpa626_initialize(void);
+int tpa626_read_two_bytes_from_register(uint8_t cmd);
 #endif // TPA626_H
