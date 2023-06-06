@@ -44,9 +44,16 @@ http_streamer_all_handler(httpd_req_t *req)
 {
 	http_streamer_active();
 	httpd_resp_set_hdr(req, "Content-Type", "text/event-stream");
+	httpd_resp_set_hdr(req, "Access-Control-Allow-Origin", "*");
 	while (true) { // TODO: check if it okay to make iniftine loop in handler
 		if (data_has_been_sent == false) {
+			if (httpd_resp_send_chunk(req, "data:", 5) != ESP_OK) {
+				break;
+			}
 			if (httpd_resp_send_chunk(req, data_buf, data_len) != ESP_OK) {
+				break;
+			}
+			if (httpd_resp_send_chunk(req, "\n", 1) != ESP_OK) {
 				break;
 			}
 			data_has_been_sent = true;

@@ -20,4 +20,5 @@ idf_component_register(
 	"."
 	EMBED_FILES
 	"panel.html"
+	"monitor-offline.html.gz"
 )
