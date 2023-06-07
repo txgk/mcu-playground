@@ -35,5 +35,5 @@ max6675_read_temperature(void)
 		return 0; // Not connected.
 	}
 	res >>= 3; // Temperature value starts from fourth bit.
-	return res;
+	return res / 4; // It reads temperature in Celsius multiplied by 4
 }
