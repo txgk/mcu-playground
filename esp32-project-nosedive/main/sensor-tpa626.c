@@ -4,12 +4,11 @@
 
 #define TPA626_MESSAGE_SIZE 200
 
-static char tpa626_text_buf[TPA626_MESSAGE_SIZE];
-static int tpa626_text_len;
-
 void IRAM_ATTR
 tpa626_task(void *dummy)
 {
+	char tpa626_text_buf[TPA626_MESSAGE_SIZE];
+	int tpa626_text_len;
 	if (xSemaphoreTake(system_mutexes[MUX_I2C_DRIVER], portMAX_DELAY) == pdTRUE) {
 		if (tpa626_initialize() == false) {
 			xSemaphoreGive(system_mutexes[MUX_I2C_DRIVER]);

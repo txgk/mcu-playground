@@ -4,12 +4,11 @@
 #define NTC_SAMPLES_COUNT 64
 #define NTC_MESSAGE_SIZE 100
 
-static char ntc_text_buf[NTC_MESSAGE_SIZE];
-static int ntc_text_len;
-
 void IRAM_ATTR
 ntc_task(void *dummy)
 {
+	char ntc_text_buf[NTC_MESSAGE_SIZE];
+	int ntc_text_len;
 	while (true) {
 		int64_t ms = esp_timer_get_time() / 1000;
 		uint64_t read_sum = 0;

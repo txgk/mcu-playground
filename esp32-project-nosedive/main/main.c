@@ -199,7 +199,7 @@ app_main(void)
 #endif
 
 	xTaskCreatePinnedToCore(&esp_temp_task, "esp_temp_task", 2048, NULL, 1, NULL, 1);
-	xTaskCreatePinnedToCore(&bmx280_task,   "bmx280_task",   2048, NULL, 1, NULL, 1);
+	xTaskCreatePinnedToCore(&bmx280_task,   "bmx280_task",   3072, NULL, 1, NULL, 1);
 	xTaskCreatePinnedToCore(&tpa626_task,   "tpa626_task",   2048, NULL, 1, NULL, 1);
 	xTaskCreatePinnedToCore(&lis3dh_task,   "lis3dh_task",   2048, NULL, 1, NULL, 1);
 	xTaskCreatePinnedToCore(&max6675_task,  "max6675_task",  2048, NULL, 1, NULL, 1);

@@ -4,12 +4,11 @@
 
 #define WINBOND_MESSAGE_SIZE 200
 
-static char winbond_text_buf[WINBOND_MESSAGE_SIZE];
-static int winbond_text_len;
-
 void IRAM_ATTR
 winbond_task(void *dummy)
 {
+	char winbond_text_buf[WINBOND_MESSAGE_SIZE];
+	int winbond_text_len;
 	if (winbond_initialize() == false) {
 		vTaskDelete(NULL);
 	}

@@ -4,12 +4,11 @@
 
 #define BMX280_MESSAGE_SIZE 200
 
-static char bmx280_text_buf[BMX280_MESSAGE_SIZE];
-static int bmx280_text_len;
-
 void IRAM_ATTR
 bmx280_task(void *dummy)
 {
+	char bmx280_text_buf[BMX280_MESSAGE_SIZE];
+	int bmx280_text_len;
 	// It just allocates memory, so wrapping it into I2C driver mutex is not needed.
 	bmx280_t *bmx280 = bmx280_create(BME280_I2C_PORT);
 	if (bmx280 == NULL) {

@@ -4,12 +4,11 @@
 #define SPEED_SAMPLES_COUNT 64
 #define SPEED_MESSAGE_SIZE 100
 
-static char speed_text_buf[SPEED_MESSAGE_SIZE];
-static int speed_text_len;
-
 void IRAM_ATTR
 speed_task(void *dummy)
 {
+	char speed_text_buf[SPEED_MESSAGE_SIZE];
+	int speed_text_len;
 	while (true) {
 		int64_t ms = esp_timer_get_time() / 1000;
 		uint64_t read_sum = 0;

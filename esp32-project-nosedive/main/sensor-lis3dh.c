@@ -4,12 +4,11 @@
 
 #define LIS3DH_MESSAGE_SIZE 200
 
-static char lis3dh_text_buf[LIS3DH_MESSAGE_SIZE];
-static int lis3dh_text_len;
-
 void IRAM_ATTR
 lis3dh_task(void *dummy)
 {
+	char lis3dh_text_buf[LIS3DH_MESSAGE_SIZE];
+	int lis3dh_text_len;
 	if (xSemaphoreTake(system_mutexes[MUX_I2C_DRIVER], portMAX_DELAY) == pdTRUE) {
 		lis3dh_initialize();
 		xSemaphoreGive(system_mutexes[MUX_I2C_DRIVER]);

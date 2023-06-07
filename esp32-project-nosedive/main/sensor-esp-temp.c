@@ -1,13 +1,14 @@
 #include <stdio.h>
 #include "nosedive.h"
 
+#define ESP_TEMP_MESSAGE_SIZE 100
+
 // Undocumented secret function...
 uint8_t temprature_sens_read();
 
 void IRAM_ATTR
 esp_temp_task(void *dummy)
 {
-#define ESP_TEMP_MESSAGE_SIZE 100
 	char esp_temp_text_buf[ESP_TEMP_MESSAGE_SIZE];
 	int esp_temp_text_len;
 	while (true) {

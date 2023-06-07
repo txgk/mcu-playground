@@ -4,12 +4,11 @@
 
 #define MAX6675_MESSAGE_SIZE 200
 
-static char max6675_text_buf[MAX6675_MESSAGE_SIZE];
-static int max6675_text_len;
-
 void IRAM_ATTR
 max6675_task(void *dummy)
 {
+	char max6675_text_buf[MAX6675_MESSAGE_SIZE];
+	int max6675_text_len;
 	if (max6675_initialize() == false) {
 		vTaskDelete(NULL);
 	}
