@@ -9,8 +9,6 @@
 #include "esp_timer.h"
 #include "esp_log.h"
 #include "esp_adc/adc_oneshot.h"
-#include "esp_adc/adc_cali.h"
-#include "esp_adc/adc_cali_scheme.h"
 // #include "../../wifi-credentials.h"
 
 #define UART0_TX_PIN       1
@@ -26,6 +24,7 @@
 #define SPI1_MISO_PIN      19
 #define SPI1_SCLK_PIN      18
 #define MAX6675_CS_PIN     0
+#define MAX6675_SPI_HOST   SPI2_HOST
 #define NTC_PIN            33
 #define NTC_ADC_UNIT       ADC_UNIT_1
 #define NTC_ADC_CHANNEL    ADC_CHANNEL_5 // Потому что это GPIO 33
@@ -59,8 +58,6 @@
 #define TPA626_I2C_PORT     I2C_NUM_0
 #define LIS3DH_I2C_PORT     I2C_NUM_0
 #define PCA9685_I2C_PORT    I2C_NUM_0
-
-#define MAX6675_SPI_HOST    SPI2_HOST
 
 #define LENGTH(A) (sizeof((A))/sizeof(*(A)))
 #define MS_TO_TICKS(A) ((A) / portTICK_PERIOD_MS)

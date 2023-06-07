@@ -1,21 +1,5 @@
 #include "nosedive.h"
 
-static int
-lis3dh_read_one_byte_from_register(uint8_t cmd)
-{
-	uint8_t data = 0;
-	i2c_master_write_read_device(
-		LIS3DH_I2C_PORT,
-		LIS3DH_I2C_ADDRESS,
-		&cmd,
-		sizeof(cmd),
-		&data,
-		sizeof(data),
-		2000 / portTICK_PERIOD_MS
-	);
-	return (int)data;
-}
-
 void
 lis3dh_initialize(void)
 {
@@ -29,13 +13,14 @@ lis3dh_initialize(void)
 int
 lis3dh_read_device_id(void)
 {
-	return lis3dh_read_one_byte_from_register(15);
+	return i2c_read_one_byte_from_register(LIS3DH_I2C_PORT, LIS3DH_I2C_ADDRESS, 15, 2000);
 }
 
 void
 lis3dh_read_acceleration(uint16_t *x, uint16_t *y, uint16_t *z)
 {
 	// MSB must be set to 1 to be able to read multiple bytes.
+	// This makes reading work in "auto increment" mode.
 	uint8_t first_accel_register_addr = 0x28 | 0b10000000;
 	uint8_t data[6] = {0};
 	i2c_master_write_read_device(

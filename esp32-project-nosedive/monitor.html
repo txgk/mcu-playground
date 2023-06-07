@@ -2,17 +2,6 @@
 <html>
 <head>
 <meta charset="UTF-8">
-</head>
-<body>
-	<input id="address" value="http://192.168.4.1:222/all">
-	<button id="connect" onclick="connect_device()">Подкл.</button>
-	<button id="connect" onclick="disconnect_device()">Откл.</button>
-	<span id="status">(отключен)</span>
-	<input id="limiter" type="number" min="0" onchange="update_follow_mode_threshold()" placeholder="Режим следования" autocomplete="off" style="width: 12em">
-	<button onclick="download_messages()">Сохранить</button>
-	<button>Загрузить</button>
-	Количество сообщений в памяти: <span id='messages_counter'>0</span>
-	<div><canvas id="myChart"></canvas></div>
 <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
 <script>
 	var chart = null
@@ -43,15 +32,15 @@
 		r = g = b = base
 		if (index & 4) {
 			r -= 50 * (3 - Math.floor(index / 8))
-			if (r < 0) r = 0
+			if (r < 0) r = Math.floor(255 * Math.random())
 		}
 		if (!(index & 2)) {
 			g -= 50 * (3 - Math.floor(index / 8))
-			if (g < 0) g = 0
+			if (g < 0) g = Math.floor(255 * Math.random())
 		}
 		if (!(index & 1)) {
 			b -= 50 * (3 - Math.floor(index / 8))
-			if (b < 0) b = 0
+			if (b < 0) b = Math.floor(255 * Math.random())
 		}
 		return '#' + r.toString(16) + g.toString(16) + b.toString(16)
 	}
@@ -118,6 +107,16 @@
 		downloader.setAttribute('download', file_name)
 		downloader.click()
 	}
+	function refresh_status() {
+		if (stream == null || stream.readyState == 2) {
+			document.getElementById("status").innerHTML = '(отключен)'
+		} else if (stream.readyState == 1) {
+			document.getElementById("status").innerHTML = '(подключен)'
+		} else {
+			document.getElementById("status").innerHTML = '(подключение)'
+		}
+		document.getElementById("messages_counter").innerHTML = messages_count
+	}
 	window.onload = function() {
 		const ctx = document.getElementById('myChart')
 		chart = new Chart(ctx, {
@@ -134,17 +133,18 @@
 			},
 		})
 	}
-	function refresh_status() {
-		if (stream == null || stream.readyState == 2) {
-			document.getElementById("status").innerHTML = '(отключен)'
-		} else if (stream.readyState == 1) {
-			document.getElementById("status").innerHTML = '(подключен)'
-		} else {
-			document.getElementById("status").innerHTML = '(подключение)'
-		}
-		document.getElementById("messages_counter").innerHTML = messages_count
-	}
 	setInterval(refresh_status, 1000)
 </script>
+</head>
+<body>
+	<input id="address" value="http://192.168.4.1:222/all">
+	<button id="connect" onclick="connect_device()">Подключиться</button>
+	<button id="connect" onclick="disconnect_device()">Отключиться</button>
+	<span id="status">(отключен)</span>
+	<input id="limiter" type="number" min="0" onchange="update_follow_mode_threshold()" placeholder="Режим следования" autocomplete="off" style="width: 12em">
+	<button onclick="download_messages()">Сохранить</button>
+	<button>Загрузить</button>
+	Количество сообщений в памяти: <span id='messages_counter'>0</span>
+	<div><canvas id="myChart"></canvas></div>
 </body>
 </html>
