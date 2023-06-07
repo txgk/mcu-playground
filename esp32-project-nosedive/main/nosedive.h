@@ -44,6 +44,7 @@
 #define HTTP_TUNER_CTRL    3333
 
 #define HEARTBEAT_PERIOD_MS         1000
+#define ESP_TEMP_PERIOD_MS          1000
 #define WIFI_RECONNECTION_PERIOD_MS 2000
 #define BMX280_POLLING_PERIOD_MS    1000
 #define TPA626_POLLING_PERIOD_MS    1000
@@ -81,13 +82,14 @@ void stop_http_streamer(void);                                 // См. файл
 bool start_http_tuner(void);                                   // См. файл "http-tuner.c"
 void stop_http_tuner(void);                                    // См. файл "http-tuner.c"
 
-void bmx280_task(void *dummy);  // См. файл "sensor-bmx280.c"
-void tpa626_task(void *dummy);  // См. файл "sensor-tpa626.c"
-void lis3dh_task(void *dummy);  // См. файл "sensor-lis3dh.c"
-void max6675_task(void *dummy); // См. файл "sensor-max6675.c"
-void winbond_task(void *dummy); // См. файл "sensor-w25q64.c"
-void ntc_task(void *dummy);     // См. файл "sensor-ntc.c"
-void speed_task(void *dummy);   // См. файл "sensor-speed.c"
+void esp_temp_task(void *dummy); // См. файл "sensor-esp-temp.c"
+void bmx280_task(void *dummy);   // См. файл "sensor-bmx280.c"
+void tpa626_task(void *dummy);   // См. файл "sensor-tpa626.c"
+void lis3dh_task(void *dummy);   // См. файл "sensor-lis3dh.c"
+void max6675_task(void *dummy);  // См. файл "sensor-max6675.c"
+void winbond_task(void *dummy);  // См. файл "sensor-w25q64.c"
+void ntc_task(void *dummy);      // См. файл "sensor-ntc.c"
+void speed_task(void *dummy);    // См. файл "sensor-speed.c"
 
 // См. файл "sensor-pca9685.c"
 void pca9685_http_handler_pcaset(const char *value);

@@ -9,6 +9,7 @@ idf_component_register(
 	"driver-pca9685.c"
 	"driver-max6675.c"
 	"driver-w25q64.c"
+	"sensor-esp-temp.c"
 	"sensor-bmx280.c"
 	"sensor-tpa626.c"
 	"sensor-lis3dh.c"
