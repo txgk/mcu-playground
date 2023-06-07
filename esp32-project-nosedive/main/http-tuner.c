@@ -10,8 +10,8 @@ struct param_handler {
 static httpd_handle_t http_tuner = NULL;
 static httpd_config_t http_tuner_config = HTTPD_DEFAULT_CONFIG();
 
-extern const unsigned char panel_html_start[] asm("_binary_panel_html_start");
-extern const unsigned char panel_html_end[]   asm("_binary_panel_html_end");
+extern const unsigned char panel_html_start[] asm("_binary_panel_html_gz_start");
+extern const unsigned char panel_html_end[]   asm("_binary_panel_html_gz_end");
 
 extern const unsigned char monitor_html_start[] asm("_binary_monitor_offline_html_gz_start");
 extern const unsigned char monitor_html_end[]   asm("_binary_monitor_offline_html_gz_end");
@@ -67,6 +67,7 @@ static esp_err_t
 http_tuner_panel(httpd_req_t *req)
 {
 	httpd_resp_set_type(req, "text/html");
+	httpd_resp_set_hdr(req, "Content-Encoding", "gzip");
 	httpd_resp_send(req, (const char *)panel_html_start, panel_html_end - panel_html_start);
 	httpd_resp_send_chunk(req, NULL, 0); // End response.
 	return ESP_OK;
