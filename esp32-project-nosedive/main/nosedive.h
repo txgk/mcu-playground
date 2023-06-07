@@ -25,6 +25,8 @@
 #define SPI1_SCLK_PIN      18
 #define MAX6675_CS_PIN     0
 #define MAX6675_SPI_HOST   SPI2_HOST
+#define WINBOND_CS_PIN     2
+#define WINBOND_SPI_HOST   SPI2_HOST
 #define NTC_PIN            33
 #define NTC_ADC_UNIT       ADC_UNIT_1
 #define NTC_ADC_CHANNEL    ADC_CHANNEL_5 // Потому что это GPIO 33
@@ -83,6 +85,7 @@ void bmx280_task(void *dummy);  // См. файл "sensor-bmx280.c"
 void tpa626_task(void *dummy);  // См. файл "sensor-tpa626.c"
 void lis3dh_task(void *dummy);  // См. файл "sensor-lis3dh.c"
 void max6675_task(void *dummy); // См. файл "sensor-max6675.c"
+void winbond_task(void *dummy); // См. файл "sensor-w25q64.c"
 void ntc_task(void *dummy);     // См. файл "sensor-ntc.c"
 void speed_task(void *dummy);   // См. файл "sensor-speed.c"
 

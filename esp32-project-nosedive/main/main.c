@@ -202,6 +202,7 @@ app_main(void)
 	xTaskCreatePinnedToCore(&tpa626_task,  "tpa626_task",  2048, NULL, 1, NULL, 1);
 	xTaskCreatePinnedToCore(&lis3dh_task,  "lis3dh_task",  2048, NULL, 1, NULL, 1);
 	xTaskCreatePinnedToCore(&max6675_task, "max6675_task", 2048, NULL, 1, NULL, 1);
+	xTaskCreatePinnedToCore(&winbond_task, "winbond_task", 2048, NULL, 1, NULL, 1);
 	xTaskCreatePinnedToCore(&ntc_task,     "ntc_task",     2048, NULL, 1, NULL, 1);
 	xTaskCreatePinnedToCore(&speed_task,   "speed_task",   2048, NULL, 1, NULL, 1);
 
