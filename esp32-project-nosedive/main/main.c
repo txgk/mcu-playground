@@ -143,7 +143,7 @@ app_main(void)
 
 	esp_netif_init();
 	esp_event_loop_create_default();
-#if 0 // WIFI STATION
+#ifdef NOSEDIVE_USE_WIFI_STATION
 	esp_netif_t *sta = esp_netif_create_default_wifi_sta();
 	esp_netif_dhcpc_stop(sta);
 	esp_netif_ip_info_t ip_info = {
@@ -173,7 +173,7 @@ app_main(void)
 	esp_wifi_start();
 	esp_wifi_set_ps(WIFI_PS_NONE);
 	xTaskCreatePinnedToCore(&wifi_loop, "wifi_loop", 2048, NULL, 1, NULL, 1);
-#else // WIFI ACCESS POINT
+#else
 	esp_netif_create_default_wifi_ap();
 	wifi_init_config_t wifi_init_cfg = WIFI_INIT_CONFIG_DEFAULT();
 	esp_wifi_init(&wifi_init_cfg);

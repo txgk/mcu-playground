@@ -15,18 +15,26 @@ tpa626_initialize(void)
 	return false;
 }
 
-int
-tpa626_read_two_bytes_from_register(uint8_t cmd)
+double
+tpa626_read_shunt_voltage(void)
 {
-	uint8_t data[2] = {0};
-	i2c_master_write_read_device(
-		TPA626_I2C_PORT,
-		TPA626_I2C_ADDRESS,
-		&cmd,
-		sizeof(cmd),
-		data,
-		sizeof(data),
-		MS_TO_TICKS(2000)
-	);
-	return ((int)data[0] << 8) + data[1];
+	return 0.0000025 * i2c_read_two_bytes_from_register(TPA626_I2C_PORT, TPA626_I2C_ADDRESS, TPA626_REGISTER_SHUNT_VOLTAGE, 2000);
+}
+
+double
+tpa626_read_bus_voltage(void)
+{
+	return 0.00125 * i2c_read_two_bytes_from_register(TPA626_I2C_PORT, TPA626_I2C_ADDRESS, TPA626_REGISTER_BUS_VOLTAGE, 2000);
+}
+
+double
+tpa626_read_current(void)
+{
+	return CURRENT_MEASUREMENT_RESOLUTION * i2c_read_two_bytes_from_register(TPA626_I2C_PORT, TPA626_I2C_ADDRESS, TPA626_REGISTER_CURRENT, 2000);
+}
+
+double
+tpa626_read_power(void)
+{
+	return CURRENT_MEASUREMENT_RESOLUTION * 25 * i2c_read_two_bytes_from_register(TPA626_I2C_PORT, TPA626_I2C_ADDRESS, TPA626_REGISTER_POWER, 2000);
 }

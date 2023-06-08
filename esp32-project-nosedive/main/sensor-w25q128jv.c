@@ -1,6 +1,6 @@
 #include <stdio.h>
 #include "nosedive.h"
-#include "driver-w25q64.h"
+#include "driver-w25q128jv.h"
 
 #define WINBOND_MESSAGE_SIZE 200
 
@@ -15,7 +15,7 @@ winbond_task(void *dummy)
 	while (true) {
 		int64_t ms = esp_timer_get_time() / 1000;
 		uint8_t data[3];
-		W25Q64_readManufacturer(data);
+		w25q128jv_readManufacturer(data);
 		winbond_text_len = snprintf(
 			winbond_text_buf,
 			WINBOND_MESSAGE_SIZE,

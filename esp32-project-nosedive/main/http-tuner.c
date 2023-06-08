@@ -43,13 +43,15 @@ http_tuner_parse_set(httpd_req_t *req)
 	while (true) {
 		if (*i == '&' || *i == '\0') {
 			param[param_len] = '\0';
-			param_len = 0;
 			for (size_t j = 0; j < LENGTH(handlers); ++j) {
-				if (strncmp(param, handlers[j].prefix, handlers[j].prefix_len) == 0) {
+				if (param_len >= handlers[j].prefix_len
+					&& memcmp(param, handlers[j].prefix, handlers[j].prefix_len) == 0)
+				{
 					handlers[j].handler(param + handlers[j].prefix_len);
 					break;
 				}
 			}
+			param_len = 0;
 			if (*i == '\0') {
 				break;
 			}

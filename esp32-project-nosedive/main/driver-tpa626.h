@@ -13,5 +13,8 @@ enum {
 	TPA626_REGISTER_UNIQUE_ID = 255,
 };
 bool tpa626_initialize(void);
-int tpa626_read_two_bytes_from_register(uint8_t cmd);
+double tpa626_read_shunt_voltage(void);
+double tpa626_read_bus_voltage(void);
+double tpa626_read_current(void);
+double tpa626_read_power(void);
 #endif // TPA626_H

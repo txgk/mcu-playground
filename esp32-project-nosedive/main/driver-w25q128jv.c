@@ -2,7 +2,7 @@
 // Thanks nopnop2002
 #include "freertos/FreeRTOS.h"
 #include "freertos/task.h"
-#include "driver-w25q64.h"
+#include "driver-w25q128jv.h"
 
 //#define ADDRESS_MODE_4BYTE 1
 
@@ -24,7 +24,7 @@ winbond_initialize(void)
 }
 
 esp_err_t
-W25Q64_readStatusReg1(uint8_t *reg1)
+w25q128jv_readStatusReg1(uint8_t *reg1)
 {
 	spi_transaction_t SPITransaction;
 	uint8_t data[2];
@@ -40,7 +40,7 @@ W25Q64_readStatusReg1(uint8_t *reg1)
 }
 
 esp_err_t
-W25Q64_readStatusReg2(uint8_t * reg2)
+w25q128jv_readStatusReg2(uint8_t * reg2)
 {
 	spi_transaction_t SPITransaction;
 	uint8_t data[2];
@@ -56,7 +56,7 @@ W25Q64_readStatusReg2(uint8_t * reg2)
 }
 
 esp_err_t
-W25Q64_readUniqieID(uint8_t *id)
+w25q128jv_readUniqieID(uint8_t *id)
 {
 	spi_transaction_t SPITransaction;
 	uint8_t data[13];
@@ -75,7 +75,7 @@ W25Q64_readUniqieID(uint8_t *id)
 // Get JEDEC ID(Manufacture, Memory Type,Capacity)
 // d(out):Stores 3 bytes of Manufacture, Memory Type, Capacity
 //
-esp_err_t W25Q64_readManufacturer(uint8_t * id)
+esp_err_t w25q128jv_readManufacturer(uint8_t * id)
 {
 	spi_transaction_t SPITransaction;
 	uint8_t data[4];
@@ -91,7 +91,7 @@ esp_err_t W25Q64_readManufacturer(uint8_t * id)
 }
 
 bool
-W25Q64_IsBusy(void)
+w25q128jv_IsBusy(void)
 {
 	spi_transaction_t SPITransaction;
 	uint8_t data[2];
@@ -108,7 +108,7 @@ W25Q64_IsBusy(void)
 }
 
 esp_err_t
-W25Q64_powerDown(void)
+w25q128jv_powerDown(void)
 {
 	spi_transaction_t SPITransaction;
 	uint8_t data[1];
@@ -126,7 +126,7 @@ W25Q64_powerDown(void)
 //
 // Write permission setting
 //
-esp_err_t W25Q64_WriteEnable(void)
+esp_err_t w25q128jv_WriteEnable(void)
 {
 	spi_transaction_t SPITransaction;
 	uint8_t data[1];
@@ -144,7 +144,7 @@ esp_err_t W25Q64_WriteEnable(void)
 //
 // Write-protected setting
 //
-esp_err_t W25Q64_WriteDisable(void)
+esp_err_t w25q128jv_WriteDisable(void)
 {
 	spi_transaction_t SPITransaction;
 	uint8_t data[1];
@@ -165,7 +165,7 @@ esp_err_t W25Q64_WriteDisable(void)
 //          4 Bytes Address Mode : 32 Bits 0x00000000 - 0xFFFFFFFF
 // n(in):Number of read data
 //
-uint16_t W25Q64_read(uint32_t addr, uint8_t *buf, uint16_t n)
+uint16_t w25q128jv_read(uint32_t addr, uint8_t *buf, uint16_t n)
 { 
 	spi_transaction_t SPITransaction;
 	uint8_t *data;
@@ -204,7 +204,7 @@ uint16_t W25Q64_read(uint32_t addr, uint8_t *buf, uint16_t n)
 //          4 Bytes Address Mode : 32 Bits 0x00000000 - 0xFFFFFFFF
 // n(in):Number of read data
 //
-uint16_t W25Q64_fastread(uint32_t addr, uint8_t *buf, uint16_t n)
+uint16_t w25q128jv_fastread(uint32_t addr, uint8_t *buf, uint16_t n)
 {
 	spi_transaction_t SPITransaction;
 	uint8_t *data;
@@ -255,7 +255,7 @@ uint16_t W25Q64_fastread(uint32_t addr, uint8_t *buf, uint16_t n)
 // アドレス23ビットのうち上位 11ビットがセクタ番号の相当する。
 // 下位12ビットはセクタ内アドレスとなる。
 //
-bool W25Q64_eraseSector(uint16_t sect_no, bool flgwait)
+bool w25q128jv_eraseSector(uint16_t sect_no, bool flgwait)
 {
 	spi_transaction_t SPITransaction;
 	uint8_t data[4];
@@ -264,7 +264,7 @@ bool W25Q64_eraseSector(uint16_t sect_no, bool flgwait)
 
 	// Write permission setting
 	esp_err_t ret;
-	ret = W25Q64_WriteEnable();
+	ret = w25q128jv_WriteEnable();
 	if (ret != ESP_OK) return false;
 
 	data[0] = CMD_SECTOR_ERASE;
@@ -280,7 +280,7 @@ bool W25Q64_eraseSector(uint16_t sect_no, bool flgwait)
 	if (ret != ESP_OK) return false;
 
 	// Busy check
-	while( W25Q64_IsBusy() & flgwait) {
+	while( w25q128jv_IsBusy() & flgwait) {
 		vTaskDelay(1);
 	}
 	return true;
@@ -301,7 +301,7 @@ bool W25Q64_eraseSector(uint16_t sect_no, bool flgwait)
 // データシートでは消去に通常 150ms 、最大1000msかかると記載されている
 // アドレス23ビットのうち上位 7ビットがブロックの相当する。下位16ビットはブロック内アドレスとなる。
 //
-bool W25Q64_erase64Block(uint16_t blk_no, bool flgwait)
+bool w25q128jv_erase64Block(uint16_t blk_no, bool flgwait)
 {
 	spi_transaction_t SPITransaction;
 	uint8_t data[4];
@@ -310,7 +310,7 @@ bool W25Q64_erase64Block(uint16_t blk_no, bool flgwait)
 
 	// Write permission setting
 	esp_err_t ret;
-	ret = W25Q64_WriteEnable();
+	ret = w25q128jv_WriteEnable();
 	if (ret != ESP_OK) return false;
 
 	data[0] = CMD_BLOCK_ERASE64KB;
@@ -326,7 +326,7 @@ bool W25Q64_erase64Block(uint16_t blk_no, bool flgwait)
 	if (ret != ESP_OK) return false;
 
 	// Busy check
-	while( W25Q64_IsBusy() & flgwait) {
+	while( w25q128jv_IsBusy() & flgwait) {
 		vTaskDelay(1);
 	}
 	return true;
@@ -347,7 +347,7 @@ bool W25Q64_erase64Block(uint16_t blk_no, bool flgwait)
 // データシートでは消去に通常 120ms 、最大800msかかると記載されている
 // アドレス23ビットのうち上位 8ビットがブロックの相当する。下位15ビットはブロック内アドレスとなる。
 //
-bool W25Q64_erase32Block(uint16_t blk_no, bool flgwait)
+bool w25q128jv_erase32Block(uint16_t blk_no, bool flgwait)
 {
 	spi_transaction_t SPITransaction;
 	uint8_t data[4];
@@ -356,7 +356,7 @@ bool W25Q64_erase32Block(uint16_t blk_no, bool flgwait)
 
 	// Write permission setting
 	esp_err_t ret;
-	ret = W25Q64_WriteEnable();
+	ret = w25q128jv_WriteEnable();
 	if (ret != ESP_OK) return false;
 
 	data[0] = CMD_BLOCK_ERASE32KB;
@@ -372,7 +372,7 @@ bool W25Q64_erase32Block(uint16_t blk_no, bool flgwait)
 	if (ret != ESP_OK) return false;
 
 	// Busy check
-	while( W25Q64_IsBusy() & flgwait) {
+	while( w25q128jv_IsBusy() & flgwait) {
 		vTaskDelay(1);
 	}
 	return true;
@@ -390,14 +390,14 @@ bool W25Q64_erase32Block(uint16_t blk_no, bool flgwait)
 // 補足:
 // データシートでは消去に通常 15s 、最大30sかかると記載されている
 //
-bool W25Q64_eraseAll(bool flgwait)
+bool w25q128jv_eraseAll(bool flgwait)
 {
 	spi_transaction_t SPITransaction;
 	uint8_t data[1];
 
 	// Write permission setting
 	esp_err_t ret;
-	ret = W25Q64_WriteEnable();
+	ret = w25q128jv_WriteEnable();
 	if (ret != ESP_OK) return false;
 
 	data[0] = CMD_CHIP_ERASE;
@@ -410,7 +410,7 @@ bool W25Q64_eraseAll(bool flgwait)
 	if (ret != ESP_OK) return false;
 
 	// Busy check
-	while( W25Q64_IsBusy() & flgwait) {
+	while( w25q128jv_IsBusy() & flgwait) {
 		vTaskDelay(1);
 	}
 	return true;
@@ -423,7 +423,7 @@ bool W25Q64_eraseAll(bool flgwait)
 // data(in):Write data
 // n(in):Number of bytes to write(0～256)
 //
-int16_t W25Q64_pageWrite(uint16_t sect_no, uint16_t inaddr, uint8_t* buf, int16_t n)
+int16_t w25q128jv_pageWrite(uint16_t sect_no, uint16_t inaddr, uint8_t* buf, int16_t n)
 {
 	if (n > 256) return 0;
 	spi_transaction_t SPITransaction;
@@ -435,11 +435,11 @@ int16_t W25Q64_pageWrite(uint16_t sect_no, uint16_t inaddr, uint8_t* buf, int16_
 
 	// Write permission setting
 	esp_err_t ret;
-	ret = W25Q64_WriteEnable();
+	ret = w25q128jv_WriteEnable();
 	if (ret != ESP_OK) return 0;
 
 	// Busy check
-	if (W25Q64_IsBusy()) return 0;
+	if (w25q128jv_IsBusy()) return 0;
 
 	data = (unsigned char*)malloc(n+4);
 	data[0] = CMD_PAGE_PROGRAM;
@@ -457,7 +457,7 @@ int16_t W25Q64_pageWrite(uint16_t sect_no, uint16_t inaddr, uint8_t* buf, int16_
 	if (ret != ESP_OK) return 0;
 
 	// Busy check
-	while( W25Q64_IsBusy() ) {
+	while( w25q128jv_IsBusy() ) {
 		vTaskDelay(1);
 	}
 	return n;

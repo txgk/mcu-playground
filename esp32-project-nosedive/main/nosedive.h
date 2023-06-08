@@ -9,7 +9,10 @@
 #include "esp_timer.h"
 #include "esp_log.h"
 #include "esp_adc/adc_oneshot.h"
-// #include "../../wifi-credentials.h"
+// #define NOSEDIVE_USE_WIFI_STATION
+#ifdef NOSEDIVE_USE_WIFI_STATION
+#include "../../wifi-credentials.h"
+#endif
 
 #define UART0_TX_PIN       1
 #define UART0_RX_PIN       3
@@ -47,7 +50,7 @@
 #define ESP_TEMP_PERIOD_MS          1000
 #define WIFI_RECONNECTION_PERIOD_MS 2000
 #define BMX280_POLLING_PERIOD_MS    1000
-#define TPA626_POLLING_PERIOD_MS    1000
+#define TPA626_POLLING_PERIOD_MS    500
 #define LIS3DH_POLLING_PERIOD_MS    1000
 #define MAX6675_POLLING_PERIOD_MS   1000
 #define NTC_POLLING_PERIOD_MS       1000
@@ -87,7 +90,7 @@ void bmx280_task(void *dummy);   // См. файл "sensor-bmx280.c"
 void tpa626_task(void *dummy);   // См. файл "sensor-tpa626.c"
 void lis3dh_task(void *dummy);   // См. файл "sensor-lis3dh.c"
 void max6675_task(void *dummy);  // См. файл "sensor-max6675.c"
-void winbond_task(void *dummy);  // См. файл "sensor-w25q64.c"
+void winbond_task(void *dummy);  // См. файл "sensor-w25q128jv.c"
 void ntc_task(void *dummy);      // См. файл "sensor-ntc.c"
 void speed_task(void *dummy);    // См. файл "sensor-speed.c"
 
@@ -99,6 +102,7 @@ void pca9685_http_handler_pcafreq(const char *value);
 
 // См. файл "common-i2c.c"
 uint8_t i2c_read_one_byte_from_register(i2c_port_t port, uint8_t addr, uint8_t reg, long timeout_ms);
+uint16_t i2c_read_two_bytes_from_register(i2c_port_t port, uint8_t addr, uint8_t reg, long timeout_ms);
 
 extern SemaphoreHandle_t system_mutexes[NUMBER_OF_MUTEXES];
 extern adc_oneshot_unit_handle_t adc1_handle;

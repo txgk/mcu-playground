@@ -42,19 +42,19 @@
 #define SR1_WEN_MASK	0x02
 
 bool winbond_initialize(void);
-esp_err_t W25Q64_readStatusReg1(uint8_t * reg1);
-esp_err_t W25Q64_readStatusReg2(uint8_t * reg2);
-esp_err_t W25Q64_readUniqieID(uint8_t * id);
-esp_err_t W25Q64_readManufacturer(uint8_t * id);
-bool W25Q64_IsBusy(void);
-esp_err_t W25Q64_powerDown(void);
-esp_err_t W25Q64_WriteEnable(void);
-esp_err_t W25Q64_WriteDisable(void);
-uint16_t W25Q64_read(uint32_t addr, uint8_t *buf, uint16_t n);
-uint16_t W25Q64_fastread(uint32_t addr, uint8_t *buf, uint16_t n);
-bool W25Q64_eraseSector(uint16_t sect_no, bool flgwait);
-bool W25Q64_erase64Block(uint16_t blk_no, bool flgwait);
-bool W25Q64_erase32Block(uint16_t blk_no, bool flgwait);
-bool W25Q64_eraseAll(bool flgwait);
-int16_t W25Q64_pageWrite(uint16_t sect_no, uint16_t inaddr, uint8_t* buf, int16_t n);
+esp_err_t w25q128jv_readStatusReg1(uint8_t * reg1);
+esp_err_t w25q128jv_readStatusReg2(uint8_t * reg2);
+esp_err_t w25q128jv_readUniqieID(uint8_t * id);
+esp_err_t w25q128jv_readManufacturer(uint8_t * id);
+bool w25q128jv_IsBusy(void);
+esp_err_t w25q128jv_powerDown(void);
+esp_err_t w25q128jv_WriteEnable(void);
+esp_err_t w25q128jv_WriteDisable(void);
+uint16_t w25q128jv_read(uint32_t addr, uint8_t *buf, uint16_t n);
+uint16_t w25q128jv_fastread(uint32_t addr, uint8_t *buf, uint16_t n);
+bool w25q128jv_eraseSector(uint16_t sect_no, bool flgwait);
+bool w25q128jv_erase64Block(uint16_t blk_no, bool flgwait);
+bool w25q128jv_erase32Block(uint16_t blk_no, bool flgwait);
+bool w25q128jv_eraseAll(bool flgwait);
+int16_t w25q128jv_pageWrite(uint16_t sect_no, uint16_t inaddr, uint8_t* buf, int16_t n);
 #endif // WINBOND_H
