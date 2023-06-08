@@ -24,14 +24,14 @@ tpa626_task(void *dummy)
 		if (xSemaphoreTake(system_mutexes[MUX_I2C_DRIVER], portMAX_DELAY) == pdTRUE) {
 			shunt_voltage = (double)tpa626_read_two_bytes_from_register(TPA626_REGISTER_SHUNT_VOLTAGE) * 0.0000025;
 			bus_voltage = (double)tpa626_read_two_bytes_from_register(TPA626_REGISTER_BUS_VOLTAGE) * 0.00125;
-			current = (double)tpa626_read_two_bytes_from_register(TPA626_REGISTER_CURRENT) * 0.001;
-			power = (double)tpa626_read_two_bytes_from_register(TPA626_REGISTER_POWER) * 25 * 0.001;
+			current = (double)tpa626_read_two_bytes_from_register(TPA626_REGISTER_CURRENT) * CURRENT_MEASUREMENT_RESOLUTION;
+			power = (double)tpa626_read_two_bytes_from_register(TPA626_REGISTER_POWER) * 25 * CURRENT_MEASUREMENT_RESOLUTION;
 			xSemaphoreGive(system_mutexes[MUX_I2C_DRIVER]);
 		}
 		tpa626_text_len = snprintf(
 			tpa626_text_buf,
 			TPA626_MESSAGE_SIZE,
-			"TPA626@%lld=%.2lf,%.2lf,%.2lf,%.2lf\n",
+			"TPA626@%lld=%.2lf,%.2lf,%.6lf,%.4lf\n",
 			ms,
 			shunt_voltage,
 			bus_voltage,

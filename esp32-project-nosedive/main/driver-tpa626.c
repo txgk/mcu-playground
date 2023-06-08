@@ -1,10 +1,6 @@
 #include "nosedive.h"
 #include "driver-tpa626.h"
 
-#define CURRENT_MEASUREMENT_RESOLUTION (0.001) // Amp/bit
-#define SHUNT_RESISTOR_RESISTANCE (0.005) // Ohm
-#define CALIBRATIOON_REGISTER_VALUE ((int)(0.00512 / CURRENT_MEASUREMENT_RESOLUTION / SHUNT_RESISTOR_RESISTANCE))
-
 bool
 tpa626_initialize(void)
 {
