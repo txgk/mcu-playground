@@ -43,9 +43,25 @@ static esp_err_t
 http_streamer_all_handler(httpd_req_t *req)
 {
 	http_streamer_active();
+#if 1 // Optimized solution
+	char chunk_prefix[32];
+#define STREAMER_HEADER "HTTP/1.1 200 OK\r\nContent-Type: text/event-stream\r\nTransfer-Encoding: chunked\r\nAccess-Control-Allow-Origin: *\r\n\r\n"
+	httpd_send(req, STREAMER_HEADER, sizeof(STREAMER_HEADER) - 1);
+	while (true) {
+		if (data_has_been_sent == false) {
+			int chunk_prefix_len = snprintf(chunk_prefix, sizeof(chunk_prefix), "%x\r\ndata:", data_len + 6);
+			if (httpd_send(req, chunk_prefix, chunk_prefix_len) <= 0) break;
+			if (httpd_send(req, data_buf, data_len) <= 0) break;
+			if (httpd_send(req, "\n\r\n", 3) <= 0) break;
+			data_has_been_sent = true;
+		}
+		TASK_DELAY_MS(10);
+	}
+	httpd_send(req, "0\r\n\r\n", 5); // Terminating chunk
+#else
 	httpd_resp_set_hdr(req, "Content-Type", "text/event-stream");
 	httpd_resp_set_hdr(req, "Access-Control-Allow-Origin", "*");
-	while (true) { // TODO: check if it okay to make iniftine loop in handler
+	while (true) {
 		if (data_has_been_sent == false) {
 			if (httpd_resp_send_chunk(req, "data:", 5) != ESP_OK) break;
 			if (httpd_resp_send_chunk(req, data_buf, data_len) != ESP_OK) break;
@@ -54,8 +70,9 @@ http_streamer_all_handler(httpd_req_t *req)
 		}
 		TASK_DELAY_MS(10);
 	}
+	httpd_resp_send_chunk(req, NULL, 0); // End response
+#endif
 	http_streamer_inactive();
-	httpd_resp_send_chunk(req, NULL, 0); // End response.
 	return ESP_OK;
 }
 
@@ -89,7 +106,7 @@ send_data(const char *new_data_buf, size_t new_data_len)
 		data_buf = new_data_buf;
 		data_len = new_data_len;
 		data_has_been_sent = false;
-		while (data_has_been_sent == false) {
+		while (data_has_been_sent == false && get_http_streamer_activity_status() == true) {
 			TASK_DELAY_MS(10);
 		}
 		xSemaphoreGive(system_mutexes[MUX_HTTP_STREAMER]);
