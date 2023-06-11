@@ -19,6 +19,7 @@ static EventGroupHandle_t wifi_event_group; // For signaling when we are connect
 #define WIFI_CONNECTED_BIT BIT0
 
 adc_oneshot_unit_handle_t adc1_handle;
+adc_oneshot_unit_handle_t adc2_handle;
 
 static inline void
 setup_serial(uart_config_t *cfg, uart_port_t port, int speed, int tx_pin, int rx_pin)
@@ -126,18 +127,10 @@ app_main(void)
 	pca9685_change_frequency(1);
 	pca9685_channel_full_toggle(PCA9685_ALL, false);
 
-	adc_oneshot_unit_init_cfg_t adc1_init_cfg = {
-		.unit_id = ADC_UNIT_1,
-	};
+	adc_oneshot_unit_init_cfg_t adc1_init_cfg = {.unit_id = ADC_UNIT_1};
 	adc_oneshot_new_unit(&adc1_init_cfg, &adc1_handle);
-	adc_oneshot_chan_cfg_t ntc_adc_cfg = {
-		.bitwidth = ADC_BITWIDTH_13,
-		.atten = ADC_ATTEN_DB_11,
-	};
-	adc_oneshot_chan_cfg_t speed_adc_cfg = {
-		.bitwidth = ADC_BITWIDTH_13,
-		.atten = ADC_ATTEN_DB_11,
-	};
+	adc_oneshot_chan_cfg_t ntc_adc_cfg   = {.bitwidth = ADC_BITWIDTH_DEFAULT, .atten = ADC_ATTEN_DB_11};
+	adc_oneshot_chan_cfg_t speed_adc_cfg = {.bitwidth = ADC_BITWIDTH_DEFAULT, .atten = ADC_ATTEN_DB_11};
 	adc_oneshot_config_channel(adc1_handle, NTC_ADC_CHANNEL, &ntc_adc_cfg);
 	adc_oneshot_config_channel(adc1_handle, SPEED_ADC_CHANNEL, &speed_adc_cfg);
 
@@ -198,14 +191,15 @@ app_main(void)
 	start_http_tuner();
 #endif
 
-	xTaskCreatePinnedToCore(&esp_temp_task, "esp_temp_task", 2048, NULL, 1, NULL, 1);
+	xTaskCreatePinnedToCore(&esp_temp_task, "esp_temp_task", 3072, NULL, 1, NULL, 1);
 	xTaskCreatePinnedToCore(&bmx280_task,   "bmx280_task",   3072, NULL, 1, NULL, 1);
-	xTaskCreatePinnedToCore(&tpa626_task,   "tpa626_task",   2048, NULL, 1, NULL, 1);
-	xTaskCreatePinnedToCore(&lis3dh_task,   "lis3dh_task",   2048, NULL, 1, NULL, 1);
-	xTaskCreatePinnedToCore(&max6675_task,  "max6675_task",  2048, NULL, 1, NULL, 1);
-	xTaskCreatePinnedToCore(&winbond_task,  "winbond_task",  2048, NULL, 1, NULL, 1);
-	xTaskCreatePinnedToCore(&ntc_task,      "ntc_task",      2048, NULL, 1, NULL, 1);
-	xTaskCreatePinnedToCore(&speed_task,    "speed_task",    2048, NULL, 1, NULL, 1);
+	xTaskCreatePinnedToCore(&tpa626_task,   "tpa626_task",   3072, NULL, 1, NULL, 1);
+	xTaskCreatePinnedToCore(&lis3dh_task,   "lis3dh_task",   3072, NULL, 1, NULL, 1);
+	xTaskCreatePinnedToCore(&max6675_task,  "max6675_task",  3072, NULL, 1, NULL, 1);
+	xTaskCreatePinnedToCore(&winbond_task,  "winbond_task",  3072, NULL, 1, NULL, 1);
+	xTaskCreatePinnedToCore(&ntc_task,      "ntc_task",      3072, NULL, 1, NULL, 1);
+	xTaskCreatePinnedToCore(&speed_task,    "speed_task",    3072, NULL, 1, NULL, 1);
+	xTaskCreatePinnedToCore(&hall_task,     "hall_task",     3072, NULL, 1, NULL, 1);
 
 	// Здесь мы формируем heartbeat пакеты, пока не придёт команда перезагрузки.
 	char heartbeat_text_buf[100];

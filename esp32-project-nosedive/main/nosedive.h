@@ -10,6 +10,7 @@
 #include "esp_log.h"
 #include "esp_adc/adc_oneshot.h"
 // #define NOSEDIVE_USE_WIFI_STATION
+// #define READ_HALL_AS_ANALOG_PIN
 #ifdef NOSEDIVE_USE_WIFI_STATION
 #include "../../wifi-credentials.h"
 #endif
@@ -30,6 +31,9 @@
 #define MAX6675_SPI_HOST   SPI2_HOST
 #define WINBOND_CS_PIN     2
 #define WINBOND_SPI_HOST   SPI2_HOST
+#define HALL_PIN           25
+#define HALL_ADC_UNIT      ADC_UNIT_2
+#define HALL_ADC_CHANNEL   8
 #define NTC_PIN            33
 #define NTC_ADC_UNIT       ADC_UNIT_1
 #define NTC_ADC_CHANNEL    ADC_CHANNEL_5 // Потому что это GPIO 33
@@ -93,6 +97,7 @@ void max6675_task(void *dummy);  // См. файл "sensor-max6675.c"
 void winbond_task(void *dummy);  // См. файл "sensor-w25q128jv.c"
 void ntc_task(void *dummy);      // См. файл "sensor-ntc.c"
 void speed_task(void *dummy);    // См. файл "sensor-speed.c"
+void hall_task(void *dummy);     // См. файл "sensor-hall.c"
 
 // См. файл "sensor-pca9685.c"
 void pca9685_http_handler_pcaset(const char *value);
@@ -106,4 +111,5 @@ uint16_t i2c_read_two_bytes_from_register(i2c_port_t port, uint8_t addr, uint8_t
 
 extern SemaphoreHandle_t system_mutexes[NUMBER_OF_MUTEXES];
 extern adc_oneshot_unit_handle_t adc1_handle;
+extern adc_oneshot_unit_handle_t adc2_handle;
 #endif // NOSEDIVE_H
