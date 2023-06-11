@@ -80,10 +80,11 @@ wifi_loop(void *dummy)
 	vTaskDelete(NULL);
 }
 
-void
+const struct data_piece *
 tell_esp_to_restart(const char *dummy)
 {
 	they_want_us_to_restart = true;
+	return NULL;
 }
 
 void
@@ -191,15 +192,17 @@ app_main(void)
 	start_http_tuner();
 #endif
 
-	xTaskCreatePinnedToCore(&esp_temp_task, "esp_temp_task", 3072, NULL, 1, NULL, 1);
-	xTaskCreatePinnedToCore(&bmx280_task,   "bmx280_task",   3072, NULL, 1, NULL, 1);
-	xTaskCreatePinnedToCore(&tpa626_task,   "tpa626_task",   3072, NULL, 1, NULL, 1);
-	xTaskCreatePinnedToCore(&lis3dh_task,   "lis3dh_task",   3072, NULL, 1, NULL, 1);
-	xTaskCreatePinnedToCore(&max6675_task,  "max6675_task",  3072, NULL, 1, NULL, 1);
-	xTaskCreatePinnedToCore(&winbond_task,  "winbond_task",  3072, NULL, 1, NULL, 1);
-	xTaskCreatePinnedToCore(&ntc_task,      "ntc_task",      3072, NULL, 1, NULL, 1);
-	xTaskCreatePinnedToCore(&speed_task,    "speed_task",    3072, NULL, 1, NULL, 1);
-	xTaskCreatePinnedToCore(&hall_task,     "hall_task",     3072, NULL, 1, NULL, 1);
+	create_system_info_string();
+
+	xTaskCreatePinnedToCore(&esp_temp_task, "esp_temp_task", 4096, NULL, 1, NULL, 1);
+	xTaskCreatePinnedToCore(&bmx280_task,   "bmx280_task",   4096, NULL, 1, NULL, 1);
+	xTaskCreatePinnedToCore(&tpa626_task,   "tpa626_task",   4096, NULL, 1, NULL, 1);
+	xTaskCreatePinnedToCore(&lis3dh_task,   "lis3dh_task",   4096, NULL, 1, NULL, 1);
+	xTaskCreatePinnedToCore(&max6675_task,  "max6675_task",  4096, NULL, 1, NULL, 1);
+	xTaskCreatePinnedToCore(&winbond_task,  "winbond_task",  4096, NULL, 1, NULL, 1);
+	xTaskCreatePinnedToCore(&ntc_task,      "ntc_task",      4096, NULL, 1, NULL, 1);
+	xTaskCreatePinnedToCore(&speed_task,    "speed_task",    4096, NULL, 1, NULL, 1);
+	xTaskCreatePinnedToCore(&hall_task,     "hall_task",     4096, NULL, 1, NULL, 1);
 
 	// Здесь мы формируем heartbeat пакеты, пока не придёт команда перезагрузки.
 	char heartbeat_text_buf[100];

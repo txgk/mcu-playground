@@ -2,7 +2,7 @@
 #include "nosedive.h"
 #include "driver-pca9685.h"
 
-void
+const struct data_piece *
 pca9685_http_handler_pcaset(const char *value)
 {
 	long ch = 0, duty = 100;
@@ -36,6 +36,7 @@ pca9685_http_handler_pcaset(const char *value)
 			xSemaphoreGive(system_mutexes[MUX_I2C_DRIVER]);
 		}
 	}
+	return NULL;
 }
 
 static void
@@ -52,19 +53,21 @@ pca9685_http_handler_pcamax_pcaoff(const char *value, bool on)
 	}
 }
 
-void
+const struct data_piece *
 pca9685_http_handler_pcamax(const char *value)
 {
 	pca9685_http_handler_pcamax_pcaoff(value, true);
+	return NULL;
 }
 
-void
+const struct data_piece *
 pca9685_http_handler_pcaoff(const char *value)
 {
 	pca9685_http_handler_pcamax_pcaoff(value, false);
+	return NULL;
 }
 
-void
+const struct data_piece *
 pca9685_http_handler_pcafreq(const char *value)
 {
 	if (xSemaphoreTake(system_mutexes[MUX_I2C_DRIVER], portMAX_DELAY) == pdTRUE) {
@@ -72,6 +75,7 @@ pca9685_http_handler_pcafreq(const char *value)
 		pca9685_change_frequency(freq);
 		xSemaphoreGive(system_mutexes[MUX_I2C_DRIVER]);
 	}
+	return NULL;
 }
 
 void

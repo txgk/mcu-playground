@@ -15,6 +15,8 @@
 #include "../../wifi-credentials.h"
 #endif
 
+#define FIRMWARE_CODEWORD  "Пономарь"
+
 #define UART0_TX_PIN       1
 #define UART0_RX_PIN       3
 #define UART0_SPEED        115200
@@ -81,7 +83,12 @@ enum {
 	NUMBER_OF_MUTEXES,
 };
 
-void tell_esp_to_restart(const char *dummy); // См. файл "main.c"
+struct data_piece {
+	char *ptr;
+	int len;
+};
+
+const struct data_piece *tell_esp_to_restart(const char *dummy); // См. файл "main.c"
 
 bool start_http_streamer(void);                                // См. файл "http-streamer.c"
 void send_data(const char *new_data_buf, size_t new_data_len); // См. файл "http-streamer.c"
@@ -100,14 +107,18 @@ void speed_task(void *dummy);    // См. файл "sensor-speed.c"
 void hall_task(void *dummy);     // См. файл "sensor-hall.c"
 
 // См. файл "sensor-pca9685.c"
-void pca9685_http_handler_pcaset(const char *value);
-void pca9685_http_handler_pcamax(const char *value);
-void pca9685_http_handler_pcaoff(const char *value);
-void pca9685_http_handler_pcafreq(const char *value);
+const struct data_piece *pca9685_http_handler_pcaset(const char *value);
+const struct data_piece *pca9685_http_handler_pcamax(const char *value);
+const struct data_piece *pca9685_http_handler_pcaoff(const char *value);
+const struct data_piece *pca9685_http_handler_pcafreq(const char *value);
 
 // См. файл "common-i2c.c"
 uint8_t i2c_read_one_byte_from_register(i2c_port_t port, uint8_t addr, uint8_t reg, long timeout_ms);
 uint16_t i2c_read_two_bytes_from_register(i2c_port_t port, uint8_t addr, uint8_t reg, long timeout_ms);
+
+// См. файл "system-info.c"
+void create_system_info_string(void);
+const struct data_piece *get_system_info_string(const char *dummy);
 
 extern SemaphoreHandle_t system_mutexes[NUMBER_OF_MUTEXES];
 extern adc_oneshot_unit_handle_t adc1_handle;

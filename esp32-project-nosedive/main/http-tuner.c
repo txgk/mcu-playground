@@ -4,7 +4,7 @@
 struct param_handler {
 	const char *prefix;
 	const size_t prefix_len;
-	void (*handler)(const char *value);
+	const struct data_piece *(*handler)(const char *value);
 };
 
 static httpd_handle_t http_tuner = NULL;
@@ -22,11 +22,13 @@ static const struct param_handler handlers[] = {
 	{"pcaoff=",  7, &pca9685_http_handler_pcaoff},
 	{"pcafreq=", 8, &pca9685_http_handler_pcafreq},
 	{"restart",  7, &tell_esp_to_restart},
+	{"espinfo",  7, &get_system_info_string},
 };
 
 static esp_err_t
 http_tuner_parse_set(httpd_req_t *req)
 {
+	httpd_resp_set_hdr(req, "Access-Control-Allow-Origin", "*");
 	const char *i = req->uri;
 	while (true) {
 		if (*i == '?') {
@@ -47,7 +49,10 @@ http_tuner_parse_set(httpd_req_t *req)
 				if (param_len >= handlers[j].prefix_len
 					&& memcmp(param, handlers[j].prefix, handlers[j].prefix_len) == 0)
 				{
-					handlers[j].handler(param + handlers[j].prefix_len);
+					const struct data_piece *data = handlers[j].handler(param + handlers[j].prefix_len);
+					if (data != NULL) {
+						httpd_resp_send_chunk(req, data->ptr, data->len);
+					}
 					break;
 				}
 			}
@@ -71,7 +76,6 @@ http_tuner_panel(httpd_req_t *req)
 	httpd_resp_set_type(req, "text/html");
 	httpd_resp_set_hdr(req, "Content-Encoding", "gzip");
 	httpd_resp_send(req, (const char *)panel_html_start, panel_html_end - panel_html_start);
-	httpd_resp_send_chunk(req, NULL, 0); // End response.
 	return ESP_OK;
 }
 
@@ -81,7 +85,6 @@ http_tuner_monitor(httpd_req_t *req)
 	httpd_resp_set_type(req, "text/html");
 	httpd_resp_set_hdr(req, "Content-Encoding", "gzip");
 	httpd_resp_send(req, (const char *)monitor_html_start, monitor_html_end - monitor_html_start);
-	httpd_resp_send_chunk(req, NULL, 0); // End response.
 	return ESP_OK;
 }
 

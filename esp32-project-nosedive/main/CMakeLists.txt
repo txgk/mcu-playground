@@ -21,6 +21,7 @@ idf_component_register(
 	"sensor-ntc.c"
 	"sensor-speed.c"
 	"common-i2c.c"
+	"system-info.c"
 	INCLUDE_DIRS
 	"."
 	EMBED_FILES

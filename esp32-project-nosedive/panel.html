@@ -7,34 +7,39 @@
 		{
 			cmd: 'pcaset',
 			values: ['0,50','1,50','2,50','3,50','4,50','5,50','6,50','7,50','8,50','9,50','10,50','11,50','12,50','13,50','14,50','15,50','all,50'],
-			iter: 0,
 		},
 		{
 			cmd: 'pcamax',
 			values: ['0', '1', '2', '3', '4', '5', '6', '7', '8', '9', '10', '11', '12', '13', '14', '15', 'all'],
-			iter: 0,
 		},
 		{
 			cmd: 'pcaoff',
 			values: ['0', '1', '2', '3', '4', '5', '6', '7', '8', '9', '10', '11', '12', '13', '14', '15', 'all'],
-			iter: 0,
 		},
 		{
 			cmd: 'pcafreq',
 			values: ['25', '50', '75', '100', '250', '500', '750', '1000', '1250', '1500'],
-			iter: 0,
 		},
 		{
 			cmd: 'restart',
 			values: [''],
-			iter: 0,
+		},
+		{
+			cmd: 'espinfo',
+			values: [''],
 		},
 	]
 	function send_act(entry, input) {
 		var dest = document.getElementById('request').value
 		const value = document.getElementById(input).value
 		dest += '?' + entries[entry].cmd + '=' + value
-		fetch(dest, {mode: 'no-cors'})
+		fetch(dest).then((ans) => ans.text()).then((text) => {
+			if (text.length > 0) {
+				const cur_date = new Date()
+				document.getElementById('log').innerHTML += '[' + cur_date.toLocaleString() + '] ' + text
+				document.getElementById('log').scrollTop = document.getElementById('log').scrollHeight
+			}
+		})
 	}
 	function save_act(index) {
 		const dest = document.getElementById(index).value
@@ -74,6 +79,7 @@
 		table.style.borderCollapse = 'collapse'
 		document.body.appendChild(table)
 		for (let i = 0; i < entries.length; ++i) {
+			entries[i].iter = 0
 			var row = document.createElement('tr')
 			var prefix_cell = document.createElement('td')
 			prefix_cell.style.padding = '0.5em'
@@ -101,6 +107,16 @@
 				add_value_field_to_setting_row(i, entries[i].values[j])
 			}
 		}
+		var textarea = document.createElement('textarea')
+		textarea.id = 'log'
+		textarea.readOnly = true
+		textarea.style.display = 'block'
+		textarea.style.marginLeft = 'auto'
+		textarea.style.marginRight = 'auto'
+		textarea.style.width = '95vw'
+		textarea.style.height = '40vh'
+		textarea.style.fontFamily = 'monospace'
+		document.body.appendChild(textarea)
 	}
 </script>
 </head>
