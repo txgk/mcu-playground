@@ -5,7 +5,7 @@
 
 #define SYSTEM_INFO_BUF_SIZE 500
 static char system_info_buf[SYSTEM_INFO_BUF_SIZE];
-struct data_piece system_info;
+static struct data_piece system_info;
 
 static inline const char *
 get_esp_model_string(esp_chip_model_t id)

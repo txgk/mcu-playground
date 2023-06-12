@@ -1,5 +1,6 @@
 #include "esp_http_server.h"
 #include "nosedive.h"
+#include "driver-w25q128jv.h"
 
 struct param_handler {
 	const char *prefix;
@@ -23,6 +24,7 @@ static const struct param_handler handlers[] = {
 	{"pcafreq=", 8, &pca9685_http_handler_pcafreq},
 	{"restart",  7, &tell_esp_to_restart},
 	{"espinfo",  7, &get_system_info_string},
+	{"meminfo",  7, &get_w25q128jv_info_string},
 };
 
 static esp_err_t

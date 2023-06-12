@@ -44,7 +44,7 @@
 bool winbond_initialize(void);
 esp_err_t w25q128jv_readStatusReg1(uint8_t * reg1);
 esp_err_t w25q128jv_readStatusReg2(uint8_t * reg2);
-esp_err_t w25q128jv_readUniqieID(uint8_t * id);
+esp_err_t w25q128jv_read_unique_id(uint8_t *id);
 esp_err_t w25q128jv_readManufacturer(uint8_t * id);
 bool w25q128jv_IsBusy(void);
 esp_err_t w25q128jv_powerDown(void);
@@ -56,5 +56,6 @@ bool w25q128jv_eraseSector(uint16_t sect_no, bool flgwait);
 bool w25q128jv_erase64Block(uint16_t blk_no, bool flgwait);
 bool w25q128jv_erase32Block(uint16_t blk_no, bool flgwait);
 bool w25q128jv_eraseAll(bool flgwait);
-int16_t w25q128jv_pageWrite(uint16_t sect_no, uint16_t inaddr, uint8_t* buf, int16_t n);
+int16_t w25q128jv_pageWrite(uint32_t addr, uint8_t* buf, int16_t n);
+const struct data_piece *get_w25q128jv_info_string(const char *dummy);
 #endif // WINBOND_H

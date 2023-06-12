@@ -17,7 +17,6 @@ idf_component_register(
 	"sensor-lis3dh.c"
 	"sensor-pca9685.c"
 	"sensor-max6675.c"
-	"sensor-w25q128jv.c"
 	"sensor-hall.c"
 	"sensor-pwm-reader.c"
 	"sensor-ntc.c"

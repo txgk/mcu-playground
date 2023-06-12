@@ -6,7 +6,24 @@
 
 //#define ADDRESS_MODE_4BYTE 1
 
-static spi_device_handle_t winbond;
+//
+//
+//
+//                                 TODO
+//
+//                 SECURE ALL THESE CALLS TO W25Q128JV
+//                       WITH MUTEXES AND BE HAPPY
+//                            ALL YOUR LIFE
+//                                 <3
+//
+//
+//
+
+static spi_device_handle_t winbond = NULL;
+
+#define WINBOND_INFO_BUF_SIZE 500
+static char winbond_info_buf[WINBOND_INFO_BUF_SIZE];
+static struct data_piece winbond_info;
 
 bool
 winbond_initialize(void)
@@ -56,7 +73,7 @@ w25q128jv_readStatusReg2(uint8_t * reg2)
 }
 
 esp_err_t
-w25q128jv_readUniqieID(uint8_t *id)
+w25q128jv_read_unique_id(uint8_t *id)
 {
 	spi_transaction_t SPITransaction;
 	uint8_t data[13];
@@ -121,7 +138,6 @@ w25q128jv_powerDown(void)
 	assert(ret==ESP_OK);
 	return ret;
 }
-
 
 //
 // Write permission setting
@@ -237,7 +253,6 @@ uint16_t w25q128jv_fastread(uint32_t addr, uint8_t *buf, uint16_t n)
 	if (ret != ESP_OK) return 0;
 	return n;
 }
-
 
 //
 // Erasing data in 4kb space units
@@ -378,7 +393,6 @@ bool w25q128jv_erase32Block(uint16_t blk_no, bool flgwait)
 	return true;
 }
 
-
 //
 // Erase all data
 // flgwait(in):true:Wait for complete / false:No wait for complete
@@ -423,15 +437,12 @@ bool w25q128jv_eraseAll(bool flgwait)
 // data(in):Write data
 // n(in):Number of bytes to write(0～256)
 //
-int16_t w25q128jv_pageWrite(uint16_t sect_no, uint16_t inaddr, uint8_t* buf, int16_t n)
+int16_t
+w25q128jv_pageWrite(uint32_t addr, uint8_t* buf, int16_t n)
 {
 	if (n > 256) return 0;
 	spi_transaction_t SPITransaction;
 	uint8_t *data;
-
-	uint32_t addr = sect_no;
-	addr<<=12;
-	addr += inaddr;
 
 	// Write permission setting
 	esp_err_t ret;
@@ -441,7 +452,7 @@ int16_t w25q128jv_pageWrite(uint16_t sect_no, uint16_t inaddr, uint8_t* buf, int
 	// Busy check
 	if (w25q128jv_IsBusy()) return 0;
 
-	data = (unsigned char*)malloc(n+4);
+	data = malloc(n+4);
 	data[0] = CMD_PAGE_PROGRAM;
 	data[1] = (addr>>16) & 0xff;
 	data[2] = (addr>>8) & 0xff;
@@ -463,3 +474,56 @@ int16_t w25q128jv_pageWrite(uint16_t sect_no, uint16_t inaddr, uint8_t* buf, int
 	return n;
 }
 
+static bool
+w25q128jv_check_condition(void)
+{
+	int64_t data_value = esp_timer_get_time();
+	uint8_t data[8] = {
+		data_value         & 0xFF,
+		(data_value >> 8)  & 0xFF,
+		(data_value >> 16) & 0xFF,
+		(data_value >> 24) & 0xFF,
+		(data_value >> 32) & 0xFF,
+		(data_value >> 40) & 0xFF,
+		(data_value >> 48) & 0xFF,
+		(data_value >> 56) & 0xFF,
+	};
+	w25q128jv_eraseSector(0, true);
+	w25q128jv_pageWrite(0, data, sizeof(data));
+	uint8_t check[8] = {0};
+	w25q128jv_fastread(0, check, sizeof(data));
+	for (int i = 0; i < sizeof(data); ++i) {
+		if (data[i] != check[i]) {
+			return false;
+		}
+	}
+	return true;
+}
+
+const struct data_piece *
+get_w25q128jv_info_string(const char *dummy)
+{
+	if (winbond == NULL) {
+		if (winbond_initialize() == false) {
+			return NULL;
+		}
+	}
+	uint8_t manufacturer[3] = {0};
+	uint8_t uid[8] = {0};
+	w25q128jv_readManufacturer(manufacturer);
+	w25q128jv_read_unique_id(uid);
+	winbond_info.len = snprintf(
+		winbond_info_buf,
+		WINBOND_INFO_BUF_SIZE,
+		"\n"
+		"Winbond W25Q128JV\n"
+		"Manufacturer: %02X %02X %02X\n"
+		"Unique ID: %02X %02X %02X %02X %02X %02X %02X %02X\n"
+		"Состояние: %s\n",
+		manufacturer[0], manufacturer[1], manufacturer[2],
+		uid[0], uid[1], uid[2], uid[3], uid[4], uid[5], uid[6], uid[7],
+		w25q128jv_check_condition() ? "исправен" : "не исправен"
+	);
+	winbond_info.ptr = winbond_info_buf;
+	return winbond_info.len > 0 && winbond_info.len < WINBOND_INFO_BUF_SIZE ? &winbond_info : NULL;
+}
