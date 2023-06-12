@@ -29,7 +29,7 @@ winbond_task(void *dummy)
 			send_data(winbond_text_buf, winbond_text_len);
 			uart_write_bytes(UART_NUM_0, winbond_text_buf, winbond_text_len);
 		}
-		TASK_DELAY_MS(1000);
+		TASK_DELAY_MS(10000);
 	}
 	vTaskDelete(NULL);
 }
