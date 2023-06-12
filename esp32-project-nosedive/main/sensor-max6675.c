@@ -1,4 +1,3 @@
-#include <stdio.h>
 #include "nosedive.h"
 #include "driver-max6675.h"
 
@@ -8,14 +7,13 @@ void IRAM_ATTR
 max6675_task(void *dummy)
 {
 	char max6675_text_buf[MAX6675_MESSAGE_SIZE];
-	int max6675_text_len;
 	if (max6675_initialize() == false) {
 		vTaskDelete(NULL);
 	}
 	while (true) {
 		int64_t ms = esp_timer_get_time() / 1000;
 		int temp = max6675_read_temperature();
-		max6675_text_len = snprintf(
+		int max6675_text_len = snprintf(
 			max6675_text_buf,
 			MAX6675_MESSAGE_SIZE,
 			"MAX6675@%lld=%d\n",

@@ -1,4 +1,3 @@
-#include <stdio.h>
 #include "nosedive.h"
 #include "esp_wifi.h"
 #include "esp_chip_info.h"

@@ -1,4 +1,3 @@
-#include <stdio.h>
 #include "nosedive.h"
 #include "driver-pca9685.h"
 
@@ -83,7 +82,6 @@ pca9685_print_some_registers(void)
 {
 #define PCA9685_MESSAGE_SIZE 100
 	char pca9685_text_buf[PCA9685_MESSAGE_SIZE];
-	int pca9685_text_len;
 	int mode1 = 0, subadr1 = 0;
 	int64_t ms = esp_timer_get_time() / 1000;
 	if (xSemaphoreTake(system_mutexes[MUX_I2C_DRIVER], portMAX_DELAY) == pdTRUE) {
@@ -91,7 +89,7 @@ pca9685_print_some_registers(void)
 		subadr1 = pca9685_read_subadr1();
 		xSemaphoreGive(system_mutexes[MUX_I2C_DRIVER]);
 	}
-	pca9685_text_len = snprintf(
+	int pca9685_text_len = snprintf(
 		pca9685_text_buf,
 		PCA9685_MESSAGE_SIZE,
 		"PCA9685@%lld=%d,%d\n",

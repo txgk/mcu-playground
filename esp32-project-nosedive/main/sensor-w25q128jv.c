@@ -1,4 +1,3 @@
-#include <stdio.h>
 #include "nosedive.h"
 #include "driver-w25q128jv.h"
 
@@ -8,7 +7,6 @@ void IRAM_ATTR
 winbond_task(void *dummy)
 {
 	char winbond_text_buf[WINBOND_MESSAGE_SIZE];
-	int winbond_text_len;
 	if (winbond_initialize() == false) {
 		vTaskDelete(NULL);
 	}
@@ -16,7 +14,7 @@ winbond_task(void *dummy)
 		int64_t ms = esp_timer_get_time() / 1000;
 		uint8_t data[3];
 		w25q128jv_readManufacturer(data);
-		winbond_text_len = snprintf(
+		int winbond_text_len = snprintf(
 			winbond_text_buf,
 			WINBOND_MESSAGE_SIZE,
 			"WINBOND@%lld=%d,%d,%d\n",

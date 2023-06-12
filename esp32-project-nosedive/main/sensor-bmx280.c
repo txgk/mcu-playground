@@ -1,4 +1,3 @@
-#include <stdio.h>
 #include "nosedive.h"
 #include "driver-bmx280.h"
 
@@ -8,7 +7,6 @@ void IRAM_ATTR
 bmx280_task(void *dummy)
 {
 	char bmx280_text_buf[BMX280_MESSAGE_SIZE];
-	int bmx280_text_len;
 	// It just allocates memory, so wrapping it into I2C driver mutex is not needed.
 	bmx280_t *bmx280 = bmx280_create(BME280_I2C_PORT);
 	if (bmx280 == NULL) {
@@ -33,7 +31,7 @@ bmx280_task(void *dummy)
 			bmx280_readoutFloat(bmx280, &temp, &pres, &hum);
 			xSemaphoreGive(system_mutexes[MUX_I2C_DRIVER]);
 		}
-		bmx280_text_len = snprintf(
+		int bmx280_text_len = snprintf(
 			bmx280_text_buf,
 			BMX280_MESSAGE_SIZE,
 			"BME280@%lld=%.2f,%.2f,%.2f\n",

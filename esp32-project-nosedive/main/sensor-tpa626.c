@@ -1,4 +1,3 @@
-#include <stdio.h>
 #include "nosedive.h"
 #include "driver-tpa626.h"
 
@@ -8,7 +7,6 @@ void IRAM_ATTR
 tpa626_task(void *dummy)
 {
 	char tpa626_text_buf[TPA626_MESSAGE_SIZE];
-	int tpa626_text_len;
 	if (xSemaphoreTake(system_mutexes[MUX_I2C_DRIVER], portMAX_DELAY) == pdTRUE) {
 		if (tpa626_initialize() == false) {
 			xSemaphoreGive(system_mutexes[MUX_I2C_DRIVER]);
@@ -28,7 +26,7 @@ tpa626_task(void *dummy)
 			power = tpa626_read_power();
 			xSemaphoreGive(system_mutexes[MUX_I2C_DRIVER]);
 		}
-		tpa626_text_len = snprintf(
+		int tpa626_text_len = snprintf(
 			tpa626_text_buf,
 			TPA626_MESSAGE_SIZE,
 			"TPA626@%lld=%.2lf,%.2lf,%.6lf,%.4lf\n",

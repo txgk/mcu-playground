@@ -1,4 +1,3 @@
-#include <stdio.h>
 #include "nosedive.h"
 
 #define SPEED_SAMPLES_COUNT 64
@@ -8,7 +7,6 @@ void IRAM_ATTR
 speed_task(void *dummy)
 {
 	char speed_text_buf[SPEED_MESSAGE_SIZE];
-	int speed_text_len;
 	while (true) {
 		int64_t ms = esp_timer_get_time() / 1000;
 		uint64_t read_sum = 0;
@@ -18,7 +16,7 @@ speed_task(void *dummy)
 				read_sum += read_sample;
 			}
 		}
-		speed_text_len = snprintf(
+		int speed_text_len = snprintf(
 			speed_text_buf,
 			SPEED_MESSAGE_SIZE,
 			"SPEED@%lld=%llu\n",

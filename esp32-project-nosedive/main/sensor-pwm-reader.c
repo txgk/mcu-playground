@@ -1,4 +1,3 @@
-#include <stdio.h>
 #include "nosedive.h"
 
 #define PWM_READER_MESSAGE_SIZE 200

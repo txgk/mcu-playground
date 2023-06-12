@@ -1,4 +1,3 @@
-#include <stdio.h>
 #include "nosedive.h"
 
 #define POWER_MESSAGE_SIZE 100
