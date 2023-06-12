@@ -92,15 +92,14 @@ pca9685_change_frequency(long frequency_hz)
 	i2c_master_write_to_device(PCA9685_I2C_PORT, PCA9685_I2C_ADDRESS, data1, sizeof(data1), MS_TO_TICKS(2000));
 
 	// According to DS, 24 Hz is 0xFF and 1526 Hz is 0x03.
-	// We use linear transformation based on that below.
-	if (frequency_hz < 25) {
-		frequency_hz = 25;
-	} else if (frequency_hz > 1500) {
-		frequency_hz = 1500;
+	if (frequency_hz < 24) {
+		frequency_hz = 24;
+	} else if (frequency_hz > 1525) {
+		frequency_hz = 1525;
 	}
 	uint8_t data2[] = {
 		0xFE,
-		252 * (1526 - frequency_hz) / 1502 + 3
+		25000000 / 4096 / frequency_hz - 1 // Based on expression in DS
 	};
 	i2c_master_write_to_device(PCA9685_I2C_PORT, PCA9685_I2C_ADDRESS, data2, sizeof(data2), MS_TO_TICKS(2000));
 
