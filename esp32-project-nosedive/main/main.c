@@ -1,5 +1,4 @@
 #include <stdio.h>
-#include <inttypes.h>
 #include "sdkconfig.h"
 #include "freertos/FreeRTOS.h"
 #include "freertos/task.h"
@@ -98,6 +97,18 @@ app_main(void)
 
 	nvs_flash_init();
 
+	gpio_config_t pwm_input_cfg = {
+		.pin_bit_mask = (1ULL << PWM1_INPUT_PIN) | (1ULL << PWM2_INPUT_PIN),
+		.mode = GPIO_MODE_INPUT,
+		.pull_up_en = GPIO_PULLUP_DISABLE,
+		.pull_down_en = GPIO_PULLDOWN_DISABLE,
+		.intr_type = GPIO_INTR_ANYEDGE,
+	};
+	gpio_config(&pwm_input_cfg);
+	gpio_install_isr_service(0);
+	gpio_isr_handler_add(PWM1_INPUT_PIN, &calculate_pwm, (void *)PWM1_INPUT_PIN);
+	gpio_isr_handler_add(PWM2_INPUT_PIN, &calculate_pwm, (void *)PWM2_INPUT_PIN);
+
 	uart_config_t uart0_cfg = {0};
 	uart_config_t uart1_cfg = {0};
 	setup_serial(&uart0_cfg, UART_NUM_0, UART0_SPEED, UART0_TX_PIN, UART0_RX_PIN);
@@ -194,15 +205,16 @@ app_main(void)
 
 	create_system_info_string();
 
-	xTaskCreatePinnedToCore(&esp_temp_task, "esp_temp_task", 4096, NULL, 1, NULL, 1);
-	xTaskCreatePinnedToCore(&bmx280_task,   "bmx280_task",   4096, NULL, 1, NULL, 1);
-	xTaskCreatePinnedToCore(&tpa626_task,   "tpa626_task",   4096, NULL, 1, NULL, 1);
-	xTaskCreatePinnedToCore(&lis3dh_task,   "lis3dh_task",   4096, NULL, 1, NULL, 1);
-	xTaskCreatePinnedToCore(&max6675_task,  "max6675_task",  4096, NULL, 1, NULL, 1);
-	xTaskCreatePinnedToCore(&winbond_task,  "winbond_task",  4096, NULL, 1, NULL, 1);
-	xTaskCreatePinnedToCore(&ntc_task,      "ntc_task",      4096, NULL, 1, NULL, 1);
-	xTaskCreatePinnedToCore(&speed_task,    "speed_task",    4096, NULL, 1, NULL, 1);
-	xTaskCreatePinnedToCore(&hall_task,     "hall_task",     4096, NULL, 1, NULL, 1);
+	xTaskCreatePinnedToCore(&esp_temp_task,   "esp_temp_task",   4096, NULL, 1, NULL, 1);
+	xTaskCreatePinnedToCore(&bmx280_task,     "bmx280_task",     4096, NULL, 1, NULL, 1);
+	xTaskCreatePinnedToCore(&tpa626_task,     "tpa626_task",     4096, NULL, 1, NULL, 1);
+	xTaskCreatePinnedToCore(&lis3dh_task,     "lis3dh_task",     4096, NULL, 1, NULL, 1);
+	xTaskCreatePinnedToCore(&max6675_task,    "max6675_task",    4096, NULL, 1, NULL, 1);
+	xTaskCreatePinnedToCore(&winbond_task,    "winbond_task",    4096, NULL, 1, NULL, 1);
+	xTaskCreatePinnedToCore(&ntc_task,        "ntc_task",        4096, NULL, 1, NULL, 1);
+	xTaskCreatePinnedToCore(&speed_task,      "speed_task",      4096, NULL, 1, NULL, 1);
+	xTaskCreatePinnedToCore(&hall_task,       "hall_task",       4096, NULL, 1, NULL, 1);
+	xTaskCreatePinnedToCore(&pwm_reader_task, "pwm_reader_task", 4096, NULL, 1, NULL, 1);
 
 	// Здесь мы формируем heartbeat пакеты, пока не придёт команда перезагрузки.
 	char heartbeat_text_buf[100];

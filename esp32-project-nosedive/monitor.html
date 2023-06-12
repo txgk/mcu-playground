@@ -7,6 +7,7 @@
 	const aliases = {
 		BME280: ['BME280-T', 'BME280-P', 'BME280-H'],
 		TPA626: ['TPA626-SHUNT', 'TPA626-BUS', 'TPA626-A', 'TPA626-W'],
+		PWM:    ['PWM1-FREQ', 'PWM1-DUTY', 'PWM2-FREQ', 'PWM2-DUTY'],
 	}
 	var chart = null
 	var messages = ''
@@ -39,7 +40,7 @@
 			g = Math.floor(r / 1.3)
 			b = Math.floor(r / 6)
 		} else if ((index & 7) == 7) {
-			r = 120 * Math.floor(index / 8)
+			r = 100 * (2 - Math.floor(index / 8))
 			g = b = r
 		} else {
 			if (index & 1) {
