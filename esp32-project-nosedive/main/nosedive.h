@@ -38,6 +38,9 @@
 #define PWM1_INPUT_PIN_REG GPIO_PIN_REG_34
 #define PWM2_INPUT_PIN     35
 #define PWM2_INPUT_PIN_REG GPIO_PIN_REG_35
+#define KILL_SWITCH_PIN    36
+#define POWER_ON_PIN       39
+#define CURRENT_ALERT_PIN  5
 #define HALL_PIN           25
 #define HALL_ADC_UNIT      ADC_UNIT_2
 #define HALL_ADC_CHANNEL   8
@@ -58,7 +61,7 @@
 #define HTTP_TUNER_CTRL    3333
 
 #define HEARTBEAT_PERIOD_MS          1000
-#define ESP_TEMP_PERIOD_MS           1000
+#define ESP_TEMP_PERIOD_MS           5000
 #define WIFI_RECONNECTION_PERIOD_MS  2000
 #define BMX280_POLLING_PERIOD_MS     1000
 #define TPA626_POLLING_PERIOD_MS     500
@@ -67,6 +70,7 @@
 #define NTC_POLLING_PERIOD_MS        1000
 #define SPEED_POLLING_PERIOD_MS      1000
 #define PWM_READER_POLLING_PERIOD_MS 1000
+#define POWER_POLLING_PERIOD_MS      2000
 
 #define BME280_I2C_ADDRESS  118
 #define TPA626_I2C_ADDRESS  65
@@ -114,6 +118,7 @@ void ntc_task(void *dummy);        // См. файл "sensor-ntc.c"
 void speed_task(void *dummy);      // См. файл "sensor-speed.c"
 void hall_task(void *dummy);       // См. файл "sensor-hall.c"
 void pwm_reader_task(void *dummy); // См. файл "sensor-pwm-reader.c"
+void power_task(void *dummy);      // См. файл "sensor-power.c"
 
 // См. файл "sensor-pca9685.c"
 const struct data_piece *pca9685_http_handler_pcaset(const char *value);

@@ -97,6 +97,15 @@ app_main(void)
 
 	nvs_flash_init();
 
+	gpio_config_t power_inputs_cfg = {
+		.pin_bit_mask = (1ULL << KILL_SWITCH_PIN) | (1ULL << POWER_ON_PIN) | (1ULL << CURRENT_ALERT_PIN),
+		.mode = GPIO_MODE_INPUT,
+		.pull_up_en = GPIO_PULLUP_DISABLE,
+		.pull_down_en = GPIO_PULLDOWN_DISABLE,
+		.intr_type = GPIO_INTR_DISABLE,
+	};
+	gpio_config(&power_inputs_cfg);
+
 	gpio_config_t pwm_input_cfg = {
 		.pin_bit_mask = (1ULL << PWM1_INPUT_PIN) | (1ULL << PWM2_INPUT_PIN),
 		.mode = GPIO_MODE_INPUT,
@@ -215,6 +224,7 @@ app_main(void)
 	xTaskCreatePinnedToCore(&speed_task,      "speed_task",      4096, NULL, 1, NULL, 1);
 	xTaskCreatePinnedToCore(&hall_task,       "hall_task",       4096, NULL, 1, NULL, 1);
 	xTaskCreatePinnedToCore(&pwm_reader_task, "pwm_reader_task", 4096, NULL, 1, NULL, 1);
+	xTaskCreatePinnedToCore(&power_task,      "power_task",      4096, NULL, 1, NULL, 1);
 
 	// Здесь мы формируем heartbeat пакеты, пока не придёт команда перезагрузки.
 	char heartbeat_text_buf[100];

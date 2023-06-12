@@ -22,6 +22,7 @@ idf_component_register(
 	"sensor-pwm-reader.c"
 	"sensor-ntc.c"
 	"sensor-speed.c"
+	"sensor-power.c"
 	"common-i2c.c"
 	"system-info.c"
 	INCLUDE_DIRS
