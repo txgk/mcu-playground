@@ -62,7 +62,6 @@
 #define HTTP_TUNER_CTRL    3333
 
 #define HEARTBEAT_PERIOD_MS          1000
-#define ESP_TEMP_PERIOD_MS           5000
 #define WIFI_RECONNECTION_PERIOD_MS  2000
 #define BMX280_POLLING_PERIOD_MS     1000
 #define TPA626_POLLING_PERIOD_MS     500
@@ -109,7 +108,6 @@ void stop_http_streamer(void);                                 // См. файл
 bool start_http_tuner(void);                                   // См. файл "http-tuner.c"
 void stop_http_tuner(void);                                    // См. файл "http-tuner.c"
 
-void esp_temp_task(void *dummy);   // См. файл "sensor-esp-temp.c"
 void bmx280_task(void *dummy);     // См. файл "sensor-bmx280.c"
 void tpa626_task(void *dummy);     // См. файл "sensor-tpa626.c"
 void lis3dh_task(void *dummy);     // См. файл "sensor-lis3dh.c"
@@ -140,6 +138,7 @@ double get_pwm2_duty_cycle(void);
 // См. файл "system-info.c"
 void create_system_info_string(void);
 const struct data_piece *get_system_info_string(const char *dummy);
+const struct data_piece *get_temperature_info_string(const char *dummy);
 
 extern SemaphoreHandle_t system_mutexes[NUMBER_OF_MUTEXES];
 extern adc_oneshot_unit_handle_t adc1_handle;

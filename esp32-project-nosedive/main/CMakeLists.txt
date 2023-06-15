@@ -11,7 +11,6 @@ idf_component_register(
 	"driver-w25q128jv.c"
 	"driver-hall.c"
 	"driver-pwm-reader.c"
-	"sensor-esp-temp.c"
 	"sensor-bmx280.c"
 	"sensor-tpa626.c"
 	"sensor-lis3dh.c"

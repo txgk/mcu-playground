@@ -20,23 +20,18 @@
 			cmd: 'pcafreq',
 			values: ['25', '50', '75', '100', '250', '500', '750', '1000', '1250', '1500'],
 		},
-		{
-			cmd: 'restart',
-			values: [''],
-		},
-		{
-			cmd: 'meminfo',
-			values: [''],
-		},
-		{
-			cmd: 'espinfo',
-			values: [''],
-		},
+		{cmd: 'restart', values: null},
+		{cmd: 'esptemp', values: null},
+		{cmd: 'espinfo', values: null},
+		{cmd: 'meminfo', values: null},
 	]
 	function send_act(entry, input) {
 		var dest = document.getElementById('request').value
-		const value = document.getElementById(input).value
-		dest += '?' + entries[entry].cmd + '=' + value
+		dest += '?' + entries[entry].cmd
+		if (input != null) {
+			const value = document.getElementById(input).value
+			dest += '=' + value
+		}
 		fetch(dest).then((ans) => ans.text()).then((text) => {
 			if (text.length > 0) {
 				const cur_date = new Date()
@@ -79,36 +74,49 @@
 		}
 	}
 	window.onload = function() {
+		const element_padding = '0.5em'
+		const element_border = '0.2em solid #AAAAAA'
 		var table = document.createElement('table')
 		table.style.borderCollapse = 'collapse'
 		document.body.appendChild(table)
 		for (let i = 0; i < entries.length; ++i) {
-			entries[i].iter = 0
-			var row = document.createElement('tr')
-			var prefix_cell = document.createElement('td')
-			prefix_cell.style.padding = '0.5em'
-			prefix_cell.style.border = '0.2em solid #AAAAAA'
-			var setting_name = document.createElement('div')
-			setting_name.innerHTML = entries[i].cmd
-			setting_name.style.marginBottom = prefix_cell.style.padding
-			var add_button = document.createElement('button')
-			add_button.setAttribute('onclick', 'add_value_field_to_setting_row(' + i + ', "")')
-			add_button.innerHTML = '➕'
-			var reset_button = document.createElement('button')
-			reset_button.setAttribute('onclick', 'restore_default_setting_values(' + i + ')')
-			reset_button.innerHTML = '↺'
-			prefix_cell.appendChild(setting_name)
-			prefix_cell.appendChild(add_button)
-			prefix_cell.appendChild(reset_button)
-			row.appendChild(prefix_cell)
-			var list = document.createElement('td')
-			list.id = i
-			list.style.padding = prefix_cell.style.padding
-			list.style.border = prefix_cell.style.border
-			row.appendChild(list)
-			table.appendChild(row)
-			for (let j = 0; j < entries[i].values.length; ++j) {
-				add_value_field_to_setting_row(i, entries[i].values[j])
+			if (entries[i].values == null) {
+				var entry_button = document.createElement('button')
+				entry_button.innerHTML = entries[i].cmd
+				entry_button.setAttribute('onclick', 'send_act(' + i + ', null)')
+				entry_button.style.padding = element_padding
+				entry_button.style.marginTop = element_padding
+				entry_button.style.marginBottom = element_padding
+				entry_button.style.marginRight = element_padding
+				document.body.appendChild(entry_button)
+			} else {
+				entries[i].iter = 0
+				var row = document.createElement('tr')
+				var prefix_cell = document.createElement('td')
+				prefix_cell.style.padding = element_padding
+				prefix_cell.style.border = element_border
+				var setting_name = document.createElement('div')
+				setting_name.innerHTML = entries[i].cmd
+				setting_name.style.marginBottom = element_padding
+				var add_button = document.createElement('button')
+				add_button.setAttribute('onclick', 'add_value_field_to_setting_row(' + i + ', "")')
+				add_button.innerHTML = '➕'
+				var reset_button = document.createElement('button')
+				reset_button.setAttribute('onclick', 'restore_default_setting_values(' + i + ')')
+				reset_button.innerHTML = '↺'
+				prefix_cell.appendChild(setting_name)
+				prefix_cell.appendChild(add_button)
+				prefix_cell.appendChild(reset_button)
+				row.appendChild(prefix_cell)
+				var list = document.createElement('td')
+				list.id = i
+				list.style.padding = element_padding
+				list.style.border = element_border
+				row.appendChild(list)
+				table.appendChild(row)
+				for (let j = 0; j < entries[i].values.length; ++j) {
+					add_value_field_to_setting_row(i, entries[i].values[j])
+				}
 			}
 		}
 		var textarea = document.createElement('textarea')

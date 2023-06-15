@@ -23,6 +23,7 @@ static const struct param_handler handlers[] = {
 	{"pcaoff=",  7, &pca9685_http_handler_pcaoff},
 	{"pcafreq=", 8, &pca9685_http_handler_pcafreq},
 	{"restart",  7, &tell_esp_to_restart},
+	{"esptemp",  7, &get_temperature_info_string},
 	{"espinfo",  7, &get_system_info_string},
 	{"meminfo",  7, &get_w25q128jv_info_string},
 };

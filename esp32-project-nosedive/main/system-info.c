@@ -7,16 +7,23 @@
 static char system_info_buf[SYSTEM_INFO_BUF_SIZE];
 static struct data_piece system_info;
 
+#define TEMPERATURE_INFO_BUF_SIZE 50
+static char temperature_info_buf[TEMPERATURE_INFO_BUF_SIZE];
+static struct data_piece temperature_info;
+
+// Undocumented secret function...
+uint8_t temprature_sens_read();
+
 static inline const char *
 get_esp_model_string(esp_chip_model_t id)
 {
 	switch (id) {
 		case CHIP_ESP32:   return "ESP32";
 		case CHIP_ESP32S2: return "ESP32S2";
-		case CHIP_ESP32S3: return "CHIP_ESP32S3";
-		case CHIP_ESP32C3: return "CHIP_ESP32C3";
-		case CHIP_ESP32C2: return "CHIP_ESP32C2";
-		case CHIP_ESP32H2: return "CHIP_ESP32H2";
+		case CHIP_ESP32S3: return "ESP32S3";
+		case CHIP_ESP32C3: return "ESP32C3";
+		case CHIP_ESP32C2: return "ESP32C2";
+		case CHIP_ESP32H2: return "ESP32H2";
 	}
 	return "UNKNOWN";
 }
@@ -60,4 +67,19 @@ const struct data_piece *
 get_system_info_string(const char *dummy)
 {
 	return system_info.len > 0 && system_info.len < SYSTEM_INFO_BUF_SIZE ? &system_info : NULL;
+}
+
+const struct data_piece *
+get_temperature_info_string(const char *dummy)
+{
+	const int temp = ((int)temprature_sens_read() - 32) * 5 / 9;
+	const int len = snprintf(
+		temperature_info_buf,
+		TEMPERATURE_INFO_BUF_SIZE,
+		"%d\n",
+		temp
+	);
+	temperature_info.ptr = temperature_info_buf;
+	temperature_info.len = len;
+	return len > 0 && len < TEMPERATURE_INFO_BUF_SIZE ? &temperature_info : NULL;
 }

@@ -213,7 +213,6 @@ app_main(void)
 
 	create_system_info_string();
 
-	xTaskCreatePinnedToCore(&esp_temp_task,   "esp_temp_task",   4096, NULL, 1, NULL, 1);
 	xTaskCreatePinnedToCore(&bmx280_task,     "bmx280_task",     4096, NULL, 1, NULL, 1);
 	xTaskCreatePinnedToCore(&tpa626_task,     "tpa626_task",     4096, NULL, 1, NULL, 1);
 	xTaskCreatePinnedToCore(&lis3dh_task,     "lis3dh_task",     4096, NULL, 1, NULL, 1);
