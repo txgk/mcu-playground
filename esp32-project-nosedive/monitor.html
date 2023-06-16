@@ -95,12 +95,12 @@
 		if (stream != null) {
 			return
 		}
-		stream = new EventSource(document.getElementById("address").value, {withCredentials: false})
-		stream.onmessage = (event) => {
+		stream = new WebSocket(document.getElementById("address").value)
+		stream.addEventListener("message", (event) => {
 			console.log(event.data)
-			messages += event.data + '\n'
+			messages += event.data
 			messages_count += 1
-			data_divided_by_at = event.data.split('@')
+			data_divided_by_at = event.data.trim().split('@')
 			data_time_and_values = data_divided_by_at[1].split('=')
 			data_nick = data_divided_by_at[0]
 			data_time = data_time_and_values[0]
@@ -109,10 +109,7 @@
 			for (let i = 0; i < data_values.length; ++i) {
 				data[get_dataset_index_by_name(get_dataset_name(data_nick, i))].push([data_time, data_values[i]])
 			}
-		}
-		stream.onerror = (error) => {
-			console.log("EventSource failed!", error)
-		}
+		})
 	}
 	function disconnect_device() {
 		if (stream != null) {
@@ -164,7 +161,7 @@
 </script>
 </head>
 <body>
-	<input id="address" value="http://192.168.4.1:222/all">
+	<input id="address" value="ws://192.168.4.1:222">
 	<button id="connect" onclick="connect_device()">Подключиться</button>
 	<button id="connect" onclick="disconnect_device()">Отключиться</button>
 	<span id="status">(отключен)</span>

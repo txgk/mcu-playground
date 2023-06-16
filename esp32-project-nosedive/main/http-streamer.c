@@ -40,47 +40,35 @@ get_http_streamer_activity_status(void)
 }
 
 static esp_err_t
-http_streamer_all_handler(httpd_req_t *req)
+http_streamer_handler(httpd_req_t *req)
 {
 	http_streamer_active();
-#if 1 // Optimized solution
-	char chunk_prefix[32];
-#define STREAMER_HEADER "HTTP/1.1 200 OK\r\nContent-Type: text/event-stream\r\nTransfer-Encoding: chunked\r\nAccess-Control-Allow-Origin: *\r\n\r\n"
-	httpd_send(req, STREAMER_HEADER, sizeof(STREAMER_HEADER) - 1);
 	while (true) {
 		if (data_has_been_sent == false) {
-			int chunk_prefix_len = snprintf(chunk_prefix, sizeof(chunk_prefix), "%x\r\ndata:", data_len + 6);
-			if (httpd_send(req, chunk_prefix, chunk_prefix_len) <= 0) break;
-			if (httpd_send(req, data_buf, data_len) <= 0) break;
-			if (httpd_send(req, "\n\r\n", 3) <= 0) break;
+			httpd_ws_frame_t ws_pkt = {
+				.final = true,
+				.fragmented = false,
+				.type = HTTPD_WS_TYPE_TEXT,
+				.payload = (uint8_t *)data_buf,
+				.len = data_len,
+			};
+			if (httpd_ws_send_frame(req, &ws_pkt) != ESP_OK) {
+				break;
+			}
 			data_has_been_sent = true;
 		}
 		TASK_DELAY_MS(10);
 	}
-	httpd_send(req, "0\r\n\r\n", 5); // Terminating chunk
-#else
-	httpd_resp_set_hdr(req, "Content-Type", "text/event-stream");
-	httpd_resp_set_hdr(req, "Access-Control-Allow-Origin", "*");
-	while (true) {
-		if (data_has_been_sent == false) {
-			if (httpd_resp_send_chunk(req, "data:", 5) != ESP_OK) break;
-			if (httpd_resp_send_chunk(req, data_buf, data_len) != ESP_OK) break;
-			if (httpd_resp_send_chunk(req, "\n", 1) != ESP_OK) break;
-			data_has_been_sent = true;
-		}
-		TASK_DELAY_MS(10);
-	}
-	httpd_resp_send_chunk(req, NULL, 0); // End response
-#endif
 	http_streamer_inactive();
 	return ESP_OK;
 }
 
-static const httpd_uri_t http_streamer_all_handler_setup = {
-	.uri       = "/all",
+static const httpd_uri_t http_streamer_handler_setup = {
+	.uri       = "/",
 	.method    = HTTP_GET,
-	.handler   = &http_streamer_all_handler,
-	.user_ctx  = NULL
+	.handler   = &http_streamer_handler,
+	.user_ctx  = NULL,
+	.is_websocket = true
 };
 
 bool
@@ -92,7 +80,7 @@ start_http_streamer(void)
 	if (httpd_start(&http_streamer, &http_streamer_config) != ESP_OK) {
 		return false;
 	}
-	httpd_register_uri_handler(http_streamer, &http_streamer_all_handler_setup);
+	httpd_register_uri_handler(http_streamer, &http_streamer_handler_setup);
 	return true;
 }
 
