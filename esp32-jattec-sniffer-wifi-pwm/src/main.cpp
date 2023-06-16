@@ -592,7 +592,7 @@ loadcell_loop(void *dummy)
 			);
 			if (loadcell_buf_len > 0 && loadcell_buf_len < 200) send_data(loadcell_buf, loadcell_buf_len);
 		}
-		TASK_DELAY_MS(500);
+		TASK_DELAY_MS(100);
 	}
 	vTaskDelete(NULL);
 }
