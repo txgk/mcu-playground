@@ -1,6 +1,5 @@
-#ifndef LIS3DH_H
-#define LIS3DH_H
-void lis3dh_initialize(void);
-int lis3dh_read_device_id(void);
-void lis3dh_read_acceleration(uint16_t *x, uint16_t *y, uint16_t *z);
-#endif // LIS3DH_H
+#ifndef DRIVER_LIS3DH_H
+#define DRIVER_LIS3DH_H
+void lis3dh_task(void *arg);
+int lis3dh_info(struct task_descriptor *task, char *dest);
+#endif // DRIVER_LIS3DH_H

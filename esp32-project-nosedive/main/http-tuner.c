@@ -1,5 +1,6 @@
 #include "esp_http_server.h"
 #include "nosedive.h"
+#include "driver-pca9685.h"
 #include "driver-w25q128jv.h"
 
 struct param_handler {

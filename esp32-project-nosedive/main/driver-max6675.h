@@ -1,6 +1,5 @@
-#ifndef MAX6675_H
-#define MAX6675_H
-#include "nosedive.h"
-bool max6675_initialize(void);
-int16_t max6675_read_temperature(void);
-#endif // MAX6675_H
+#ifndef DRIVER_MAX6675_H
+#define DRIVER_MAX6675_H
+void max6675_task(void *arg);
+int max6675_info(struct task_descriptor *task, char *dest);
+#endif // DRIVER_MAX6675_H

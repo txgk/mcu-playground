@@ -2,7 +2,10 @@
 
 static spi_device_handle_t max6675;
 
-bool
+static volatile int64_t max6675_measurement_time = 0;
+static volatile int16_t max6675_temperature      = 0;
+
+static bool
 max6675_initialize(void)
 {
 	spi_device_interface_config_t max6675_cfg = {
@@ -17,7 +20,7 @@ max6675_initialize(void)
 	return false;
 }
 
-int16_t
+static int16_t
 max6675_read_temperature(void)
 {
 	uint16_t data = 0;
@@ -36,4 +39,37 @@ max6675_read_temperature(void)
 	}
 	res >>= 3; // Temperature value starts from fourth bit.
 	return res / 4; // It reads temperature in Celsius multiplied by 4
+}
+
+void IRAM_ATTR
+max6675_task(void *arg)
+{
+	struct task_descriptor *task = arg;
+	if (max6675_initialize() == true) {
+		while (true) {
+			if (xSemaphoreTake(task->mutex, portMAX_DELAY) == pdTRUE) {
+				max6675_measurement_time = esp_timer_get_time();
+				max6675_temperature = max6675_read_temperature();
+				xSemaphoreGive(task->mutex);
+			}
+			TASK_DELAY_MS(task->performer_period_ms);
+		}
+	}
+	vTaskDelete(NULL);
+}
+
+int
+max6675_info(struct task_descriptor *task, char *dest)
+{
+	int len = 0;
+	if (xSemaphoreTake(task->mutex, portMAX_DELAY) == pdTRUE) {
+		len = snprintf(dest, MESSAGE_SIZE_LIMIT,
+			"%s@%lld=%d\n",
+			task->prefix,
+			max6675_measurement_time / 1000,
+			max6675_temperature
+		);
+		xSemaphoreGive(task->mutex);
+	}
+	return len > 0 && len < MESSAGE_SIZE_LIMIT ? len : 0;
 }

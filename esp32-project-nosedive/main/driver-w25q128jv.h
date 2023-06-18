@@ -1,7 +1,7 @@
 // Source: https://github.com/nopnop2002/esp-idf-w25q64
 // Thanks nopnop2002
-#ifndef WINBOND_H
-#define WINBOND_H
+#ifndef DRIVER_WINBOND_H
+#define DRIVER_WINBOND_H
 #include "nosedive.h"
 
 //#define MAX_BLOCKSIZE         128  // Total number of blocks
@@ -58,4 +58,4 @@ bool w25q128jv_erase32Block(uint16_t blk_no, bool flgwait);
 bool w25q128jv_eraseAll(bool flgwait);
 int16_t w25q128jv_pageWrite(uint32_t addr, uint8_t* buf, int16_t n);
 const struct data_piece *get_w25q128jv_info_string(const char *dummy);
-#endif // WINBOND_H
+#endif // DRIVER_WINBOND_H

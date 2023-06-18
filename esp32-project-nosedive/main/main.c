@@ -1,7 +1,6 @@
 #include "sdkconfig.h"
 #include "freertos/FreeRTOS.h"
 #include "freertos/task.h"
-#include "freertos/event_groups.h"
 #include "esp_netif.h"
 #include "esp_system.h"
 #include "esp_wifi.h"
@@ -9,12 +8,11 @@
 #include "nvs_flash.h"
 #include "nosedive.h"
 #include "driver-pca9685.h"
+#include "driver-pwm-reader.h"
 
-SemaphoreHandle_t system_mutexes[NUMBER_OF_MUTEXES];
 volatile bool they_want_us_to_restart = false;
 
-static EventGroupHandle_t wifi_event_group; // For signaling when we are connected.
-#define WIFI_CONNECTED_BIT BIT0
+static volatile bool connected_to_wifi = false;
 
 adc_oneshot_unit_handle_t adc1_handle;
 adc_oneshot_unit_handle_t adc2_handle;
@@ -42,7 +40,7 @@ static void
 wifi_birth(void *arg, esp_event_base_t event_base, int32_t event_id, void *event_data)
 {
 	if (event_base == IP_EVENT && event_id == IP_EVENT_STA_GOT_IP) {
-		xEventGroupSetBits(wifi_event_group, WIFI_CONNECTED_BIT);
+		connected_to_wifi = true;
 	}
 }
 
@@ -50,30 +48,18 @@ static void
 wifi_death(void *arg, esp_event_base_t event_base, int32_t event_id, void *event_data)
 {
 	if (event_base == IP_EVENT && event_id == IP_EVENT_STA_LOST_IP) {
-		xEventGroupClearBits(wifi_event_group, WIFI_CONNECTED_BIT);
+		connected_to_wifi = false;
 	}
 }
 
 static void IRAM_ATTR
 wifi_loop(void *dummy)
 {
-	EventBits_t old_bit = xEventGroupGetBits(wifi_event_group) & WIFI_CONNECTED_BIT;
 	while (true) {
-		TASK_DELAY_MS(WIFI_RECONNECTION_PERIOD_MS);
-		EventBits_t new_bit = xEventGroupGetBits(wifi_event_group) & WIFI_CONNECTED_BIT;
-		if (new_bit != old_bit) {
-			old_bit = new_bit;
-			if (new_bit & WIFI_CONNECTED_BIT) {
-				start_http_streamer();
-				start_http_tuner();
-			} else {
-				stop_http_streamer();
-				stop_http_tuner();
-			}
-		}
-		if ((new_bit & WIFI_CONNECTED_BIT) == 0) {
+		if (connected_to_wifi == false) {
 			esp_wifi_connect();
 		}
+		TASK_DELAY_MS(WIFI_RECONNECTION_PERIOD_MS);
 	}
 	vTaskDelete(NULL);
 }
@@ -88,12 +74,6 @@ tell_esp_to_restart(const char *dummy)
 void
 app_main(void)
 {
-	for (int i = 0; i < NUMBER_OF_MUTEXES; ++i) {
-		system_mutexes[i] = xSemaphoreCreateMutex();
-	}
-
-	wifi_event_group = xEventGroupCreate();
-
 	nvs_flash_init();
 
 	gpio_config_t power_inputs_cfg = {
@@ -196,7 +176,7 @@ app_main(void)
 			.ssid_len = sizeof(WIFI_AP_SSID) - 1,
 			.password = WIFI_AP_PASS,
 			.channel = 7,
-			.max_connection = 3,
+			.max_connection = 4,
 			.authmode = WIFI_AUTH_WPA2_PSK,
 			.pmf_cfg = {
 				.required = true,
@@ -207,34 +187,29 @@ app_main(void)
 	esp_wifi_set_config(WIFI_IF_AP, &wifi_cfg);
 	esp_wifi_start();
 	esp_wifi_set_ps(WIFI_PS_NONE);
-	start_http_streamer();
-	start_http_tuner();
 #endif
 
 	create_system_info_string();
 
-	xTaskCreatePinnedToCore(&bmx280_task,     "bmx280_task",     4096, NULL, 1, NULL, 1);
-	xTaskCreatePinnedToCore(&tpa626_task,     "tpa626_task",     4096, NULL, 1, NULL, 1);
-	xTaskCreatePinnedToCore(&lis3dh_task,     "lis3dh_task",     4096, NULL, 1, NULL, 1);
-	xTaskCreatePinnedToCore(&max6675_task,    "max6675_task",    4096, NULL, 1, NULL, 1);
-	xTaskCreatePinnedToCore(&ntc_task,        "ntc_task",        4096, NULL, 1, NULL, 1);
-	xTaskCreatePinnedToCore(&speed_task,      "speed_task",      4096, NULL, 1, NULL, 1);
-	xTaskCreatePinnedToCore(&hall_task,       "hall_task",       4096, NULL, 1, NULL, 1);
-	xTaskCreatePinnedToCore(&pwm_reader_task, "pwm_reader_task", 4096, NULL, 1, NULL, 1);
-	xTaskCreatePinnedToCore(&power_task,      "power_task",      4096, NULL, 1, NULL, 1);
+	// Start tasks before starting streamers because they don't have mutexes yet!
+	start_tasks();
+
+	start_websocket_streamer();
+	start_serial_streamer();
+	start_http_tuner();
 
 	// Здесь мы формируем heartbeat пакеты, пока не придёт команда перезагрузки.
-	char heartbeat_text_buf[100];
-	int32_t i = 1;
+	// char heartbeat_text_buf[100];
+	// int32_t i = 1;
 	while (they_want_us_to_restart == false) {
-		int64_t ms = esp_timer_get_time() / 1000;
-		int heartbeat_text_len = snprintf(heartbeat_text_buf, 100, "BEAT@%lld=%ld\n", ms, i);
-		if (heartbeat_text_len > 0 && heartbeat_text_len < 100) {
-			send_data(heartbeat_text_buf, heartbeat_text_len);
-			uart_write_bytes(UART_NUM_0, heartbeat_text_buf, heartbeat_text_len);
-		}
-		i = (i * 10) % 999999999;
-		TASK_DELAY_MS(HEARTBEAT_PERIOD_MS);
+		// int64_t ms = esp_timer_get_time() / 1000;
+		// int heartbeat_text_len = snprintf(heartbeat_text_buf, 100, "BEAT@%lld=%ld\n", ms, i);
+		// if (heartbeat_text_len > 0 && heartbeat_text_len < 100) {
+		// 	send_data(heartbeat_text_buf, heartbeat_text_len);
+		// 	uart_write_bytes(UART_NUM_0, heartbeat_text_buf, heartbeat_text_len);
+		// }
+		// i = (i * 10) % 999999999;
+		TASK_DELAY_MS(1000);
 	}
 
 	esp_restart();

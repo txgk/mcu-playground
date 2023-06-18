@@ -1,5 +1,5 @@
-#ifndef TPA626_H
-#define TPA626_H
+#ifndef DRIVER_TPA626_H
+#define DRIVER_TPA626_H
 #define CURRENT_MEASUREMENT_RESOLUTION (0.0001) // Amp/bit
 #define SHUNT_RESISTOR_RESISTANCE (0.005) // Ohm
 #define CALIBRATIOON_REGISTER_VALUE ((int)(0.00512 / CURRENT_MEASUREMENT_RESOLUTION / SHUNT_RESISTOR_RESISTANCE))
@@ -12,9 +12,6 @@ enum {
 	TPA626_REGISTER_CALIBRATION = 5,
 	TPA626_REGISTER_UNIQUE_ID = 255,
 };
-bool tpa626_initialize(void);
-double tpa626_read_shunt_voltage(void);
-double tpa626_read_bus_voltage(void);
-double tpa626_read_current(void);
-double tpa626_read_power(void);
-#endif // TPA626_H
+void tpa626_task(void *arg);
+int tpa626_info(struct task_descriptor *task, char *dest);
+#endif // DRIVER_TPA626_H

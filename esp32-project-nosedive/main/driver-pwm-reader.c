@@ -1,16 +1,22 @@
 #include "nosedive.h"
 
-#define FADE_OUT_PERIOD_US 2000000
+#define FADE_OUT_PERIOD_US 1000000
 
-static volatile int pwm1_previous_level = 0;
-static volatile int64_t pwm1_period = 0;
-static volatile int64_t pwm1_high_time = 0;
-static volatile int64_t pwm1_rising_moment = 0;
-static volatile int pwm2_previous_level = 0;
-static volatile int64_t pwm2_period = 0;
-static volatile int64_t pwm2_high_time = 0;
-static volatile int64_t pwm2_rising_moment = 0;
-static volatile int64_t us = 0;
+static volatile int64_t pwm_reader_measurement_time = 0;
+static volatile double pwm1_frequency               = 0;
+static volatile double pwm1_duty_cycle              = 0;
+static volatile double pwm2_frequency               = 0;
+static volatile double pwm2_duty_cycle              = 0;
+
+static volatile _Atomic int pwm1_previous_level    = 0;
+static volatile _Atomic int64_t pwm1_period        = 0;
+static volatile _Atomic int64_t pwm1_high_time     = 0;
+static volatile _Atomic int64_t pwm1_rising_moment = 0;
+static volatile _Atomic int pwm2_previous_level    = 0;
+static volatile _Atomic int64_t pwm2_period        = 0;
+static volatile _Atomic int64_t pwm2_high_time     = 0;
+static volatile _Atomic int64_t pwm2_rising_moment = 0;
+static volatile _Atomic int64_t us                 = 0;
 
 void IRAM_ATTR
 calculate_pwm(void *gpio_num)
@@ -36,26 +42,46 @@ calculate_pwm(void *gpio_num)
 	}
 }
 
-double
-get_pwm1_frequency(void)
+void IRAM_ATTR
+pwm_reader_task(void *arg)
 {
-	return esp_timer_get_time() < us + FADE_OUT_PERIOD_US ? 1000000.0 / pwm1_period : 0;
+	struct task_descriptor *task = arg;
+	while (true) {
+		if (xSemaphoreTake(task->mutex, portMAX_DELAY) == pdTRUE) {
+			pwm_reader_measurement_time = esp_timer_get_time();
+			if (pwm_reader_measurement_time < us + FADE_OUT_PERIOD_US) {
+				pwm1_frequency  = 1000000.0 / pwm1_period;
+				pwm2_frequency  = 1000000.0 / pwm2_period;
+				pwm1_duty_cycle = 100.0 * pwm1_high_time / pwm1_period;
+				pwm2_duty_cycle = 100.0 * pwm2_high_time / pwm2_period;
+			} else {
+				pwm1_frequency  = 0;
+				pwm2_frequency  = 0;
+				pwm1_duty_cycle = pwm1_previous_level > 0 ? 100 : 0;
+				pwm2_duty_cycle = pwm2_previous_level > 0 ? 100 : 0;
+			}
+			xSemaphoreGive(task->mutex);
+		}
+		TASK_DELAY_MS(task->performer_period_ms);
+	}
+	vTaskDelete(NULL);
 }
 
-double
-get_pwm2_frequency(void)
+int
+pwm_reader_info(struct task_descriptor *task, char *dest)
 {
-	return esp_timer_get_time() < us + FADE_OUT_PERIOD_US ? 1000000.0 / pwm2_period : 0;
-}
-
-double
-get_pwm1_duty_cycle(void)
-{
-	return esp_timer_get_time() < us + FADE_OUT_PERIOD_US ? 100.0 * pwm1_high_time / pwm1_period : 0;
-}
-
-double
-get_pwm2_duty_cycle(void)
-{
-	return esp_timer_get_time() < us + FADE_OUT_PERIOD_US ? 100.0 * pwm2_high_time / pwm2_period : 0;
+	int len = 0;
+	if (xSemaphoreTake(task->mutex, portMAX_DELAY) == pdTRUE) {
+		len = snprintf(dest, MESSAGE_SIZE_LIMIT,
+			"%s@%lld=%.0lf,%.0lf,%.0lf,%.0lf\n",
+			task->prefix,
+			pwm_reader_measurement_time / 1000,
+			pwm1_frequency,
+			pwm1_duty_cycle,
+			pwm2_frequency,
+			pwm2_duty_cycle
+		);
+		xSemaphoreGive(task->mutex);
+	}
+	return len > 0 && len < MESSAGE_SIZE_LIMIT ? len : 0;
 }

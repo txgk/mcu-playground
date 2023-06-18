@@ -1,5 +1,5 @@
-#ifndef HALL_H
-#define HALL_H
-bool hall_initialize(void);
-extern volatile bool hall_intr_triggered;
-#endif // HALL_H
+#ifndef DRIVER_HALL_H
+#define DRIVER_HALL_H
+void hall_task(void *arg);
+int hall_info(struct task_descriptor *task, char *dest);
+#endif // DRIVER_HALL_H

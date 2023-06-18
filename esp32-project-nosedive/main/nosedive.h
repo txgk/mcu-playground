@@ -1,5 +1,6 @@
 #ifndef NOSEDIVE_H
 #define NOSEDIVE_H
+#include <stdatomic.h>
 #include <stdbool.h>
 #include <inttypes.h>
 #include <string.h>
@@ -53,25 +54,6 @@
 #define SPEED_ADC_CHANNEL  ADC_CHANNEL_4 // Потому что это GPIO 32
 // Связь ADC каналов с GPIO упоминается в soc/esp32/include/soc/adc_channel.h
 
-#define WIFI_AP_SSID       "demoproshivka"
-#define WIFI_AP_PASS       "elbereth"
-
-#define HTTP_STREAMER_PORT 222
-#define HTTP_TUNER_PORT    333
-#define HTTP_STREAMER_CTRL 2222
-#define HTTP_TUNER_CTRL    3333
-
-#define HEARTBEAT_PERIOD_MS          1000
-#define WIFI_RECONNECTION_PERIOD_MS  2000
-#define BMX280_POLLING_PERIOD_MS     1000
-#define TPA626_POLLING_PERIOD_MS     500
-#define LIS3DH_POLLING_PERIOD_MS     1000
-#define MAX6675_POLLING_PERIOD_MS    1000
-#define NTC_POLLING_PERIOD_MS        1000
-#define SPEED_POLLING_PERIOD_MS      1000
-#define PWM_READER_POLLING_PERIOD_MS 1000
-#define POWER_POLLING_PERIOD_MS      2000
-
 #define BME280_I2C_ADDRESS  118
 #define TPA626_I2C_ADDRESS  65
 #define LIS3DH_I2C_ADDRESS  25
@@ -81,6 +63,15 @@
 #define LIS3DH_I2C_PORT     I2C_NUM_0
 #define PCA9685_I2C_PORT    I2C_NUM_0
 
+#define WIFI_AP_SSID               "demoproshivka"
+#define WIFI_AP_PASS               "elbereth"
+#define WIFI_RECONNECTION_PERIOD_MS 2000
+
+#define HTTP_STREAMER_PORT 222
+#define HTTP_TUNER_PORT    333
+#define HTTP_STREAMER_CTRL 2222
+#define HTTP_TUNER_CTRL    3333
+
 #define LENGTH(A) (sizeof((A))/sizeof(*(A)))
 #define MS_TO_TICKS(A) ((A) / portTICK_PERIOD_MS)
 #define CYCLES_TO_US(A) ((A) / cpu_frequency_mhz)
@@ -88,59 +79,49 @@
 #define TASK_DELAY_MS(A) vTaskDelay((A) / portTICK_PERIOD_MS)
 #define INIT_IP4_LOL(a, b, c, d) { .type = ESP_IPADDR_TYPE_V4, .u_addr = { .ip4 = { .addr = ESP_IP4TOADDR(a, b, c, d) }}}
 
-enum {
-	MUX_I2C_DRIVER = 0,
-	MUX_HTTP_STREAMER,
-	MUX_HTTP_STREAMER_ACTIVITY_INDICATOR,
-	NUMBER_OF_MUTEXES,
-};
+#define MESSAGE_SIZE_LIMIT 500
 
 struct data_piece {
 	char *ptr;
 	int len;
 };
 
+struct task_descriptor {
+	const char *prefix;
+	void (*performer)(void *);
+	int (*informer)(struct task_descriptor *, char *); // Returns the number of bytes in respective informer_data
+	const int64_t performer_period_ms;
+	const int64_t informer_period_ms;
+	const uint32_t stack_size;
+	const unsigned int priority;
+	// last_inform_ms[0] and informer_data[MESSAGE_SIZE_LIMIT][0] are for WebSocket streamer
+	// last_inform_ms[1] and informer_data[MESSAGE_SIZE_LIMIT][1] are for Serial streamer
+	// last_inform_ms[2] and informer_data[MESSAGE_SIZE_LIMIT][2] are for Winbond streamer
+	int64_t last_inform_ms[3];
+	char informer_data[MESSAGE_SIZE_LIMIT][3];
+	SemaphoreHandle_t mutex;
+};
+
 const struct data_piece *tell_esp_to_restart(const char *dummy); // См. файл "main.c"
 
-bool start_http_streamer(void);                                // См. файл "http-streamer.c"
-void send_data(const char *new_data_buf, size_t new_data_len); // См. файл "http-streamer.c"
-void stop_http_streamer(void);                                 // См. файл "http-streamer.c"
-bool start_http_tuner(void);                                   // См. файл "http-tuner.c"
-void stop_http_tuner(void);                                    // См. файл "http-tuner.c"
+void start_tasks(void); // См. файл "tasks.c"
 
-void bmx280_task(void *dummy);     // См. файл "sensor-bmx280.c"
-void tpa626_task(void *dummy);     // См. файл "sensor-tpa626.c"
-void lis3dh_task(void *dummy);     // См. файл "sensor-lis3dh.c"
-void max6675_task(void *dummy);    // См. файл "sensor-max6675.c"
-void ntc_task(void *dummy);        // См. файл "sensor-ntc.c"
-void speed_task(void *dummy);      // См. файл "sensor-speed.c"
-void hall_task(void *dummy);       // См. файл "sensor-hall.c"
-void pwm_reader_task(void *dummy); // См. файл "sensor-pwm-reader.c"
-void power_task(void *dummy);      // См. файл "sensor-power.c"
+bool start_websocket_streamer(void); // См. файл "streamer-websocket.c"
+bool start_serial_streamer(void);    // См. файл "streamer-serial.c"
 
-// См. файл "sensor-pca9685.c"
-const struct data_piece *pca9685_http_handler_pcaset(const char *value);
-const struct data_piece *pca9685_http_handler_pcamax(const char *value);
-const struct data_piece *pca9685_http_handler_pcaoff(const char *value);
-const struct data_piece *pca9685_http_handler_pcafreq(const char *value);
+bool start_http_tuner(void); // См. файл "http-tuner.c"
+void stop_http_tuner(void);  // См. файл "http-tuner.c"
 
 // См. файл "common-i2c.c"
 uint8_t i2c_read_one_byte_from_register(i2c_port_t port, uint8_t addr, uint8_t reg, long timeout_ms);
 uint16_t i2c_read_two_bytes_from_register(i2c_port_t port, uint8_t addr, uint8_t reg, long timeout_ms);
-
-// См. файл "driver-pwm-reader.c"
-void calculate_pwm(void *gpio_num);
-double get_pwm1_frequency(void);
-double get_pwm2_frequency(void);
-double get_pwm1_duty_cycle(void);
-double get_pwm2_duty_cycle(void);
 
 // См. файл "system-info.c"
 void create_system_info_string(void);
 const struct data_piece *get_system_info_string(const char *dummy);
 const struct data_piece *get_temperature_info_string(const char *dummy);
 
-extern SemaphoreHandle_t system_mutexes[NUMBER_OF_MUTEXES];
+extern struct task_descriptor tasks[];
 extern adc_oneshot_unit_handle_t adc1_handle;
 extern adc_oneshot_unit_handle_t adc2_handle;
 #endif // NOSEDIVE_H

@@ -1,7 +1,9 @@
 #include "nosedive.h"
 #include "driver-hall.h"
 
-volatile bool hall_intr_triggered = false;
+static volatile int64_t hall_measurement_time = 0;
+static volatile int hall_value                = 0;
+static volatile bool hall_intr_triggered      = false;
 
 // #define TIMER_RESOLUTION 1000000 // 1 MHz
 // #define ALARM_PERIOD 1000000 // 1 s
@@ -21,7 +23,7 @@ volatile bool hall_intr_triggered = false;
 // 	hall_intr_triggered = true;
 // }
 
-bool
+static bool
 hall_initialize(void)
 {
 #ifdef READ_HALL_AS_ANALOG_PIN
@@ -68,4 +70,43 @@ hall_initialize(void)
 	// gptimer_set_alarm_action(gptimer, &alarm_cfg);
 	// gptimer_enable(gptimer);
 	return true;
+}
+
+void IRAM_ATTR
+hall_task(void *arg)
+{
+	struct task_descriptor *task = arg;
+	if (hall_initialize() == true) {
+		while (true) {
+			if (xSemaphoreTake(task->mutex, portMAX_DELAY) == pdTRUE) {
+				hall_measurement_time = esp_timer_get_time();
+#ifdef READ_HALL_AS_ANALOG_PIN
+				while (adc_oneshot_read(adc2_handle, HALL_ADC_CHANNEL, &hall_value) != ESP_OK) {
+					TASK_DELAY_MS(100);
+				}
+#else
+				hall_value = gpio_get_level(HALL_PIN);
+#endif
+				xSemaphoreGive(task->mutex);
+			}
+			TASK_DELAY_MS(task->performer_period_ms);
+		}
+	}
+	vTaskDelete(NULL);
+}
+
+int
+hall_info(struct task_descriptor *task, char *dest)
+{
+	int len = 0;
+	if (xSemaphoreTake(task->mutex, portMAX_DELAY) == pdTRUE) {
+		len = snprintf(dest, MESSAGE_SIZE_LIMIT,
+			"%s@%lld=%d\n",
+			task->prefix,
+			hall_measurement_time / 1000,
+			hall_value
+		);
+		xSemaphoreGive(task->mutex);
+	}
+	return len > 0 && len < MESSAGE_SIZE_LIMIT ? len : 0;
 }

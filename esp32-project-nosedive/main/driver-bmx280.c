@@ -15,6 +15,7 @@
 // Sensortec GmbH and it is not clearly licensed, therefore this code is not 
 // covered by the MIT of this repository. Use at your own risk.
 
+#include "nosedive.h"
 #include "driver-bmx280.h"
 #include "esp_log.h"
 
@@ -22,7 +23,7 @@
 #include <stdint.h>
 #include <string.h>
 
-#define CONFIG_BMX280_TIMEOUT (2000 / portTICK_PERIOD_MS)
+#define CONFIG_BMX280_TIMEOUT (5000 / portTICK_PERIOD_MS)
 
 // [BME280] Register address of humidity least significant byte.
 #define BMX280_REG_HUMI_LSB 0xFE
@@ -549,4 +550,55 @@ esp_err_t bmx280_readout(bmx280_t *bmx280, int32_t *temperature, uint32_t *press
     #endif
 
     return ESP_OK;
+}
+
+static volatile int64_t bmx280_measurement_time = 0;
+static float bmx280_temperature                 = 0;
+static float bmx280_pressure                    = 0;
+static float bmx280_humidity                    = 0;
+
+void IRAM_ATTR
+bmx280_task(void *arg)
+{
+	struct task_descriptor *task = arg;
+	bmx280_t *bmx280 = bmx280_create(BME280_I2C_PORT);
+	if (bmx280 == NULL) {
+		vTaskDelete(NULL);
+	}
+	bmx280_config_t bmx_cfg = BMX280_DEFAULT_CONFIG;
+	bmx280_init(bmx280);
+	if (bmx280_configure(bmx280, &bmx_cfg) != ESP_OK) {
+		vTaskDelete(NULL);
+	}
+	while (true) {
+		if (xSemaphoreTake(task->mutex, portMAX_DELAY) == pdTRUE) {
+			bmx280_measurement_time = esp_timer_get_time();
+			bmx280_setMode(bmx280, BMX280_MODE_FORCE);
+			do {
+				TASK_DELAY_MS(50);
+			} while (bmx280_isSampling(bmx280));
+			bmx280_readoutFloat(bmx280, &bmx280_temperature, &bmx280_pressure, &bmx280_humidity);
+			xSemaphoreGive(task->mutex);
+		}
+		TASK_DELAY_MS(task->performer_period_ms);
+	}
+	vTaskDelete(NULL);
+}
+
+int
+bmx280_info(struct task_descriptor *task, char *dest)
+{
+	int len = 0;
+	if (xSemaphoreTake(task->mutex, portMAX_DELAY) == pdTRUE) {
+		len = snprintf(dest, MESSAGE_SIZE_LIMIT,
+			"%s@%lld=%.2f,%.2f,%.2f\n",
+			task->prefix,
+			bmx280_measurement_time / 1000,
+			bmx280_temperature,
+			bmx280_pressure,
+			bmx280_humidity
+		);
+		xSemaphoreGive(task->mutex);
+	}
+	return len > 0 && len < MESSAGE_SIZE_LIMIT ? len : 0;
 }

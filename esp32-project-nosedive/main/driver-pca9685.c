@@ -50,7 +50,7 @@ pca9685_read_subadr1(void)
 	return i2c_read_one_byte_from_register(PCA9685_I2C_PORT, PCA9685_I2C_ADDRESS, 2, 2000);
 }
 
-void
+static void
 pca9685_channel_setup(pca9685_ch_t ch, int duty_percent, int shift_percent)
 {
 	if (ch > PCA9685_ALL) {
@@ -112,4 +112,70 @@ pca9685_change_frequency(long frequency_hz)
 	// Restart PWM channels (without this they will keep sleeping).
 	data1[1] = 0b10100001;
 	i2c_master_write_to_device(PCA9685_I2C_PORT, PCA9685_I2C_ADDRESS, data1, sizeof(data1), MS_TO_TICKS(2000));
+}
+
+const struct data_piece *
+pca9685_http_handler_pcaset(const char *value)
+{
+	long ch = 0, duty = 100;
+	uint8_t field = 0;
+	char buf[10];
+	uint8_t buf_len = 0;
+	for (const char *i = value; ; ++i) {
+		if (*i == ',' || *i == '\0') {
+			buf[buf_len] = '\0';
+			buf_len = 0;
+			field += 1;
+			if (field == 1) {
+				if (strcmp(buf, "all") == 0) {
+					ch = PCA9685_ALL;
+				} else {
+					ch = strtol(buf, NULL, 10);
+				}
+			} else if (field == 2) {
+				duty = strtol(buf, NULL, 10);
+			}
+			if (*i == '\0') {
+				break;
+			}
+		} else if (buf_len < 9) {
+			buf[buf_len++] = *i;
+		}
+	}
+	if (field > 0) {
+		pca9685_channel_setup(PCA9685_CH0 + ch, duty, 0);
+	}
+	return NULL;
+}
+
+static const struct data_piece *
+pca9685_http_handler_pcamax_pcaoff(const char *value, bool on)
+{
+	if (strcmp(value, "all") == 0) {
+		pca9685_channel_full_toggle(PCA9685_ALL, on);
+	} else {
+		long ch = strtol(value, NULL, 10);
+		pca9685_channel_full_toggle(PCA9685_CH0 + ch, on);
+	}
+	return NULL;
+}
+
+const struct data_piece *
+pca9685_http_handler_pcamax(const char *value)
+{
+	return pca9685_http_handler_pcamax_pcaoff(value, true);
+}
+
+const struct data_piece *
+pca9685_http_handler_pcaoff(const char *value)
+{
+	return pca9685_http_handler_pcamax_pcaoff(value, false);
+}
+
+const struct data_piece *
+pca9685_http_handler_pcafreq(const char *value)
+{
+	long freq = strtol(value, NULL, 10);
+	pca9685_change_frequency(freq);
+	return NULL;
 }

@@ -121,6 +121,9 @@ static inline esp_err_t bmx280_readoutFloat(bmx280_t *bmx280, float* temperature
     return err;
 }
 
+void bmx280_task(void *arg);
+int bmx280_info(struct task_descriptor *task, char *dest);
+
 #ifdef __cplusplus
 };
 #endif

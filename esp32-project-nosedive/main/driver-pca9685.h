@@ -1,5 +1,5 @@
-#ifndef PCA9685_H
-#define PCA9685_H
+#ifndef DRIVER_PCA9685_H
+#define DRIVER_PCA9685_H
 typedef uint8_t pca9685_ch_t;
 enum pca9685_ch {
 	PCA9685_CH0 = 0,
@@ -26,7 +26,11 @@ void pca9685_initialize(void);
 int pca9685_read_mode1(void);
 int pca9685_read_subadr1(void);
 
-void pca9685_channel_setup(pca9685_ch_t ch, int duty_percent, int shift_percent);
 void pca9685_channel_full_toggle(pca9685_ch_t ch, bool on);
 void pca9685_change_frequency(long frequency_hz);
-#endif // PCA9685_H
+
+const struct data_piece *pca9685_http_handler_pcaset(const char *value);
+const struct data_piece *pca9685_http_handler_pcamax(const char *value);
+const struct data_piece *pca9685_http_handler_pcaoff(const char *value);
+const struct data_piece *pca9685_http_handler_pcafreq(const char *value);
+#endif // DRIVER_PCA9685_H
