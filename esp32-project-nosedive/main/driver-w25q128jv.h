@@ -57,5 +57,5 @@ bool w25q128jv_erase64Block(uint16_t blk_no, bool flgwait);
 bool w25q128jv_erase32Block(uint16_t blk_no, bool flgwait);
 bool w25q128jv_eraseAll(bool flgwait);
 int16_t w25q128jv_pageWrite(uint32_t addr, uint8_t* buf, int16_t n);
-const struct data_piece *get_w25q128jv_info_string(const char *dummy);
+void get_w25q128jv_info_string(const char *value, char *answer_buf_ptr, int *answer_len_ptr);
 #endif // DRIVER_WINBOND_H

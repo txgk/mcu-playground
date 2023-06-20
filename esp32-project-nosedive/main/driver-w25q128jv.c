@@ -21,10 +21,6 @@
 
 static spi_device_handle_t winbond = NULL;
 
-#define WINBOND_INFO_BUF_SIZE 500
-static char winbond_info_buf[WINBOND_INFO_BUF_SIZE];
-static struct data_piece winbond_info;
-
 bool
 winbond_initialize(void)
 {
@@ -500,21 +496,21 @@ w25q128jv_check_condition(void)
 	return true;
 }
 
-const struct data_piece *
-get_w25q128jv_info_string(const char *dummy)
+void
+get_w25q128jv_info_string(const char *value, char *answer_buf_ptr, int *answer_len_ptr)
 {
 	if (winbond == NULL) {
 		if (winbond_initialize() == false) {
-			return NULL;
+			return;
 		}
 	}
 	uint8_t manufacturer[3] = {0};
 	uint8_t uid[8] = {0};
 	w25q128jv_readManufacturer(manufacturer);
 	w25q128jv_read_unique_id(uid);
-	winbond_info.len = snprintf(
-		winbond_info_buf,
-		WINBOND_INFO_BUF_SIZE,
+	*answer_len_ptr = snprintf(
+		answer_buf_ptr,
+		HTTP_TUNER_ANSWER_SIZE_LIMIT,
 		"\n"
 		"Winbond W25Q128JV\n"
 		"Manufacturer: %02X %02X %02X\n"
@@ -524,6 +520,4 @@ get_w25q128jv_info_string(const char *dummy)
 		uid[0], uid[1], uid[2], uid[3], uid[4], uid[5], uid[6], uid[7],
 		w25q128jv_check_condition() ? "исправен" : "не исправен"
 	);
-	winbond_info.ptr = winbond_info_buf;
-	return winbond_info.len > 0 && winbond_info.len < WINBOND_INFO_BUF_SIZE ? &winbond_info : NULL;
 }

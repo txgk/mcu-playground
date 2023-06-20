@@ -6,11 +6,14 @@
 struct param_handler {
 	const char *prefix;
 	const size_t prefix_len;
-	const struct data_piece *(*handler)(const char *value);
+	void (*handler)(const char *value, char *answer_buf_ptr, int *answer_len_ptr);
 };
 
 static httpd_handle_t http_tuner = NULL;
 static httpd_config_t http_tuner_config = HTTPD_DEFAULT_CONFIG();
+
+static char answer_buf[HTTP_TUNER_ANSWER_SIZE_LIMIT];
+static int answer_len = 0;
 
 extern const unsigned char panel_html_start[] asm("_binary_panel_html_gz_start");
 extern const unsigned char panel_html_end[]   asm("_binary_panel_html_gz_end");
@@ -53,9 +56,10 @@ http_tuner_parse_set(httpd_req_t *req)
 				if (param_len >= handlers[j].prefix_len
 					&& memcmp(param, handlers[j].prefix, handlers[j].prefix_len) == 0)
 				{
-					const struct data_piece *data = handlers[j].handler(param + handlers[j].prefix_len);
-					if (data != NULL) {
-						httpd_resp_send_chunk(req, data->ptr, data->len);
+					answer_len = 0;
+					handlers[j].handler(param + handlers[j].prefix_len, answer_buf, &answer_len);
+					if (answer_len > 0 && answer_len < HTTP_TUNER_ANSWER_SIZE_LIMIT) {
+						httpd_resp_send_chunk(req, answer_buf, answer_len);
 					}
 					break;
 				}

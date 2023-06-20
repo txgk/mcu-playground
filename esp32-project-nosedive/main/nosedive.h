@@ -80,11 +80,7 @@
 #define INIT_IP4_LOL(a, b, c, d) { .type = ESP_IPADDR_TYPE_V4, .u_addr = { .ip4 = { .addr = ESP_IP4TOADDR(a, b, c, d) }}}
 
 #define MESSAGE_SIZE_LIMIT 500
-
-struct data_piece {
-	char *ptr;
-	int len;
-};
+#define HTTP_TUNER_ANSWER_SIZE_LIMIT 500
 
 struct task_descriptor {
 	const char *prefix;
@@ -102,7 +98,7 @@ struct task_descriptor {
 	SemaphoreHandle_t mutex;
 };
 
-const struct data_piece *tell_esp_to_restart(const char *dummy); // См. файл "main.c"
+void tell_esp_to_restart(const char *value, char *answer_buf_ptr, int *answer_len_ptr); // См. файл "main.c"
 
 void start_tasks(void); // См. файл "tasks.c"
 
@@ -117,9 +113,8 @@ uint8_t i2c_read_one_byte_from_register(i2c_port_t port, uint8_t addr, uint8_t r
 uint16_t i2c_read_two_bytes_from_register(i2c_port_t port, uint8_t addr, uint8_t reg, long timeout_ms);
 
 // См. файл "system-info.c"
-void create_system_info_string(void);
-const struct data_piece *get_system_info_string(const char *dummy);
-const struct data_piece *get_temperature_info_string(const char *dummy);
+void get_system_info_string(const char *value, char *answer_buf_ptr, int *answer_len_ptr);
+void get_temperature_info_string(const char *value, char *answer_buf_ptr, int *answer_len_ptr);
 
 extern struct task_descriptor tasks[];
 extern adc_oneshot_unit_handle_t adc1_handle;

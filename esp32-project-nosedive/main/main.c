@@ -64,11 +64,10 @@ wifi_loop(void *dummy)
 	vTaskDelete(NULL);
 }
 
-const struct data_piece *
-tell_esp_to_restart(const char *dummy)
+void
+tell_esp_to_restart(const char *value, char *answer_buf_ptr, int *answer_len_ptr)
 {
 	they_want_us_to_restart = true;
-	return NULL;
 }
 
 void
@@ -188,8 +187,6 @@ app_main(void)
 	esp_wifi_start();
 	esp_wifi_set_ps(WIFI_PS_NONE);
 #endif
-
-	create_system_info_string();
 
 	// Start tasks before starting streamers because they don't have mutexes yet!
 	start_tasks();

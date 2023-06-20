@@ -26,11 +26,11 @@ void pca9685_initialize(void);
 int pca9685_read_mode1(void);
 int pca9685_read_subadr1(void);
 
-void pca9685_channel_full_toggle(pca9685_ch_t ch, bool on);
-void pca9685_change_frequency(long frequency_hz);
+bool pca9685_channel_full_toggle(pca9685_ch_t ch, bool on);
+bool pca9685_change_frequency(long frequency_hz);
 
-const struct data_piece *pca9685_http_handler_pcaset(const char *value);
-const struct data_piece *pca9685_http_handler_pcamax(const char *value);
-const struct data_piece *pca9685_http_handler_pcaoff(const char *value);
-const struct data_piece *pca9685_http_handler_pcafreq(const char *value);
+void pca9685_http_handler_pcaset(const char *value, char *answer_buf_ptr, int *answer_len_ptr);
+void pca9685_http_handler_pcamax(const char *value, char *answer_buf_ptr, int *answer_len_ptr);
+void pca9685_http_handler_pcaoff(const char *value, char *answer_buf_ptr, int *answer_len_ptr);
+void pca9685_http_handler_pcafreq(const char *value, char *answer_buf_ptr, int *answer_len_ptr);
 #endif // DRIVER_PCA9685_H
