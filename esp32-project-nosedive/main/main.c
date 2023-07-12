@@ -9,13 +9,13 @@
 #include "nosedive.h"
 #include "driver-pca9685.h"
 #include "driver-pwm-reader.h"
+#include "driver-hall.h"
 
 volatile bool they_want_us_to_restart = false;
 
 static volatile bool connected_to_wifi = false;
 
 adc_oneshot_unit_handle_t adc1_handle;
-adc_oneshot_unit_handle_t adc2_handle;
 
 static inline void
 setup_serial(uart_config_t *cfg, uart_port_t port, int speed, int tx_pin, int rx_pin)
@@ -74,6 +74,7 @@ void
 app_main(void)
 {
 	nvs_flash_init();
+	gpio_install_isr_service(0);
 
 	gpio_config_t power_inputs_cfg = {
 		.pin_bit_mask = (1ULL << KILL_SWITCH_PIN) | (1ULL << POWER_ON_PIN) | (1ULL << CURRENT_ALERT_PIN),
@@ -92,9 +93,18 @@ app_main(void)
 		.intr_type = GPIO_INTR_ANYEDGE,
 	};
 	gpio_config(&pwm_input_cfg);
-	gpio_install_isr_service(0);
 	gpio_isr_handler_add(PWM1_INPUT_PIN, &calculate_pwm, (void *)PWM1_INPUT_PIN);
 	gpio_isr_handler_add(PWM2_INPUT_PIN, &calculate_pwm, (void *)PWM2_INPUT_PIN);
+
+	gpio_config_t hall_input_cfg = {
+		.pin_bit_mask = (1ULL << HALL_PIN),
+		.mode = GPIO_MODE_INPUT,
+		.pull_up_en = GPIO_PULLUP_DISABLE,
+		.pull_down_en = GPIO_PULLDOWN_DISABLE,
+		.intr_type = GPIO_INTR_POSEDGE,
+	};
+	gpio_config(&hall_input_cfg);
+	gpio_isr_handler_add(HALL_PIN, &hall_take_sample, NULL);
 
 	uart_config_t uart0_cfg = {0};
 	uart_config_t uart1_cfg = {0};

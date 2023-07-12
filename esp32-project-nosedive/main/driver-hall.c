@@ -1,96 +1,51 @@
 #include "nosedive.h"
 #include "driver-hall.h"
 
-static volatile int64_t hall_measurement_time = 0;
-static volatile int hall_value                = 0;
-static volatile bool hall_intr_triggered      = false;
+#define HALL_SAMPLES_COUNT         100
+#define HALL_MEASUREMENT_PERIOD_US 5000000
 
-// #define TIMER_RESOLUTION 1000000 // 1 MHz
-// #define ALARM_PERIOD 1000000 // 1 s
+static volatile _Atomic int64_t hall_samples[HALL_SAMPLES_COUNT];
+static volatile _Atomic int64_t last_sample_time = 0;
+static volatile _Atomic size_t hall_iter = 0;
+static volatile _Atomic bool hall_in_use = false;
+static volatile double hall_freq         = 0;
 
-// static gptimer_handle_t gptimer = NULL;
-
-// static bool IRAM_ATTR
-// register_hall_switch(gptimer_handle_t timer, const gptimer_alarm_event_data_t *edata, void *user_data)
-// {
-// 	BaseType_t high_task_awoken = pdFALSE;
-// 	return high_task_awoken == pdTRUE;
-// }
-
-// static void IRAM_ATTR
-// hall_handler(void *dummy)
-// {
-// 	hall_intr_triggered = true;
-// }
-
-static bool
-hall_initialize(void)
+void IRAM_ATTR
+hall_take_sample(void *dummy)
 {
-#ifdef READ_HALL_AS_ANALOG_PIN
-	adc_oneshot_unit_init_cfg_t adc2_init_cfg = {.unit_id = ADC_UNIT_2};
-	adc_oneshot_new_unit(&adc2_init_cfg, &adc2_handle);
-	adc_oneshot_chan_cfg_t hall_adc_cfg  = {.bitwidth = ADC_BITWIDTH_DEFAULT, .atten = ADC_ATTEN_DB_11};
-	adc_oneshot_config_channel(adc2_handle, HALL_ADC_CHANNEL, &hall_adc_cfg);
-#else
-	gpio_config_t hall_cfg = {
-		(1ULL << HALL_PIN),
-		GPIO_MODE_INPUT,
-		GPIO_PULLUP_DISABLE,
-		GPIO_PULLDOWN_DISABLE,
-		GPIO_INTR_DISABLE,
-	};
-	gpio_config(&hall_cfg);
-#endif
-	// gpio_config_t hall_cfg = {
-	// 	(1ULL << HALL_PIN),
-	// 	GPIO_MODE_INPUT,
-	// 	GPIO_PULLUP_DISABLE,
-	// 	GPIO_PULLDOWN_DISABLE,
-	// 	GPIO_INTR_ANYEDGE,
-	// };
-	// gpio_install_isr_service(0);
-	// gpio_isr_handler_add(HALL_PIN, &hall_handler, NULL);
-
-	// esp_intr_alloc(ETS_GPIO_INTR_SOURCE, ESP_INTR_FLAG_IRAM, &hall_handler, NULL, NULL);
-
-	// gptimer_config_t gptimer_cfg = {
-	// 	.clk_src = GPTIMER_CLK_SRC_DEFAULT,
-	// 	.direction = GPTIMER_COUNT_UP,
-	// 	.resolution_hz = TIMER_RESOLUTION,
-	// };
-	// gptimer_new_timer(&gptimer_cfg, &gptimer);
-	// gptimer_event_callbacks_t callbacks_cfg = {
-	// 	.on_alarm = &register_hall_switch,
-	// };
-	// gptimer_register_event_callbacks(gptimer, &callbacks_cfg, NULL);
-	// gptimer_enable(gptimer);
-	// gptimer_alarm_config_t alarm_cfg = {
-	// 	.alarm_count = ALARM_PERIOD,
-	// };
-	// gptimer_set_alarm_action(gptimer, &alarm_cfg);
-	// gptimer_enable(gptimer);
-	return true;
+	hall_in_use = true;
+	last_sample_time = esp_timer_get_time();
+	hall_samples[hall_iter] = last_sample_time;
+	hall_iter = (hall_iter + 1) % HALL_SAMPLES_COUNT;
+	size_t fresh_samples_count = 0;
+	int64_t oldest_sample_time = last_sample_time;
+	for (size_t i = 0; i < HALL_SAMPLES_COUNT; ++i) {
+		if (last_sample_time - hall_samples[i] < HALL_MEASUREMENT_PERIOD_US) {
+			fresh_samples_count += 1;
+			if (hall_samples[i] < oldest_sample_time) {
+				oldest_sample_time = hall_samples[i];
+			}
+		}
+	}
+	// Частота = множитель мкс * кол-во измерений за период / период съёма измерений в мкс
+	hall_freq = 1000000.0 * fresh_samples_count / (last_sample_time - oldest_sample_time);
+	hall_in_use = false;
 }
 
 void IRAM_ATTR
 hall_task(void *arg)
 {
 	struct task_descriptor *task = arg;
-	if (hall_initialize() == true) {
-		while (true) {
-			if (xSemaphoreTake(task->mutex, portMAX_DELAY) == pdTRUE) {
-				hall_measurement_time = esp_timer_get_time();
-#ifdef READ_HALL_AS_ANALOG_PIN
-				while (adc_oneshot_read(adc2_handle, HALL_ADC_CHANNEL, &hall_value) != ESP_OK) {
-					TASK_DELAY_MS(100);
-				}
-#else
-				hall_value = gpio_get_level(HALL_PIN);
-#endif
-				xSemaphoreGive(task->mutex);
+	while (true) {
+		if (xSemaphoreTake(task->mutex, portMAX_DELAY) == pdTRUE) {
+			while (hall_in_use == true);
+			if ((esp_timer_get_time() - last_sample_time > HALL_MEASUREMENT_PERIOD_US) && (hall_in_use == false)) {
+				last_sample_time = esp_timer_get_time();
+				hall_freq = 0;
 			}
-			TASK_DELAY_MS(task->performer_period_ms);
+			xSemaphoreGive(task->mutex);
 		}
+		TASK_DELAY_MS(task->performer_period_ms);
 	}
 	vTaskDelete(NULL);
 }
@@ -100,11 +55,12 @@ hall_info(struct task_descriptor *task, char *dest)
 {
 	int len = 0;
 	if (xSemaphoreTake(task->mutex, portMAX_DELAY) == pdTRUE) {
+		while (hall_in_use == true);
 		len = snprintf(dest, MESSAGE_SIZE_LIMIT,
-			"%s@%lld=%d\n",
+			"%s@%lld=%.2lf\n",
 			task->prefix,
-			hall_measurement_time / 1000,
-			hall_value
+			last_sample_time / 1000,
+			hall_freq * 60 // Convert to RPM.
 		);
 		xSemaphoreGive(task->mutex);
 	}

@@ -13,7 +13,6 @@
 #include "esp_log.h"
 #include "esp_adc/adc_oneshot.h"
 // #define NOSEDIVE_USE_WIFI_STATION
-// #define READ_HALL_AS_ANALOG_PIN
 #ifdef NOSEDIVE_USE_WIFI_STATION
 #include "../../wifi-credentials.h"
 #endif
@@ -118,5 +117,4 @@ void get_temperature_info_string(const char *value, char *answer_buf_ptr, int *a
 
 extern struct task_descriptor tasks[];
 extern adc_oneshot_unit_handle_t adc1_handle;
-extern adc_oneshot_unit_handle_t adc2_handle;
 #endif // NOSEDIVE_H
