@@ -1,10 +1,21 @@
 #include <string.h>
+// #include <esp_types.h>
+// #include <stdatomic.h>
+// #include <util/atomic.h>
 #include <Arduino.h>
 #include <WiFi.h>
 #include <ArduinoOTA.h>
 #include "driver/ledc.h"
 #include "HX711.h"
-#include "../../wifi-credentials.h"
+// #include "../../wifi-credentials.h"
+
+#define WIFI_SSID "Tochka-Dostupa-WiFi"
+#define WIFI_PASSWORD "Parol-ot-WiFi"
+IPAddress            ip(192, 168, 102,  41);
+IPAddress       gateway(192, 168, 102,  99);
+IPAddress        subnet(255, 255, 255,   0);
+IPAddress   primary_dns( 77,  88,   8,   8);
+IPAddress secondary_dns( 77,  88,   8,   1);
 
 #define SDA_PIN                          32
 #define SCL_PIN                          33
@@ -15,6 +26,7 @@
 #define I2C1_BUS_SDA_PIN                 27
 #define I2C1_BUS_SCL_PIN                 26
 #define PWM_OUT_1_PIN                    5
+#define RASHODOMER_PIN                   25
 #define SERIAL_SPEED                     9600
 #define WIFI_DATA_PORT                   80
 #define WIFI_CTRL_PORT                   81
@@ -65,12 +77,6 @@ void start_i2c1_loop(void);
 void start_i2c2_loop(void);
 void start_uart_loop(void);
 void start_beat_loop(void);
-
-IPAddress            ip(192, 168, 102,  41);
-IPAddress       gateway(192, 168, 102,  99);
-IPAddress        subnet(255, 255, 255,   0);
-IPAddress   primary_dns( 77,  88,   8,   8);
-IPAddress secondary_dns( 77,  88,   8,   1);
 
 SemaphoreHandle_t wifi_lock = NULL;
 WiFiServer streamer(WIFI_DATA_PORT);
@@ -124,7 +130,47 @@ ledc_channel_config_t channel_config = {
 };
 
 HX711 loadcell;
-SemaphoreHandle_t loadcell_lock = NULL;
+
+#define RSHD_SAMPLES_COUNT         11
+
+// static volatile _Atomic int64_t rshd_samples[RSHD_SAMPLES_COUNT];
+// static volatile _Atomic int64_t rshd_period_1;
+// static volatile _Atomic int64_t rshd_period_3;
+// static volatile _Atomic int64_t rshd_period_10;
+// static volatile _Atomic size_t rshd_iter = 0;
+static volatile int64_t rshd_samples[RSHD_SAMPLES_COUNT];
+static volatile int64_t rshd_period_1;
+static volatile int64_t rshd_period_3;
+static volatile int64_t rshd_period_10;
+static volatile size_t rshd_iter = 0;
+
+void IRAM_ATTR
+rshd_take_sample(void *dummy)
+{
+	rshd_samples[rshd_iter] = esp_timer_get_time();
+	if (rshd_iter == 0) {
+		// _0 1 2 3 4 5 6 7 8 9 10_
+		rshd_period_1 = rshd_samples[rshd_iter] - rshd_samples[RSHD_SAMPLES_COUNT - 1];
+	} else {
+		// 0 1 2 3 4 5_6 7 8 9 10
+		rshd_period_1 = rshd_samples[rshd_iter] - rshd_samples[rshd_iter - 1];
+	}
+	if (rshd_iter < 3) {
+		// _0_1 2 3 4 5 6 7 8 9_10_
+		rshd_period_3 = (rshd_samples[rshd_iter] - rshd_samples[RSHD_SAMPLES_COUNT - (3 - rshd_iter)]) / 3;
+	} else {
+		// 0 1 2 3_4_5_6 7 8 9 10
+		rshd_period_3 = (rshd_samples[rshd_iter] - rshd_samples[rshd_iter - 3]) / 3;
+	}
+	if (rshd_iter < 10) {
+		// _0_1_2 3_4_5_6_7_8_9_10_
+		rshd_period_10 = (rshd_samples[rshd_iter] - rshd_samples[RSHD_SAMPLES_COUNT - (10 - rshd_iter)]) / 10;
+	} else {
+		// 0_1_2_3_4_5_6_7_8_9_10
+		rshd_period_10 = (rshd_samples[rshd_iter] - rshd_samples[rshd_iter - 10]) / 10;
+	}
+	rshd_iter = (rshd_iter + 1) % RSHD_SAMPLES_COUNT;
+}
 
 void
 add_command_to_fast_queue(const char *cmd, size_t cmd_len)
@@ -567,30 +613,40 @@ tachometer_faker_loop(void *dummy)
 }
 
 void IRAM_ATTR
-loadcell_loop(void *dummy)
+loadcell_and_rshd_loop(void *dummy)
 {
-	char loadcell_buf[200];
-	unsigned long packet_birth;
+	char loadcell_and_rshd_buf[400];
 	while (true) {
-		long value = 0;
-		bool read_thrust = false;
-		if (xSemaphoreTake(loadcell_lock, portMAX_DELAY) == pdTRUE) {
-			if (loadcell.is_ready()) {
-				value = loadcell.read();
-				packet_birth = millis();
-				read_thrust = true;
-			}
-			xSemaphoreGive(loadcell_lock);
-		}
-		if (read_thrust == true) {
-			int loadcell_buf_len = snprintf(
-				loadcell_buf,
-				200,
-				"\nTHR@%lu=%ld",
+		unsigned long packet_birth = millis();
+		if (loadcell.is_ready()) {
+			long value = loadcell.read();
+			int loadcell_and_rshd_buf_len = snprintf(
+				loadcell_and_rshd_buf,
+				400,
+				"\nTHR@%lu=%ld\nRSHD@%lu=%lld,%lld,%lld",
 				packet_birth,
-				value
+				value,
+				packet_birth,
+				rshd_period_1,
+				rshd_period_3,
+				rshd_period_10
 			);
-			if (loadcell_buf_len > 0 && loadcell_buf_len < 200) send_data(loadcell_buf, loadcell_buf_len);
+			if (loadcell_and_rshd_buf_len > 0 && loadcell_and_rshd_buf_len < 400) {
+				send_data(loadcell_and_rshd_buf, loadcell_and_rshd_buf_len);
+			}
+		} else {
+			int loadcell_and_rshd_buf_len = snprintf(
+				loadcell_and_rshd_buf,
+				400,
+				"\nRSHD@%lu=%lld,%lld,%lld",
+				packet_birth,
+				rshd_period_1,
+				rshd_period_3,
+				rshd_period_10
+			);
+			if (loadcell_and_rshd_buf_len > 0 && loadcell_and_rshd_buf_len < 400) {
+				send_data(loadcell_and_rshd_buf, loadcell_and_rshd_buf_len);
+			}
 		}
 		TASK_DELAY_MS(100);
 	}
@@ -682,12 +738,12 @@ start_tachometer_faker_loop(void)
 }
 
 void
-start_loadcell_loop(void)
+start_loadcell_and_rshd_loop(void)
 {
 	xTaskCreatePinnedToCore(
-		&loadcell_loop,
-		"loadcell_loop",
-		2048, // stack size
+		&loadcell_and_rshd_loop,
+		"loadcell_and_rshd_loop",
+		4096, // stack size
 		NULL, // argument
 		1, // priority
 		NULL, // handle
@@ -706,13 +762,21 @@ setup(void)
 		GPIO_INTR_DISABLE,
 	};
 	gpio_config(&input_cfg);
+	gpio_config_t rshd_input_cfg = {
+		.pin_bit_mask = (1ULL << RASHODOMER_PIN),
+		.mode = GPIO_MODE_INPUT,
+		.pull_up_en = GPIO_PULLUP_DISABLE,
+		.pull_down_en = GPIO_PULLDOWN_DISABLE,
+		.intr_type = GPIO_INTR_POSEDGE,
+	};
+	gpio_config(&rshd_input_cfg);
+	gpio_isr_handler_add((gpio_num_t)RASHODOMER_PIN, &rshd_take_sample, NULL);
 	ledc_timer_config(&timer_config);
 	ledc_channel_config(&channel_config);
 	wifi_lock = xSemaphoreCreateMutex();
 	fast_queue_lock = xSemaphoreCreateMutex();
 	uart_circle_lock = xSemaphoreCreateMutex();
 	rpm_lock = xSemaphoreCreateMutex();
-	loadcell_lock = xSemaphoreCreateMutex();
 	Serial1.begin(SERIAL_SPEED, SERIAL_8N1, RX_PIN, TX_PIN);
 	loadcell.begin(I2C1_BUS_SDA_PIN, I2C1_BUS_SCL_PIN);
 	add_command_to_uart_circle("RAC", 3, true);
@@ -731,7 +795,7 @@ setup(void)
 	start_beat_loop();
 	start_tuner_loop();
 	start_tachometer_faker_loop();
-	start_loadcell_loop();
+	start_loadcell_and_rshd_loop();
 }
 
 void
