@@ -754,6 +754,7 @@ start_loadcell_and_rshd_loop(void)
 void
 setup(void)
 {
+	gpio_install_isr_service(0);
 	gpio_config_t input_cfg = {
 		(1ULL << SDA_PIN) | (1ULL << SCL_PIN) | (1ULL << SDA2_PIN) | (1ULL << SCL2_PIN),
 		GPIO_MODE_INPUT,
