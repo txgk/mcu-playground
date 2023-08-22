@@ -1,0 +1,128 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="UTF-8">
+<script>
+	var entries = [
+		{
+			cmd: 'pcafreq',
+			values: ['25', '50', '75', '100', '250', '500', '750', '1000', '1250', '1500'],
+		},
+		{cmd: 'restart', values: null},
+		{cmd: 'esptemp', values: null},
+		{cmd: 'espinfo', values: null},
+	]
+	function send_act(entry, input) {
+		var dest = document.getElementById('request').value
+		dest += '?' + entries[entry].cmd
+		if (input != null) {
+			const value = document.getElementById(input).value
+			dest += '=' + value
+		}
+		fetch(dest).then((ans) => ans.text()).then((text) => {
+			if (text.length > 0) {
+				const cur_date = new Date()
+				document.getElementById('log').innerHTML += '[' + cur_date.toLocaleString() + '] ' + text
+				document.getElementById('log').scrollTop = document.getElementById('log').scrollHeight
+			}
+		})
+	}
+	function save_act(index) {
+		const dest = document.getElementById(index).value
+		localStorage.setItem(index, dest)
+	}
+	function add_value_field_to_setting_row(id, value) {
+		entries[id].iter += 1
+		var field = document.createElement('span')
+		field.id = '' + id + '-' + entries[id].iter
+		field.className = 'settingValue' + id
+		field.style.display = 'inline-block' // Input and button elements are as one block.
+		field.style.margin = '0.15em'
+		var input = document.createElement('input')
+		input.id = field.id + '-data'
+		input.style.width = '6em'
+		input.value = value
+		var send_button = document.createElement('button')
+		send_button.setAttribute('onclick', 'send_act(' + id + ', "' + input.id + '")')
+		send_button.innerHTML = '⬆️'
+		var trash_button = document.createElement('button')
+		trash_button.setAttribute('onclick', 'document.getElementById("' + field.id + '").remove()')
+		trash_button.innerHTML = '❎'
+		field.appendChild(input)
+		field.appendChild(send_button)
+		field.appendChild(trash_button)
+		document.getElementById(id).appendChild(field)
+	}
+	function restore_default_setting_values(setting_index) {
+		var setting_selector = '.settingValue' + setting_index
+		document.querySelectorAll(setting_selector).forEach(e => e.parentNode.removeChild(e))
+		for (let i = 0; i < entries[setting_index].values.length; ++i) {
+			add_value_field_to_setting_row(setting_index, entries[setting_index].values[i])
+		}
+	}
+	window.onload = function() {
+		const element_padding = '0.5em'
+		const element_border = '0.2em solid #AAAAAA'
+		var table = document.createElement('table')
+		table.style.borderCollapse = 'collapse'
+		document.body.appendChild(table)
+		for (let i = 0; i < entries.length; ++i) {
+			if (entries[i].values == null) {
+				var entry_button = document.createElement('button')
+				entry_button.innerHTML = entries[i].cmd
+				entry_button.setAttribute('onclick', 'send_act(' + i + ', null)')
+				entry_button.style.padding = element_padding
+				entry_button.style.marginTop = element_padding
+				entry_button.style.marginBottom = element_padding
+				entry_button.style.marginRight = element_padding
+				document.body.appendChild(entry_button)
+			} else {
+				entries[i].iter = 0
+				var row = document.createElement('tr')
+				var prefix_cell = document.createElement('td')
+				prefix_cell.style.padding = element_padding
+				prefix_cell.style.border = element_border
+				var setting_name = document.createElement('div')
+				setting_name.innerHTML = entries[i].cmd
+				setting_name.style.marginBottom = element_padding
+				var add_button = document.createElement('button')
+				add_button.setAttribute('onclick', 'add_value_field_to_setting_row(' + i + ', "")')
+				add_button.innerHTML = '➕'
+				var reset_button = document.createElement('button')
+				reset_button.setAttribute('onclick', 'restore_default_setting_values(' + i + ')')
+				reset_button.innerHTML = '↺'
+				prefix_cell.appendChild(setting_name)
+				prefix_cell.appendChild(add_button)
+				prefix_cell.appendChild(reset_button)
+				row.appendChild(prefix_cell)
+				var list = document.createElement('td')
+				list.id = i
+				list.style.padding = element_padding
+				list.style.border = element_border
+				row.appendChild(list)
+				table.appendChild(row)
+				for (let j = 0; j < entries[i].values.length; ++j) {
+					add_value_field_to_setting_row(i, entries[i].values[j])
+				}
+			}
+		}
+		var textarea = document.createElement('textarea')
+		textarea.id = 'log'
+		textarea.readOnly = true
+		textarea.style.display = 'block'
+		textarea.style.marginLeft = 'auto'
+		textarea.style.marginRight = 'auto'
+		textarea.style.width = '95vw'
+		textarea.style.height = '40vh'
+		textarea.style.fontFamily = 'monospace'
+		document.body.appendChild(textarea)
+	}
+</script>
+</head>
+<body bgcolor="#DDDDDD">
+	REQUEST BASE: <input id="request" value="http://192.168.4.1:333/set">
+	<button onclick="document.getElementById('request').value='http://192.168.4.1:333/set'">↺</button>
+	<br>
+	<br>
+</body>
+</html>

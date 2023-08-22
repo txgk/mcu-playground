@@ -1,0 +1,107 @@
+#ifndef INTERWIND_H
+#define INTERWIND_H
+#include <stdatomic.h>
+#include <stdbool.h>
+#include <inttypes.h>
+#include <string.h>
+#include <stdio.h>
+#include "driver/gpio.h"
+#include "driver/uart.h"
+#include "driver/i2c.h"
+#include "esp_timer.h"
+#include "esp_log.h"
+#include "esp_adc/adc_oneshot.h"
+// #define INTERWIND_USE_WIFI_STATION
+#ifdef INTERWIND_USE_WIFI_STATION
+#include "../../wifi-credentials.h"
+#endif
+
+#define FIRMWARE_CODEWORD    "Карапакс"
+
+#define UART0_TX_PIN         1
+#define UART0_RX_PIN         3
+#define UART0_SPEED          115200
+#define I2C1_SDA_PIN         27
+#define I2C1_SCL_PIN         26
+#define I2C1_SPEED           1000000
+#define PWM1_INPUT_PIN       5
+#define PWM2_INPUT_PIN       18
+#define PWM3_INPUT_PIN       19
+#define THERMISTORS_ADC_UNIT ADC_UNIT_1
+#define THERMISTOR_0_ADC_CH  ADC_CHANNEL_0
+#define THERMISTOR_1_ADC_CH  ADC_CHANNEL_1
+#define THERMISTOR_2_ADC_CH  ADC_CHANNEL_2
+#define THERMISTOR_3_ADC_CH  ADC_CHANNEL_3
+#define THERMISTOR_4_ADC_CH  ADC_CHANNEL_4
+#define THERMISTOR_5_ADC_CH  ADC_CHANNEL_5
+#define THERMISTOR_6_ADC_CH  ADC_CHANNEL_6
+#define THERMISTOR_7_ADC_CH  ADC_CHANNEL_7
+#define THERMISTOR_0_GPIO    36
+#define THERMISTOR_1_GPIO    37
+#define THERMISTOR_2_GPIO    38
+#define THERMISTOR_3_GPIO    39
+#define THERMISTOR_4_GPIO    32
+#define THERMISTOR_5_GPIO    33
+#define THERMISTOR_6_GPIO    34
+#define THERMISTOR_7_GPIO    35
+// Связь ADC каналов с GPIO взята из soc/esp32/include/soc/adc_channel.h
+
+#define TPA626_I2C_ADDRESS  65
+#define TPA626_I2C_PORT     I2C_NUM_0
+
+#define WIFI_AP_SSID               "demoproshivka"
+#define WIFI_AP_PASS               "elbereth"
+#define WIFI_RECONNECTION_PERIOD_MS 2000
+
+#define HTTP_STREAMER_PORT 222
+#define HTTP_TUNER_PORT    333
+#define HTTP_STREAMER_CTRL 2222
+#define HTTP_TUNER_CTRL    3333
+
+#define LENGTH(A) (sizeof((A))/sizeof(*(A)))
+#define MS_TO_TICKS(A) ((A) / portTICK_PERIOD_MS)
+#define CYCLES_TO_US(A) ((A) / cpu_frequency_mhz)
+#define US_TO_CYCLES(A) ((A) * cpu_frequency_mhz)
+#define TASK_DELAY_MS(A) vTaskDelay((A) / portTICK_PERIOD_MS)
+#define INIT_IP4_LOL(a, b, c, d) { .type = ESP_IPADDR_TYPE_V4, .u_addr = { .ip4 = { .addr = ESP_IP4TOADDR(a, b, c, d) }}}
+
+#define MESSAGE_SIZE_LIMIT 500
+#define HTTP_TUNER_ANSWER_SIZE_LIMIT 500
+
+struct task_descriptor {
+	const char *prefix;
+	void (*performer)(void *);
+	int (*informer)(struct task_descriptor *, char *); // Returns the number of bytes in respective informer_data
+	const int64_t performer_period_ms;
+	const int64_t informer_period_ms;
+	const uint32_t stack_size;
+	const unsigned int priority;
+	// last_inform_ms[0] and informer_data[MESSAGE_SIZE_LIMIT][0] are for WebSocket streamer
+	// last_inform_ms[1] and informer_data[MESSAGE_SIZE_LIMIT][1] are for Serial streamer
+	// last_inform_ms[2] and informer_data[MESSAGE_SIZE_LIMIT][2] are for Winbond streamer
+	int64_t last_inform_ms[3];
+	char informer_data[MESSAGE_SIZE_LIMIT][3];
+	SemaphoreHandle_t mutex;
+};
+
+void tell_esp_to_restart(const char *value, char *answer_buf_ptr, int *answer_len_ptr); // См. файл "main.c"
+
+void start_tasks(void); // См. файл "tasks.c"
+
+bool start_websocket_streamer(void); // См. файл "streamer-websocket.c"
+bool start_serial_streamer(void);    // См. файл "streamer-serial.c"
+
+bool start_http_tuner(void); // См. файл "http-tuner.c"
+void stop_http_tuner(void);  // См. файл "http-tuner.c"
+
+// См. файл "common-i2c.c"
+uint8_t i2c_read_one_byte_from_register(i2c_port_t port, uint8_t addr, uint8_t reg, long timeout_ms);
+uint16_t i2c_read_two_bytes_from_register(i2c_port_t port, uint8_t addr, uint8_t reg, long timeout_ms);
+
+// См. файл "system-info.c"
+void get_system_info_string(const char *value, char *answer_buf_ptr, int *answer_len_ptr);
+void get_temperature_info_string(const char *value, char *answer_buf_ptr, int *answer_len_ptr);
+
+extern struct task_descriptor tasks[];
+extern adc_oneshot_unit_handle_t adc1_handle;
+#endif // INTERWIND_H
