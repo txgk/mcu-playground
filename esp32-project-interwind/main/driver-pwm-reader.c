@@ -47,8 +47,8 @@ pwm_reader_task(void *arg)
 	if (pwm_set->bin_semaph != NULL) {
 		while (true) {
 			if (xSemaphoreTake(pwm_set->bin_semaph, portMAX_DELAY) == pdTRUE) {
+				const int level = gpio_get_level(pwm_set->gpio);
 				if (xSemaphoreTake(task->mutex, portMAX_DELAY) == pdTRUE) {
-					const int level = gpio_get_level(pwm_set->gpio);
 					pwm_set->last_time = esp_timer_get_time();
 					if (level > 0 && pwm_set->previous_level <= 0) {
 						pwm_set->period = pwm_set->last_time - pwm_set->rising_moment;
