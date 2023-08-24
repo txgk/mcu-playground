@@ -93,8 +93,8 @@ app_main(void)
 		.intr_type = GPIO_INTR_ANYEDGE,
 	};
 	gpio_config(&pwm_input_cfg);
-	gpio_isr_handler_add(PWM1_INPUT_PIN, &calculate_pwm, (void *)PWM1_INPUT_PIN);
-	gpio_isr_handler_add(PWM2_INPUT_PIN, &calculate_pwm, (void *)PWM2_INPUT_PIN);
+	gpio_isr_handler_add(PWM1_INPUT_PIN, &trigger_pwm_calculation, (void *)0);
+	gpio_isr_handler_add(PWM2_INPUT_PIN, &trigger_pwm_calculation, (void *)1);
 
 	gpio_config_t hall_input_cfg = {
 		.pin_bit_mask = (1ULL << HALL_PIN),
