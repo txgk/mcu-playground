@@ -82,6 +82,10 @@ pwm_reader_info(struct task_descriptor *task, char *dest)
 	}
 	int len = 0;
 	if (xSemaphoreTake(task->mutex, portMAX_DELAY) == pdTRUE) {
+		if (esp_timer_get_time() - pwm_set->last_time > FADE_OUT_PERIOD_US) {
+			pwm_set->freq = 0;
+			pwm_set->duty = 0;
+		}
 		len = snprintf(dest, MESSAGE_SIZE_LIMIT,
 			"%s@%lld=%d,%d\n",
 			task->prefix,
