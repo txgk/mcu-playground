@@ -6,6 +6,7 @@
 #include "esp_wifi.h"
 #include "esp_event.h"
 #include "nvs_flash.h"
+#include "driver/ledc.h"
 #include "nosedive.h"
 #include "driver-pca9685.h"
 #include "driver-pwm-reader.h"
@@ -142,6 +143,36 @@ app_main(void)
 	adc_oneshot_chan_cfg_t speed_adc_cfg = {.bitwidth = ADC_BITWIDTH_DEFAULT, .atten = ADC_ATTEN_DB_11};
 	adc_oneshot_config_channel(adc1_handle, NTC_ADC_CHANNEL, &ntc_adc_cfg);
 	adc_oneshot_config_channel(adc1_handle, SPEED_ADC_CHANNEL, &speed_adc_cfg);
+
+#if 0 // Для отладки датчика PWM.
+#define LEDC_TIMER              LEDC_TIMER_0
+#define LEDC_MODE               LEDC_LOW_SPEED_MODE
+#define LEDC_OUTPUT_IO          (21) // Define the output GPIO
+#define LEDC_CHANNEL            LEDC_CHANNEL_0
+#define LEDC_DUTY_RES           LEDC_TIMER_13_BIT // Set duty resolution to 13 bits
+#define LEDC_DUTY               (820) // Set duty to 10%. ((2 ** 13) - 1) * 10% = 820
+#define LEDC_FREQUENCY          (1200) // Frequency in Hertz. Set frequency at 1.2 kHz
+	ledc_timer_config_t ledc_timer = {
+		.speed_mode       = LEDC_MODE,
+		.timer_num        = LEDC_TIMER,
+		.duty_resolution  = LEDC_DUTY_RES,
+		.freq_hz          = LEDC_FREQUENCY,
+		.clk_cfg          = LEDC_AUTO_CLK
+	};
+	ESP_ERROR_CHECK(ledc_timer_config(&ledc_timer));
+	ledc_channel_config_t ledc_channel = {
+		.speed_mode     = LEDC_MODE,
+		.channel        = LEDC_CHANNEL,
+		.timer_sel      = LEDC_TIMER,
+		.intr_type      = LEDC_INTR_DISABLE,
+		.gpio_num       = LEDC_OUTPUT_IO,
+		.duty           = 0, // Set duty to 0%
+		.hpoint         = 0
+	};
+	ESP_ERROR_CHECK(ledc_channel_config(&ledc_channel));
+	ESP_ERROR_CHECK(ledc_set_duty(LEDC_MODE, LEDC_CHANNEL, LEDC_DUTY));
+	ESP_ERROR_CHECK(ledc_update_duty(LEDC_MODE, LEDC_CHANNEL));
+#endif
 
 	esp_netif_init();
 	esp_event_loop_create_default();
