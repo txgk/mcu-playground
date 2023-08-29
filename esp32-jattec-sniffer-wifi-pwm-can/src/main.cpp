@@ -910,6 +910,7 @@ setup(void)
 	} else {
 		// Serial.println("Driver setup failed");
 	}
+	// Serial.println(WiFi.localIP());
 }
 
 void

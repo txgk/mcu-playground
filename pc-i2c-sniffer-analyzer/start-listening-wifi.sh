@@ -10,5 +10,11 @@ log_path="$log_dir/$(date +'%Y%m%d-%H%M%S').txt"
 
 mkdir -p "$log_dir"
 ln -sf "$log_path" "$log_dir/recent"
+
 echo "Writing captured data to ${log_path}..."
-curl --http0.9 --no-buffer -o "$log_path" "${device_ip}:${port}"
+#curl --http0.9 --no-buffer -o "$log_path" "${device_ip}:${port}"
+if [ "$(uname)" != 'OpenBSD' ]; then
+	nc -o "$log_path" "$device_ip" "$port"
+else
+	nc "$device_ip" "$port" | tee "$log_path"
+fi
