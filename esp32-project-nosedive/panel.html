@@ -25,6 +25,11 @@
 		{cmd: 'espinfo', values: null},
 		{cmd: 'meminfo', values: null},
 	]
+	function write_log(text) {
+		const cur_date = new Date()
+		document.getElementById('log').innerHTML += cur_date.toString() + '  >  ' + text
+		document.getElementById('log').scrollTop = document.getElementById('log').scrollHeight
+	}
 	function send_act(entry, input) {
 		var dest = document.getElementById('request').value
 		dest += '?' + entries[entry].cmd
@@ -32,11 +37,10 @@
 			const value = document.getElementById(input).value
 			dest += '=' + value
 		}
+		write_log('Sent ' + dest + '\n')
 		fetch(dest).then((ans) => ans.text()).then((text) => {
 			if (text.length > 0) {
-				const cur_date = new Date()
-				document.getElementById('log').innerHTML += '[' + cur_date.toLocaleString() + '] ' + text
-				document.getElementById('log').scrollTop = document.getElementById('log').scrollHeight
+				write_log(text)
 			}
 		})
 	}
@@ -66,9 +70,12 @@
 		field.appendChild(trash_button)
 		document.getElementById(id).appendChild(field)
 	}
-	function restore_default_setting_values(setting_index) {
+	function remove_all_value_fields_from_setting_row(setting_index) {
 		var setting_selector = '.settingValue' + setting_index
 		document.querySelectorAll(setting_selector).forEach(e => e.parentNode.removeChild(e))
+	}
+	function restore_default_setting_values(setting_index) {
+		remove_all_value_fields_from_setting_row(setting_index)
 		for (let i = 0; i < entries[setting_index].values.length; ++i) {
 			add_value_field_to_setting_row(setting_index, entries[setting_index].values[i])
 		}
@@ -80,16 +87,7 @@
 		table.style.borderCollapse = 'collapse'
 		document.body.appendChild(table)
 		for (let i = 0; i < entries.length; ++i) {
-			if (entries[i].values == null) {
-				var entry_button = document.createElement('button')
-				entry_button.innerHTML = entries[i].cmd
-				entry_button.setAttribute('onclick', 'send_act(' + i + ', null)')
-				entry_button.style.padding = element_padding
-				entry_button.style.marginTop = element_padding
-				entry_button.style.marginBottom = element_padding
-				entry_button.style.marginRight = element_padding
-				document.body.appendChild(entry_button)
-			} else {
+			if (entries[i].values != null) {
 				entries[i].iter = 0
 				var row = document.createElement('tr')
 				var prefix_cell = document.createElement('td')
@@ -101,11 +99,15 @@
 				var add_button = document.createElement('button')
 				add_button.setAttribute('onclick', 'add_value_field_to_setting_row(' + i + ', "")')
 				add_button.innerHTML = '➕'
+				var clear_button = document.createElement('button')
+				clear_button.setAttribute('onclick', 'remove_all_value_fields_from_setting_row(' + i + ')')
+				clear_button.innerHTML = '❎'
 				var reset_button = document.createElement('button')
 				reset_button.setAttribute('onclick', 'restore_default_setting_values(' + i + ')')
 				reset_button.innerHTML = '↺'
 				prefix_cell.appendChild(setting_name)
 				prefix_cell.appendChild(add_button)
+				prefix_cell.appendChild(clear_button)
 				prefix_cell.appendChild(reset_button)
 				row.appendChild(prefix_cell)
 				var list = document.createElement('td')
@@ -119,6 +121,23 @@
 				}
 			}
 		}
+
+		var query_buttons_container = document.createElement('div')
+		query_buttons_container.style.textAlign = 'center'
+		for (let i = 0; i < entries.length; ++i) {
+			if (entries[i].values == null) {
+				var entry_button = document.createElement('button')
+				entry_button.innerHTML = entries[i].cmd
+				entry_button.setAttribute('onclick', 'send_act(' + i + ', null)')
+				entry_button.style.padding = element_padding
+				entry_button.style.marginTop = element_padding
+				entry_button.style.marginBottom = element_padding
+				entry_button.style.marginRight = element_padding
+				query_buttons_container.appendChild(entry_button)
+			}
+		}
+		document.body.appendChild(query_buttons_container)
+
 		var textarea = document.createElement('textarea')
 		textarea.id = 'log'
 		textarea.readOnly = true
@@ -133,9 +152,11 @@
 </script>
 </head>
 <body bgcolor="#DDDDDD">
-	REQUEST BASE: <input id="request" value="http://192.168.4.1:333/set">
-	<button onclick="document.getElementById('request').value='http://192.168.4.1:333/set'">↺</button>
-	<br>
-	<br>
+	<div style="text-align: center;">
+	REQUEST BASE <input id="request" value="http://192.168.4.1:333/set">
+	<button onclick="document.getElementById('request').value='http://192.168.4.1:333/set'">RESET REQUEST BASE</button>
+	<button>RESET QUERY PANELS</button>
+	<button>RESET QUERY BUTTONS</button>
+	</div><br>
 </body>
 </html>
