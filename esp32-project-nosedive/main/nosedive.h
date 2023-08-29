@@ -78,8 +78,8 @@
 #define TASK_DELAY_MS(A) vTaskDelay((A) / portTICK_PERIOD_MS)
 #define INIT_IP4_LOL(a, b, c, d) { .type = ESP_IPADDR_TYPE_V4, .u_addr = { .ip4 = { .addr = ESP_IP4TOADDR(a, b, c, d) }}}
 
-#define MESSAGE_SIZE_LIMIT 500
-#define HTTP_TUNER_ANSWER_SIZE_LIMIT 500
+#define MESSAGE_SIZE_LIMIT 1000
+#define HTTP_TUNER_ANSWER_SIZE_LIMIT 1000
 
 struct task_descriptor {
 	const char *prefix;
@@ -114,6 +114,7 @@ uint16_t i2c_read_two_bytes_from_register(i2c_port_t port, uint8_t addr, uint8_t
 // См. файл "system-info.c"
 void get_system_info_string(const char *value, char *answer_buf_ptr, int *answer_len_ptr);
 void get_temperature_info_string(const char *value, char *answer_buf_ptr, int *answer_len_ptr);
+void get_ctrl_layout_string(const char *value, char *answer_buf_ptr, int *answer_len_ptr);
 
 extern struct task_descriptor tasks[];
 extern adc_oneshot_unit_handle_t adc1_handle;

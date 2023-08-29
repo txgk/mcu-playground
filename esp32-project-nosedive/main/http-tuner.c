@@ -15,21 +15,19 @@ static httpd_config_t http_tuner_config = HTTPD_DEFAULT_CONFIG();
 static char answer_buf[HTTP_TUNER_ANSWER_SIZE_LIMIT];
 static int answer_len = 0;
 
-extern const unsigned char panel_html_start[] asm("_binary_panel_html_gz_start");
-extern const unsigned char panel_html_end[]   asm("_binary_panel_html_gz_end");
-
 extern const unsigned char monitor_html_start[] asm("_binary_monitor_offline_html_gz_start");
 extern const unsigned char monitor_html_end[]   asm("_binary_monitor_offline_html_gz_end");
 
 static const struct param_handler handlers[] = {
-	{"pcaset=",  7, &pca9685_http_handler_pcaset},
-	{"pcamax=",  7, &pca9685_http_handler_pcamax},
-	{"pcaoff=",  7, &pca9685_http_handler_pcaoff},
-	{"pcafreq=", 8, &pca9685_http_handler_pcafreq},
-	{"restart",  7, &tell_esp_to_restart},
-	{"esptemp",  7, &get_temperature_info_string},
-	{"espinfo",  7, &get_system_info_string},
-	{"meminfo",  7, &get_w25q128jv_info_string},
+	{"pcaset=",     7, &pca9685_http_handler_pcaset},
+	{"pcamax=",     7, &pca9685_http_handler_pcamax},
+	{"pcaoff=",     7, &pca9685_http_handler_pcaoff},
+	{"pcafreq=",    8, &pca9685_http_handler_pcafreq},
+	{"restart",     7, &tell_esp_to_restart},
+	{"esptemp",     7, &get_temperature_info_string},
+	{"espinfo",     7, &get_system_info_string},
+	{"meminfo",     7, &get_w25q128jv_info_string},
+	{"get_layout", 10, &get_ctrl_layout_string},
 };
 
 static esp_err_t
@@ -79,15 +77,6 @@ finish:
 }
 
 static esp_err_t
-http_tuner_panel(httpd_req_t *req)
-{
-	httpd_resp_set_type(req, "text/html");
-	httpd_resp_set_hdr(req, "Content-Encoding", "gzip");
-	httpd_resp_send(req, (const char *)panel_html_start, panel_html_end - panel_html_start);
-	return ESP_OK;
-}
-
-static esp_err_t
 http_tuner_monitor(httpd_req_t *req)
 {
 	httpd_resp_set_type(req, "text/html");
@@ -100,13 +89,6 @@ static const httpd_uri_t http_tuner_set_handler = {
 	.uri       = "/ctrl",
 	.method    = HTTP_GET,
 	.handler   = &http_tuner_parse_set,
-	.user_ctx  = NULL
-};
-
-static const httpd_uri_t http_tuner_panel_handler = {
-	.uri       = "/panel",
-	.method    = HTTP_GET,
-	.handler   = &http_tuner_panel,
 	.user_ctx  = NULL
 };
 
@@ -127,7 +109,6 @@ start_http_tuner(void)
 		return false;
 	}
 	httpd_register_uri_handler(http_tuner, &http_tuner_set_handler);
-	httpd_register_uri_handler(http_tuner, &http_tuner_panel_handler);
 	httpd_register_uri_handler(http_tuner, &http_tuner_monitor_handler);
 	return true;
 }

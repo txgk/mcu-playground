@@ -67,3 +67,13 @@ get_temperature_info_string(const char *value, char *answer_buf_ptr, int *answer
 		temp
 	);
 }
+
+void
+get_ctrl_layout_string(const char *value, char *answer_buf_ptr, int *answer_len_ptr)
+{
+	*answer_len_ptr = snprintf(
+		answer_buf_ptr,
+		HTTP_TUNER_ANSWER_SIZE_LIMIT,
+		"{\"pcaset\":[\"0,50\",\"1,50\",\"2,50\",\"3,50\",\"4,50\",\"5,50\",\"6,50\",\"7,50\",\"8,50\",\"9,50\",\"10,50\",\"11,50\",\"12,50\",\"13,50\",\"14,50\",\"15,50\",\"all,50\"],\"pcamax\":[\"0\",\"1\",\"2\",\"3\",\"4\",\"5\",\"6\",\"7\",\"8\",\"9\",\"10\",\"11\",\"12\",\"13\",\"14\",\"15\",\"all\"],\"pcaoff\":[\"0\",\"1\",\"2\",\"3\",\"4\",\"5\",\"6\",\"7\",\"8\",\"9\",\"10\",\"11\",\"12\",\"13\",\"14\",\"15\",\"all\"],\"pcafreq\":[\"25\",\"50\",\"75\",\"100\",\"250\",\"500\",\"750\",\"1000\",\"1250\",\"1500\"],\"restart\":null,\"esptemp\":null,\"espinfo\":null,\"meminfo\":null}\n"
+	);
+}
