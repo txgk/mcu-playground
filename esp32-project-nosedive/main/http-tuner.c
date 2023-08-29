@@ -97,7 +97,7 @@ http_tuner_monitor(httpd_req_t *req)
 }
 
 static const httpd_uri_t http_tuner_set_handler = {
-	.uri       = "/set",
+	.uri       = "/ctrl",
 	.method    = HTTP_GET,
 	.handler   = &http_tuner_parse_set,
 	.user_ctx  = NULL
