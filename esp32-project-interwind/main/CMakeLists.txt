@@ -13,6 +13,5 @@ idf_component_register(
 	INCLUDE_DIRS
 	"."
 	EMBED_FILES
-	"panel.html.gz"
 	"monitor-offline.html.gz"
 )

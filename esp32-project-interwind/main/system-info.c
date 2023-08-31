@@ -67,3 +67,13 @@ get_temperature_info_string(const char *value, char *answer_buf_ptr, int *answer
 		temp
 	);
 }
+
+void
+get_ctrl_layout_string(const char *value, char *answer_buf_ptr, int *answer_len_ptr)
+{
+	*answer_len_ptr = snprintf(
+		answer_buf_ptr,
+		HTTP_TUNER_ANSWER_SIZE_LIMIT,
+		"{\"restart\":null,\"esptemp\":null,\"espinfo\":null}\n"
+	);
+}
