@@ -1,0 +1,1 @@
+ESP32-D0WDQ6 (revision v1.0) doesn't work on ESP-IDF v5.1 (complains about watchdog timeout)
