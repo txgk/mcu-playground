@@ -65,9 +65,10 @@ void tell_esp_to_restart(const char *value, char *answer_buf_ptr, int *answer_le
 
 void start_tasks(void); // См. файл "tasks.c"
 
-bool start_serial_streamer(void);    // См. файл "streamer-serial.c"
-bool start_tcp_streamer(void);       // См. файл "streamer-tcp.c"
-bool start_websocket_streamer(void); // См. файл "streamer-websocket.c"
+bool start_serial_streamer(void);                    // См. файл "streamer-serial.c"
+bool start_tcp_streamer(void);                       // См. файл "streamer-tcp.c"
+void write_tcp_message(const char *buf, size_t len); // См. файл "streamer-tcp.c"
+bool start_websocket_streamer(void);                 // См. файл "streamer-websocket.c"
 
 bool start_can_listener(void); // См. файл "listener-can.c"
 

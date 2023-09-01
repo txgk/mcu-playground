@@ -150,6 +150,7 @@ app_main(void)
 	// char heartbeat_text_buf[100];
 	// int32_t i = 1;
 	while (they_want_us_to_restart == false) {
+		write_tcp_message("Hi!\n", 4);
 		// int64_t ms = esp_timer_get_time() / 1000;
 		// int heartbeat_text_len = snprintf(heartbeat_text_buf, 100, "BEAT@%lld=%ld\n", ms, i);
 		// if (heartbeat_text_len > 0 && heartbeat_text_len < 100) {
