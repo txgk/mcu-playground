@@ -78,7 +78,7 @@ get_ctrl_layout_string(const char *value, char *answer_buf_ptr, int *answer_len_
 	*answer_len_ptr = snprintf(
 		answer_buf_ptr,
 		HTTP_TUNER_ANSWER_SIZE_LIMIT,
-		"{\"restart\":null,\"esptemp\":null,\"espinfo\":null}\n"
+		"{\"engine_thrust\":[\"0\",\"1\",\"2\",\"3\",\"4\",\"5\",\"10\",\"15\",\"20\",\"25\",\"30\",\"35\",\"40\",\"45\",\"50\",\"55\",\"60\",\"65\",\"70\",\"75\",\"80\",\"85\",\"90\",\"95\",\"100\"],\"restart\":null,\"esptemp\":null,\"espinfo\":null,\"engine_on\":null,\"engine_off\":null}\n"
 	);
 }
 

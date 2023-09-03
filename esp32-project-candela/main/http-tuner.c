@@ -14,10 +14,13 @@ static char answer_buf[HTTP_TUNER_ANSWER_SIZE_LIMIT];
 static int answer_len = 0;
 
 static const struct param_handler handlers[] = {
-	{"restart",     7, &tell_esp_to_restart},
-	{"esptemp",     7, &get_temperature_info_string},
-	{"espinfo",     7, &get_system_info_string},
-	{"get_layout", 10, &get_ctrl_layout_string},
+	{"restart",        7, &tell_esp_to_restart},
+	{"esptemp",        7, &get_temperature_info_string},
+	{"espinfo",        7, &get_system_info_string},
+	{"engine_on",      9, &can_jetcat_engine_on},
+	{"engine_off",    10, &can_jetcat_engine_off},
+	{"engine_thrust", 13, &can_jetcat_engine_thrust},
+	{"get_layout",    10, &get_ctrl_layout_string},
 };
 
 static esp_err_t
@@ -45,7 +48,11 @@ http_tuner_parse_ctrl(httpd_req_t *req)
 					&& memcmp(param, handlers[j].prefix, handlers[j].prefix_len) == 0)
 				{
 					answer_len = 0;
-					handlers[j].handler(param + handlers[j].prefix_len, answer_buf, &answer_len);
+					if (param[handlers[j].prefix_len] == '=') {
+						handlers[j].handler(param + handlers[j].prefix_len + 1, answer_buf, &answer_len);
+					} else {
+						handlers[j].handler(param + handlers[j].prefix_len, answer_buf, &answer_len);
+					}
 					if (answer_len > 0 && answer_len < HTTP_TUNER_ANSWER_SIZE_LIMIT) {
 						httpd_resp_send_chunk(req, answer_buf, answer_len);
 					}

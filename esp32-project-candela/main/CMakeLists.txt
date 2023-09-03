@@ -5,7 +5,7 @@ idf_component_register(
 	"streamer-serial.c"
 	"streamer-tcp.c"
 	"streamer-websocket.c"
-	"listener-can.c"
+	"driver-can.c"
 	"http-tuner.c"
 	"common-i2c.c"
 	"system-info.c"

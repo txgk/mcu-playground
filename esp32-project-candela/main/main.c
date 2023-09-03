@@ -143,7 +143,7 @@ app_main(void)
 	start_serial_streamer();
 	start_websocket_streamer();
 	start_http_tuner();
-	start_can_listener();
+	start_can_messenger();
 
 	// Здесь мы формируем heartbeat пакеты, пока не придёт команда перезагрузки.
 	// char heartbeat_text_buf[100];

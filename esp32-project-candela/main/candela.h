@@ -19,12 +19,13 @@
 
 #define FIRMWARE_CODEWORD  "Щелкунчик"
 
-#define UART0_TX_PIN       1
-#define UART0_RX_PIN       3
-#define UART0_SPEED        115200
-#define CAN_TX_PIN         17
-#define CAN_RX_PIN         16
-#define JETCAT_CAN_ID_BASE 256
+#define UART0_TX_PIN        1
+#define UART0_RX_PIN        3
+#define UART0_SPEED         115200
+#define CAN_TX_PIN          17
+#define CAN_RX_PIN          16
+#define JETCAT_CAN_ID_BASE  256
+#define JETCAT_CAN_ID_BASE1 288
 
 #define WIFI_AP_SSID                "demoproshivka"
 #define WIFI_AP_PASS                "elbereth"
@@ -65,12 +66,17 @@ void tell_esp_to_restart(const char *value, char *answer_buf_ptr, int *answer_le
 
 void start_tasks(void); // См. файл "tasks.c"
 
-bool start_serial_streamer(void);                    // См. файл "streamer-serial.c"
-bool start_tcp_streamer(void);                       // См. файл "streamer-tcp.c"
-void write_tcp_message(const char *buf, size_t len); // См. файл "streamer-tcp.c"
-bool start_websocket_streamer(void);                 // См. файл "streamer-websocket.c"
+bool start_serial_streamer(void);                          // См. файл "streamer-serial.c"
+bool start_tcp_streamer(void);                             // См. файл "streamer-tcp.c"
+void write_tcp_message(const char *buf, size_t len);       // См. файл "streamer-tcp.c"
+bool start_websocket_streamer(void);                       // См. файл "streamer-websocket.c"
+void write_websocket_message(const char *buf, size_t len); // См. файл "streamer-websocket.c"
 
-bool start_can_listener(void); // См. файл "listener-can.c"
+// См. файл "driver-can.c"
+bool start_can_messenger(void);
+void can_jetcat_engine_on(const char *value, char *answer_buf_ptr, int *answer_len_ptr);
+void can_jetcat_engine_off(const char *value, char *answer_buf_ptr, int *answer_len_ptr);
+void can_jetcat_engine_thrust(const char *value, char *answer_buf_ptr, int *answer_len_ptr);
 
 bool start_http_tuner(void); // См. файл "http-tuner.c"
 void stop_http_tuner(void);  // См. файл "http-tuner.c"
