@@ -37,36 +37,35 @@ http_tuner_parse_ctrl(httpd_req_t *req)
 		}
 		i += 1;
 	}
-#define URL_PARAM_SIZE 100
-	char param[URL_PARAM_SIZE + 1];
-	uint8_t param_len = 0;
-	while (true) {
+#define URL_KEY_MAX_LENGTH   50
+#define URL_VALUE_MAX_LENGTH 50
+	char key[URL_KEY_MAX_LENGTH + 1], value[URL_VALUE_MAX_LENGTH + 1];
+	bool in_value = false;
+	for (uint8_t key_len = 0, value_len = 0; ; ++i) {
 		if (*i == '&' || *i == '\0') {
-			param[param_len] = '\0';
+			key[key_len] = '\0';
+			value[value_len] = '\0';
 			for (size_t j = 0; j < LENGTH(handlers); ++j) {
-				if (param_len >= handlers[j].prefix_len
-					&& memcmp(param, handlers[j].prefix, handlers[j].prefix_len) == 0)
-				{
+				if (key_len == handlers[j].prefix_len && memcmp(key, handlers[j].prefix, key_len) == 0) {
 					answer_len = 0;
-					if (param[handlers[j].prefix_len] == '=') {
-						handlers[j].handler(param + handlers[j].prefix_len + 1, answer_buf, &answer_len);
-					} else {
-						handlers[j].handler(param + handlers[j].prefix_len, answer_buf, &answer_len);
-					}
+					handlers[j].handler(value, answer_buf, &answer_len);
 					if (answer_len > 0 && answer_len < HTTP_TUNER_ANSWER_SIZE_LIMIT) {
 						httpd_resp_send_chunk(req, answer_buf, answer_len);
 					}
 					break;
 				}
 			}
-			param_len = 0;
-			if (*i == '\0') {
-				break;
-			}
-		} else if (param_len < URL_PARAM_SIZE) {
-			param[param_len++] = *i;
+			if (*i == '\0') break;
+			key_len = 0;
+			value_len = 0;
+			in_value = false;
+		} else if (*i == '=') {
+			in_value = true;
+		} else if (in_value == true) {
+			if (value_len < URL_VALUE_MAX_LENGTH) value[value_len++] = *i;
+		} else {
+			if (key_len < URL_KEY_MAX_LENGTH) key[key_len++] = *i;
 		}
-		i += 1;
 	}
 finish:
 	httpd_resp_send_chunk(req, NULL, 0); // End response.
