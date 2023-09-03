@@ -15,9 +15,6 @@ static httpd_config_t http_tuner_config = HTTPD_DEFAULT_CONFIG();
 static char answer_buf[HTTP_TUNER_ANSWER_SIZE_LIMIT];
 static int answer_len = 0;
 
-extern const unsigned char monitor_html_start[] asm("_binary_monitor_offline_html_gz_start");
-extern const unsigned char monitor_html_end[]   asm("_binary_monitor_offline_html_gz_end");
-
 static const struct param_handler handlers[] = {
 	{"pcaset=",     7, &pca9685_http_handler_pcaset},
 	{"pcamax=",     7, &pca9685_http_handler_pcamax},
@@ -76,26 +73,10 @@ finish:
 	return ESP_OK;
 }
 
-static esp_err_t
-http_tuner_monitor(httpd_req_t *req)
-{
-	httpd_resp_set_type(req, "text/html");
-	httpd_resp_set_hdr(req, "Content-Encoding", "gzip");
-	httpd_resp_send(req, (const char *)monitor_html_start, monitor_html_end - monitor_html_start);
-	return ESP_OK;
-}
-
 static const httpd_uri_t http_tuner_set_handler = {
 	.uri       = "/ctrl",
 	.method    = HTTP_GET,
 	.handler   = &http_tuner_parse_set,
-	.user_ctx  = NULL
-};
-
-static const httpd_uri_t http_tuner_monitor_handler = {
-	.uri       = "/monitor",
-	.method    = HTTP_GET,
-	.handler   = &http_tuner_monitor,
 	.user_ctx  = NULL
 };
 
@@ -109,7 +90,6 @@ start_http_tuner(void)
 		return false;
 	}
 	httpd_register_uri_handler(http_tuner, &http_tuner_set_handler);
-	httpd_register_uri_handler(http_tuner, &http_tuner_monitor_handler);
 	return true;
 }
 

@@ -12,6 +12,4 @@ idf_component_register(
 	"driver-thermistors.c"
 	INCLUDE_DIRS
 	"."
-	EMBED_FILES
-	"monitor-offline.html.gz"
 )
