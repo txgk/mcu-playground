@@ -1,0 +1,12 @@
+idf_component_register(
+	SRCS
+	"main.c"
+	"tasks.c"
+	"streamer-tcp.c"
+	"streamer-websocket.c"
+	"http-tuner.c"
+	"common-i2c.c"
+	"system-info.c"
+	INCLUDE_DIRS
+	"."
+)

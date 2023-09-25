@@ -1,0 +1,5 @@
+dependencies:
+  idf:
+    version: '>=4.4.1'
+  usb_stream:
+    version: '>=1.0.5'
