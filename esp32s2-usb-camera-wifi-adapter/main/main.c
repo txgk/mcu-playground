@@ -180,6 +180,8 @@ app_main(void)
 	gpio_config(&led_indicator_cfg);
 	gpio_set_level(15, 1);
 
+	esp_log_set_vprintf(write_websocket_message_vprintf);
+
 	esp_netif_init();
 	esp_event_loop_create_default();
 #ifdef CANDELA_USE_WIFI_STATION

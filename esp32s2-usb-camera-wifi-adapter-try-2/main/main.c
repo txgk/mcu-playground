@@ -19,20 +19,12 @@
 #include "usb_stream.h"
 #include "candela.h"
 
-// #define FPS 30
-// #define WIDTH 640 // 256
-// #define HEIGHT 480 // 192
-// #define FORMAT UVC_COLOR_FORMAT_YUYV // UVC_COLOR_FORMAT_MJPEG
-// #define PID 0
-// #define VID 0
-// #define SERIAL_NUMBER NULL
-
-// #define DEMO_UVC_FRAME_WIDTH        FRAME_RESOLUTION_ANY
-// #define DEMO_UVC_FRAME_HEIGHT       FRAME_RESOLUTION_ANY
+// #define DEMO_UVC_FRAME_WIDTH     FRAME_RESOLUTION_ANY
+// #define DEMO_UVC_FRAME_HEIGHT    FRAME_RESOLUTION_ANY
 #define DEMO_UVC_FRAME_WIDTH        640
 #define DEMO_UVC_FRAME_HEIGHT       480
-#define DEMO_UVC_FRAME_INTERVAL     FRAME_INTERVAL_FPS_15
-#define DEMO_UVC_XFER_BUFFER_SIZE   200000
+#define DEMO_UVC_FRAME_INTERVAL     FPS2INTERVAL(15)
+#define DEMO_UVC_XFER_BUFFER_SIZE   300000
 
 volatile bool they_want_us_to_restart = false;
 
@@ -145,6 +137,8 @@ app_main(void)
 	gpio_config(&led_indicator_cfg);
 	gpio_set_level(15, 1);
 
+	esp_log_set_vprintf(write_websocket_message_vprintf);
+
 	esp_netif_init();
 	esp_event_loop_create_default();
 #ifdef CANDELA_USE_WIFI_STATION
@@ -241,6 +235,10 @@ app_main(void)
 		.frame_buffer = frame_buffer,
 		.frame_cb = &camera_frame_cb,
 		.frame_cb_arg = NULL,
+		.ep_addr = 0x82,
+		.ep_mps = 1024,
+		.interface = 1,
+		.interface_alt = 1,
 	};
 	/* config to enable uvc function */
 	if (uvc_streaming_config(&uvc_config) == ESP_OK) {

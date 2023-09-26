@@ -61,6 +61,7 @@ bool start_tcp_streamer(void);                             // См. файл "st
 void write_tcp_message(const char *buf, size_t len);       // См. файл "streamer-tcp.c"
 bool start_websocket_streamer(void);                       // См. файл "streamer-websocket.c"
 void write_websocket_message(const char *buf, size_t len); // См. файл "streamer-websocket.c"
+int write_websocket_message_vprintf(const char *fmt, va_list args);
 
 bool start_http_tuner(void); // См. файл "http-tuner.c"
 void stop_http_tuner(void);  // См. файл "http-tuner.c"

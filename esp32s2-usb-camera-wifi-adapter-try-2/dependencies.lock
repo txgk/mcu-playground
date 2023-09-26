@@ -5,17 +5,17 @@ dependencies:
       service_url: https://api.components.espressif.com/
       type: service
     version: 0.5.1
-  espressif/usb_stream:
-    component_hash: df86e498441734cf2309dd322e2316ab034a7c9ea004497de1a93409b0817932
+  espressif__usb_stream:
+    component_hash: null
     source:
-      service_url: https://api.components.espressif.com/
-      type: service
+      path: /home/grisha/src/mcu-playground/esp32s2-usb-camera-wifi-adapter-try-2/components/espressif__usb_stream
+      type: local
     version: 1.1.1
   idf:
     component_hash: null
     source:
       type: idf
     version: 5.1.1
-manifest_hash: c6c44f174dc344918ddf3b06abcc52598d0b9d005c4ce200319b7135cc2d8c83
+manifest_hash: e13a7da252971fa4dd1ddb74b7581383e53440e6bb347cf73865ddeac5aeca68
 target: esp32s2
 version: 1.0.0

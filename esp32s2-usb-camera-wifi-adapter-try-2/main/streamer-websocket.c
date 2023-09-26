@@ -97,3 +97,14 @@ write_websocket_message(const char *buf, size_t len)
 		}
 	}
 }
+
+int
+write_websocket_message_vprintf(const char *fmt, va_list args)
+{
+	char out[1000];
+	int wrote = vsnprintf(out, 1000, fmt, args);
+	if (wrote > 0 && wrote < 1000) {
+		write_websocket_message(out, wrote);
+	}
+	return wrote;
+}

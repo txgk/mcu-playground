@@ -39,7 +39,7 @@ static const char *TAG = "USB_STREAM";
 #define USB_EP0_FS_DEFAULT_MPS               64                                          //Default MPS(max payload size) of Endpoint 0 for full speed device
 #define USB_EP0_LS_DEFAULT_MPS               8                                           //Default MPS(max payload size) of Endpoint 0 for low speed device
 #define USB_SHORT_DESC_REQ_LEN               8                                           //Number of bytes to request when getting a short descriptor (just enough to get bMaxPacketSize0 or wTotalLength)
-#define USB_EP_ISOC_IN_MAX_MPS               512                                         //Max MPS ESP32-S2/S3 can handle
+#define USB_EP_ISOC_IN_MAX_MPS               1024                                        //Max MPS ESP32-S2/S3 can handle
 #define USB_EP_BULK_FS_MPS                   64                                          //Default MPS of full speed bulk transfer
 #define USB_EP_BULK_HS_MPS                   512                                         //Default MPS of high speed bulk transfer
 #define USB_EP_DIR_MASK                      0x80                                        //Mask for endpoint direction
