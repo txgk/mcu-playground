@@ -28,28 +28,9 @@ http_streamer_handler(httpd_req_t *req)
 				return ESP_FAIL;
 			}
 			websocket_streamer_data_len = 0;
+		} else {
+			TASK_DELAY_MS(50);
 		}
-		for (size_t i = 0; tasks[i].prefix != NULL; ++i) {
-			int64_t current_time_ms = esp_timer_get_time() / 1000;
-			if (tasks[i].last_inform_ms[0] + tasks[i].informer_period_ms < current_time_ms) {
-				tasks[i].last_inform_ms[0] = current_time_ms;
-				int data_len = tasks[i].informer(&tasks[i], tasks[i].informer_data[0]);
-				if (data_len > 0) {
-					httpd_ws_frame_t ws_pkt = {
-						.final = true,
-						.fragmented = false,
-						.type = HTTPD_WS_TYPE_TEXT,
-						.payload = (uint8_t *)tasks[i].informer_data[0],
-						.len = data_len,
-					};
-					if (httpd_ws_send_frame(req, &ws_pkt) != ESP_OK) {
-						websocket_streamer_is_connected = false;
-						return ESP_FAIL;
-					}
-				}
-			}
-		}
-		TASK_DELAY_MS(50);
 	}
 	websocket_streamer_is_connected = false;
 	return ESP_OK;
@@ -85,7 +66,7 @@ write_websocket_message(const char *buf, size_t len)
 {
 	if (websocket_streamer_is_connected == true && buf != NULL && len != 0) {
 		if (xSemaphoreTake(websocket_streamer_lock, portMAX_DELAY) == pdTRUE) {
-			for (uint8_t i = 0; i < 40; ++i) {
+			for (uint8_t i = 0; i < 20; ++i) {
 				if (websocket_streamer_data_len == 0) {
 					websocket_streamer_data_len = len > WEBSOCKET_STREAMER_MAX_MESSAGE_SIZE ? WEBSOCKET_STREAMER_MAX_MESSAGE_SIZE : len;
 					memcpy(websocket_streamer_data_buf, buf, websocket_streamer_data_len);

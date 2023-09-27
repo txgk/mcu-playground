@@ -26,7 +26,7 @@
 
 #define AMT_UART_SPEED      9600
 #define AMT_UART_TX_PIN     16
-#define AMT_UART_RX_PIN     17
+#define AMT_UART_RX_PIN     18
 #define AMT_UART_PORT       UART_NUM_1
 
 #define WIFI_AP_SSID                "demoproshivka"

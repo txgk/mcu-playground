@@ -52,41 +52,53 @@ static void IRAM_ATTR
 amt_driver(void *dummy)
 {
 	char out[500];
-	uint8_t read[500];
-	size_t read_len;
-	int out_len;
+	uint8_t c;
+	uint8_t packet[10];
+	size_t packet_len = 0;
+	uint8_t packet_type = 0;
+	bool in_packet = false;
+	bool skip_byte = false;
 	while (true) {
-		read_len = 0;
+		bool got_byte = false;
 		if (xSemaphoreTake(amt_driver_lock, portMAX_DELAY) == pdTRUE) {
-			if (uart_get_buffered_data_len(AMT_UART_PORT, &read_len) == ESP_OK) {
-				read_len = read_len >= 7 ? uart_read_bytes(AMT_UART_PORT, read, 500, MS_TO_TICKS(100)) : 0;
+			if (uart_read_bytes(AMT_UART_PORT, &c, 1, MS_TO_TICKS(100)) == 1) {
+				got_byte = true;
 			}
 			xSemaphoreGive(amt_driver_lock);
 		}
-		if (read_len < 1) {
+		if (got_byte == false) {
 			continue;
 		}
-
-		out_len = snprintf(out, 1000, "got packet of size %zu\n", read_len);
+		int out_len = snprintf(out, 1000, "0x%02X, ", c);
 		if (out_len > 0 && out_len < 1000) write_websocket_message(out, out_len);
-		for (size_t i = 0; i < read_len; ++i) {
-			out_len = snprintf(out, 1000, "%02X ", read[i]);
-			if (out_len > 0 && out_len < 1000) write_websocket_message(out, out_len);
+		if (skip_byte == true) {
+			skip_byte = false;
+			continue;
 		}
-		write_websocket_message("\n", 1);
-
-		unsigned long packet_birth = esp_timer_get_time() / 1000;
-
-		if ((read[0] & 0xF0) == 0xF0) { // Main telemetry packet header
-			unsigned int rpm = (((unsigned int)read[2]) << 8) + read[1];
-			out_len = snprintf(out, 1000, "RPM@%lu=%u\n", packet_birth, rpm);
-			if (out_len > 0 && out_len < 1000) write_websocket_message(out, out_len);
-			// if ((read[0] & 0x0F) == 0x01) {
-			//
-			// }
+		if (in_packet == false) {
+			if ((c & 0xF0) == 0xF0) {
+				packet_type = c & 0x0F;
+				if (packet_type > 0 && packet_type < 9) {
+					in_packet = true;
+					packet[0] = c;
+					packet_len = 1;
+				}
+			}
+		} else {
+			packet[packet_len++] = c;
+			if (packet_len == 7) {
+				in_packet = false;
+			}
 		}
-
-		TASK_DELAY_MS(1);
+		//unsigned long packet_birth = esp_timer_get_time() / 1000;
+		//if ((read[0] & 0xF0) == 0xF0) { // Main telemetry packet header
+		//	unsigned int rpm = (((unsigned int)read[2]) << 8) + read[1];
+		//	out_len = snprintf(out, 1000, "RPM@%lu=%u\n", packet_birth, rpm);
+		//	if (out_len > 0 && out_len < 1000) write_websocket_message(out, out_len);
+		//	// if ((read[0] & 0x0F) == 0x01) {
+		//	//
+		//	// }
+		//}
 	}
 	vTaskDelete(NULL);
 }

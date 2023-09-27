@@ -95,8 +95,11 @@ app_main(void)
 	esp_netif_t *sta = esp_netif_create_default_wifi_sta();
 	esp_netif_dhcpc_stop(sta);
 	esp_netif_ip_info_t ip_info = {
-		.ip      = {.addr = ESP_IP4TOADDR(192, 168,   0,  99)},
-		.gw      = {.addr = ESP_IP4TOADDR(192, 168,   0,   1)},
+		// .ip      = {.addr = ESP_IP4TOADDR(192, 168,   0,  99)},
+		// .gw      = {.addr = ESP_IP4TOADDR(192, 168,   0,   1)},
+		// .netmask = {.addr = ESP_IP4TOADDR(255, 255, 255,   0)}
+		.ip      = {.addr = ESP_IP4TOADDR(192, 168,  11,  41)},
+		.gw      = {.addr = ESP_IP4TOADDR(192, 168,  11,   1)},
 		.netmask = {.addr = ESP_IP4TOADDR(255, 255, 255,   0)}
 	};
 	esp_netif_set_ip_info(sta, &ip_info);
@@ -155,17 +158,15 @@ app_main(void)
 
 	start_http_tuner();
 
-	// Здесь мы формируем heartbeat пакеты, пока не придёт команда перезагрузки.
-	// char heartbeat_text_buf[100];
-	// int32_t i = 1;
+	char heartbeat_text_buf[100];
+	int32_t i = 1;
 	while (they_want_us_to_restart == false) {
-		// int64_t ms = esp_timer_get_time() / 1000;
-		// int heartbeat_text_len = snprintf(heartbeat_text_buf, 100, "BEAT@%lld=%ld\n", ms, i);
-		// if (heartbeat_text_len > 0 && heartbeat_text_len < 100) {
-		// 	send_data(heartbeat_text_buf, heartbeat_text_len);
-		// 	uart_write_bytes(UART0_PORT, heartbeat_text_buf, heartbeat_text_len);
-		// }
-		// i = (i * 10) % 999999999;
+		int64_t ms = esp_timer_get_time() / 1000;
+		int heartbeat_text_len = snprintf(heartbeat_text_buf, 100, "BEAT@%lld=%ld\n", ms, i);
+		if (heartbeat_text_len > 0 && heartbeat_text_len < 100) {
+			write_websocket_message(heartbeat_text_buf, heartbeat_text_len);
+		}
+		i = (i * 10) % 999999999;
 		TASK_DELAY_MS(1000);
 	}
 
