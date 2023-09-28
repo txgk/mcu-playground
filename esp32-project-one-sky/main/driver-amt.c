@@ -52,6 +52,7 @@ static void IRAM_ATTR
 amt_driver(void *dummy)
 {
 	char out[500];
+	int out_len;
 	uint8_t c;
 	uint8_t packet[10];
 	size_t packet_len = 0;
@@ -69,8 +70,8 @@ amt_driver(void *dummy)
 		if (got_byte == false) {
 			continue;
 		}
-		int out_len = snprintf(out, 1000, "0x%02X, ", c);
-		if (out_len > 0 && out_len < 1000) write_websocket_message(out, out_len);
+		// out_len = snprintf(out, 1000, "0x%02X, ", c);
+		// if (out_len > 0 && out_len < 1000) write_websocket_message(out, out_len);
 		if (skip_byte == true) {
 			skip_byte = false;
 			continue;
@@ -88,17 +89,61 @@ amt_driver(void *dummy)
 			packet[packet_len++] = c;
 			if (packet_len == 7) {
 				in_packet = false;
+				if (packet[6] == calc_crc8(packet, 6)) {
+					// write_websocket_message("valid\n", 6);
+					int64_t packet_birth = esp_timer_get_time() / 1000;
+					unsigned long rpm = (((unsigned long)packet[2]) << 8) + packet[1];
+					if (packet_type == 1) {
+						unsigned int error_code = ( (((unsigned int)(packet[3])) & 0xE0) >> 5 ) | ( (((unsigned int)(packet[4])) & 0x03) << 3 );
+						unsigned int engine_state = packet[3] & 0x1F;
+						unsigned int switch_state = (packet[4] & 0x60) >> 5;
+						unsigned int engine_temp = (( ((unsigned int)(packet[4] & 0x1C)) << 6 ) | ((unsigned int)(packet[5] & 0xFF)) ) - 50;
+						out_len = snprintf(out, 1000, "UART_AMT_1@%lld=%lu,%u,%u,%u,%u\n",
+							packet_birth,
+							rpm,
+							engine_state,
+							error_code,
+							engine_temp,
+							switch_state
+						);
+						if (out_len > 0 && out_len < 1000) write_websocket_message(out, out_len);
+					} else if (packet_type == 2) {
+						unsigned int radio_voltage = packet[3];
+						unsigned int power_voltage = packet[4];
+						unsigned int pump_voltage  = packet[5];
+						out_len = snprintf(out, 1000, "UART_AMT_2@%lld=%lu,%u,%u,%u\n",
+							packet_birth,
+							rpm,
+							radio_voltage,
+							power_voltage,
+							pump_voltage
+						);
+						if (out_len > 0 && out_len < 1000) write_websocket_message(out, out_len);
+					} else if (packet_type == 3) {
+						unsigned int throttle = packet[3] > 100 ? 100 : packet[3];
+						unsigned long pressure = (((unsigned long)packet[4]) | (((unsigned long)packet[5]) << 8)) * 2;
+						out_len = snprintf(out, 1000, "UART_AMT_3@%lld=%lu,%u,%lu\n",
+							packet_birth,
+							rpm,
+							throttle, // percent
+							pressure // Pa
+						);
+					} else if (packet_type == 4) {
+						unsigned int current = ((((unsigned int)packet[3]) << 0) | (((unsigned int)packet[4]) << 8)) & 0x1FF;
+						unsigned int thrust = ((((unsigned int)packet[5]) << 0) | (((unsigned int)(packet[4] & 0xFE)) << 7)) & 0x7FFF;
+						out_len = snprintf(out, 1000, "UART_AMT_4@%lld=%lu,%u,%u\n",
+							packet_birth,
+							rpm,
+							current, // 0.1A
+							thrust // 0.1Kg
+						);
+					}
+				} else {
+					// write_websocket_message("invalid\n", 8);
+					skip_byte = true;
+				}
 			}
 		}
-		//unsigned long packet_birth = esp_timer_get_time() / 1000;
-		//if ((read[0] & 0xF0) == 0xF0) { // Main telemetry packet header
-		//	unsigned int rpm = (((unsigned int)read[2]) << 8) + read[1];
-		//	out_len = snprintf(out, 1000, "RPM@%lu=%u\n", packet_birth, rpm);
-		//	if (out_len > 0 && out_len < 1000) write_websocket_message(out, out_len);
-		//	// if ((read[0] & 0x0F) == 0x01) {
-		//	//
-		//	// }
-		//}
 	}
 	vTaskDelete(NULL);
 }
@@ -114,7 +159,7 @@ driver_amt_init(void)
 	amt_uart_cfg.baud_rate = AMT_UART_SPEED;
 	amt_uart_cfg.data_bits = UART_DATA_8_BITS;
 	amt_uart_cfg.parity    = UART_PARITY_DISABLE;
-	amt_uart_cfg.stop_bits = UART_STOP_BITS_2;
+	amt_uart_cfg.stop_bits = UART_STOP_BITS_1;
 	amt_uart_cfg.flow_ctrl = UART_HW_FLOWCTRL_CTS_RTS;
 	amt_uart_cfg.rx_flow_ctrl_thresh = 122;
 	// amt_uart_cfg.source_clk = UART_SCLK_DEFAULT;
