@@ -80,6 +80,6 @@ get_ctrl_layout_string(const char *value, char *answer_buf_ptr, int *answer_len_
 	*answer_len_ptr = snprintf(
 		answer_buf_ptr,
 		HTTP_TUNER_ANSWER_SIZE_LIMIT,
-		"{\"set_throttle\":[\"0\",\"100\",\"200\",\"300\",\"400\",\"500\",\"600\",\"700\",\"800\",\"900\",\"1000\"],\"restart\":null,\"esptemp\":null,\"espinfo\":null,\"engine_on\":null,\"engine_off\":null}\n"
+		"{\"control_start\":[\"0\",\"100\",\"200\",\"300\",\"400\",\"500\",\"600\",\"700\",\"800\",\"900\",\"1000\"],\"restart\":null,\"esptemp\":null,\"espinfo\":null,\"control_off\":null,\"control_ready\":null,\"test_starter\":null}\n"
 	);
 }

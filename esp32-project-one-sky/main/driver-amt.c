@@ -59,6 +59,7 @@ amt_driver(void *dummy)
 	uint8_t packet_type = 0;
 	bool in_packet = false;
 	bool skip_byte = false;
+	bool skip_packet = false;
 	while (true) {
 		bool got_byte = false;
 		if (xSemaphoreTake(amt_driver_lock, portMAX_DELAY) == pdTRUE) {
@@ -89,6 +90,8 @@ amt_driver(void *dummy)
 			packet[packet_len++] = c;
 			if (packet_len == 7) {
 				in_packet = false;
+				skip_packet = !skip_packet;
+				if (skip_packet) continue;
 				if (packet[6] == calc_crc8(packet, 6)) {
 					// write_websocket_message("valid\n", 6);
 					int64_t packet_birth = esp_timer_get_time() / 1000;
@@ -137,6 +140,30 @@ amt_driver(void *dummy)
 							current, // 0.1A
 							thrust // 0.1Kg
 						);
+					} else if (packet_type == 5) {
+						unsigned int pump_ignite_voltage = ((unsigned int)packet[3]) * 2; //0.10 ~  5.00v
+						unsigned int curve_increase = packet[4];
+						unsigned int curve_decrease = packet[5];
+						out_len = snprintf(out, 1000, "UART_AMT_5@%lld=%lu,%u,%u,%u\n",
+							packet_birth,
+							rpm,
+							pump_ignite_voltage,
+							curve_increase,
+							curve_decrease
+						);
+					} else if (packet_type == 6) {
+						unsigned long int max_rpm = ((unsigned long)packet[3]) * 1000;
+						unsigned int pump_max_voltage = packet[4];
+						unsigned int version = (packet[5] >> 2) & 0x3F;
+						unsigned int update_rate = packet[5] & 0x03;
+						out_len = snprintf(out, 1000, "UART_AMT_6@%lld=%lu,%lu,%u,%u,%u\n",
+							packet_birth,
+							rpm,
+							max_rpm,
+							pump_max_voltage,
+							version,
+							update_rate
+						);
 					}
 				} else {
 					// write_websocket_message("invalid\n", 8);
@@ -175,29 +202,52 @@ driver_amt_init(void)
 	return true;
 }
 
-void
-driver_amt_engine_set_throttle(const char *value, char *answer_buf_ptr, int *answer_len_ptr)
+static inline void
+driver_amt_engine_control_toggle(const char *value, char *answer_buf_ptr, int *answer_len_ptr, const uint8_t *data)
 {
 	if (amt_driver_is_enabled == false) {
 		*answer_len_ptr = snprintf(answer_buf_ptr, HTTP_TUNER_ANSWER_SIZE_LIMIT, "AMT driver isn't enabled!\n");
 		return;
 	}
-	const long value_int = strtol(value, NULL, 10);
-	if (value_int < 0 || value_int > 1000) {
-		*answer_len_ptr = snprintf(answer_buf_ptr, HTTP_TUNER_ANSWER_SIZE_LIMIT, "Throttle value must be in [0; 1000] range!\n");
+	if (xSemaphoreTake(amt_driver_lock, portMAX_DELAY) == pdTRUE) {
+		uart_write_bytes(AMT_UART_PORT, data, 4);
+		xSemaphoreGive(amt_driver_lock);
+	}
+	*answer_len_ptr = snprintf(answer_buf_ptr, HTTP_TUNER_ANSWER_SIZE_LIMIT, "Success!\n");
+}
+
+void
+driver_amt_engine_control_off(const char *value, char *answer_buf_ptr, int *answer_len_ptr)
+{
+	uint8_t data[] = {0xFF, 0x14, 0x00, 0xD7};
+	driver_amt_engine_control_toggle(value, answer_buf_ptr, answer_len_ptr, data);
+}
+
+void
+driver_amt_engine_control_ready(const char *value, char *answer_buf_ptr, int *answer_len_ptr)
+{
+	uint8_t data[] = {0xFF, 0x18, 0x00, 0x9A};
+	driver_amt_engine_control_toggle(value, answer_buf_ptr, answer_len_ptr, data);
+}
+
+void
+driver_amt_engine_control_start(const char *value, char *answer_buf_ptr, int *answer_len_ptr)
+{
+	uint8_t data[] = {0xFF, 0x1C, 0x00, 0xA1};
+	driver_amt_engine_control_toggle(value, answer_buf_ptr, answer_len_ptr, data);
+}
+
+void
+driver_amt_engine_test_starter(const char *value, char *answer_buf_ptr, int *answer_len_ptr)
+{
+	if (amt_driver_is_enabled == false) {
+		*answer_len_ptr = snprintf(answer_buf_ptr, HTTP_TUNER_ANSWER_SIZE_LIMIT, "AMT driver isn't enabled!\n");
 		return;
 	}
-	unsigned long raw = value_int;
 	unsigned char cmd[4];
-	cmd[0]  = 0xFF;              // header
-	cmd[1]  = 1 << 4;            // format bit
-	if (raw == 0) {
-		cmd[1] |= 1 << 2;        // disable engine
-	} else {
-		cmd[1] |= 3 << 2;        // enable engine
-	}
-	cmd[1] |= (raw >> 8) & 0b11; // throttle 2 bits
-	cmd[2]  = raw & 0xFF;        // throttle 8 bits
+	cmd[0]  = 0xFF;       // header
+	cmd[1]  = 2 << 4;     // cmd id 2
+	cmd[2]  = 6;          // test starter
 	cmd[3]  = calc_crc8(&cmd[1], 2);
 	if (xSemaphoreTake(amt_driver_lock, portMAX_DELAY) == pdTRUE) {
 		uart_write_bytes(AMT_UART_PORT, cmd, 4);

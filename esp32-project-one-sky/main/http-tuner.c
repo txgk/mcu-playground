@@ -17,7 +17,10 @@ static const struct param_handler handlers[] = {
 	{"restart",        7, &tell_esp_to_restart},
 	{"esptemp",        7, &get_temperature_info_string},
 	{"espinfo",        7, &get_system_info_string},
-	{"set_throttle",  12, &driver_amt_engine_set_throttle},
+	{"control_off",   11, &driver_amt_engine_control_off},
+	{"control_ready", 13, &driver_amt_engine_control_ready},
+	{"control_start", 13, &driver_amt_engine_control_start},
+	{"test_starter",  12, &driver_amt_engine_test_starter},
 	{"get_layout",    10, &get_ctrl_layout_string},
 };
 
