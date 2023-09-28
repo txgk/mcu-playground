@@ -14,14 +14,26 @@ static char answer_buf[HTTP_TUNER_ANSWER_SIZE_LIMIT];
 static int answer_len = 0;
 
 static const struct param_handler handlers[] = {
-	{"restart",        7, &tell_esp_to_restart},
-	{"esptemp",        7, &get_temperature_info_string},
-	{"espinfo",        7, &get_system_info_string},
-	{"control_off",   11, &driver_amt_engine_control_off},
-	{"control_ready", 13, &driver_amt_engine_control_ready},
-	{"control_start", 13, &driver_amt_engine_control_start},
-	{"test_starter",  12, &driver_amt_engine_test_starter},
-	{"get_layout",    10, &get_ctrl_layout_string},
+	{"restart",                7, &tell_esp_to_restart},
+	{"esptemp",                7, &get_temperature_info_string},
+	{"espinfo",                7, &get_system_info_string},
+	{"control_off",           11, &driver_amt_engine_control_off},
+	{"control_ready",         13, &driver_amt_engine_control_ready},
+	{"control_start",         13, &driver_amt_engine_control_start},
+
+	{"exhaust_fuel",          12, &driver_amt_engine_exhaust_fuel},
+	{"test_glowplug",         13, &driver_amt_engine_test_glowplug},
+	{"test_main_valve",       15, &driver_amt_engine_test_main_valve},
+	{"test_ignition_valve" ,  19, &driver_amt_engine_test_ignition_valve},
+	{"test_pump",              9, &driver_amt_engine_test_pump},
+	{"test_starter",          12, &driver_amt_engine_test_starter},
+	{"set_update_rate_20hz",  20, &driver_amt_engine_set_update_rate_20hz},
+	{"set_update_rate_50hz",  20, &driver_amt_engine_set_update_rate_50hz},
+	{"set_update_rate_100hz", 21, &driver_amt_engine_set_update_rate_100hz},
+	{"reset_fuel_flow",       15, &driver_amt_engine_reset_fuel_flow},
+	{"calibrate_thrust_zero", 21, &driver_amt_engine_calibrate_thrust_zero},
+
+	{"get_layout",            10, &get_ctrl_layout_string},
 };
 
 static esp_err_t

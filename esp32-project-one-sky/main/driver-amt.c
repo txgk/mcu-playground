@@ -2,6 +2,8 @@
 
 static volatile bool amt_driver_is_enabled = false;
 static SemaphoreHandle_t amt_driver_lock = NULL;
+static volatile unsigned int current_control = 3;
+static volatile unsigned long int current_throttle = 0;
 
 static const unsigned char crc_array[] = {
 	0x00, 0x5e, 0xbc, 0xe2, 0x61, 0x3f, 0xdd, 0x83,
@@ -48,6 +50,28 @@ calc_crc8(unsigned char *buf, unsigned char buf_len)
 	return crc8;
 }
 
+// static void IRAM_ATTR
+// amt_control_spammer(void *dummy)
+// {
+// 	uint8_t noctrl[] = {0xFF, 0x00, 0x00, 0x00};
+// 	uint8_t off[] = {0xFF, 0x00, 0x00, 0x00};
+// 	uint8_t ready[] = {0xFF, 0x18, 0x00, 0x9A};
+// 	uint8_t start[] = {0xFF, 0x1C, 0x00, 0xA1};
+// 	while (true) {
+// 		if (xSemaphoreTake(amt_driver_lock, portMAX_DELAY) == pdTRUE) {
+// 			switch (current_control) {
+// 				case 1: uart_write_bytes(AMT_UART_PORT, off, 4); break;
+// 				case 2: uart_write_bytes(AMT_UART_PORT, ready, 4); break;
+// 				case 3: uart_write_bytes(AMT_UART_PORT, start, 4); break;
+// 				default: uart_write_bytes(AMT_UART_PORT, noctrl, 4); break;
+// 			}
+// 			xSemaphoreGive(amt_driver_lock);
+// 		}
+// 		TASK_DELAY_MS(50);
+// 	}
+// 	vTaskDelete(NULL);
+// }
+
 static void IRAM_ATTR
 amt_driver(void *dummy)
 {
@@ -59,7 +83,7 @@ amt_driver(void *dummy)
 	uint8_t packet_type = 0;
 	bool in_packet = false;
 	bool skip_byte = false;
-	bool skip_packet = false;
+	size_t packet_index = 0;
 	while (true) {
 		bool got_byte = false;
 		if (xSemaphoreTake(amt_driver_lock, portMAX_DELAY) == pdTRUE) {
@@ -90,8 +114,8 @@ amt_driver(void *dummy)
 			packet[packet_len++] = c;
 			if (packet_len == 7) {
 				in_packet = false;
-				skip_packet = !skip_packet;
-				if (skip_packet) continue;
+				packet_index += 1;
+				if ((packet_index % 4) != 0) continue;
 				if (packet[6] == calc_crc8(packet, 6)) {
 					// write_websocket_message("valid\n", 6);
 					int64_t packet_birth = esp_timer_get_time() / 1000;
@@ -131,6 +155,7 @@ amt_driver(void *dummy)
 							throttle, // percent
 							pressure // Pa
 						);
+						if (out_len > 0 && out_len < 1000) write_websocket_message(out, out_len);
 					} else if (packet_type == 4) {
 						unsigned int current = ((((unsigned int)packet[3]) << 0) | (((unsigned int)packet[4]) << 8)) & 0x1FF;
 						unsigned int thrust = ((((unsigned int)packet[5]) << 0) | (((unsigned int)(packet[4] & 0xFE)) << 7)) & 0x7FFF;
@@ -140,6 +165,7 @@ amt_driver(void *dummy)
 							current, // 0.1A
 							thrust // 0.1Kg
 						);
+						if (out_len > 0 && out_len < 1000) write_websocket_message(out, out_len);
 					} else if (packet_type == 5) {
 						unsigned int pump_ignite_voltage = ((unsigned int)packet[3]) * 2; //0.10 ~  5.00v
 						unsigned int curve_increase = packet[4];
@@ -151,6 +177,7 @@ amt_driver(void *dummy)
 							curve_increase,
 							curve_decrease
 						);
+						if (out_len > 0 && out_len < 1000) write_websocket_message(out, out_len);
 					} else if (packet_type == 6) {
 						unsigned long int max_rpm = ((unsigned long)packet[3]) * 1000;
 						unsigned int pump_max_voltage = packet[4];
@@ -164,6 +191,25 @@ amt_driver(void *dummy)
 							version,
 							update_rate
 						);
+						if (out_len > 0 && out_len < 1000) write_websocket_message(out, out_len);
+					} else if (packet_type == 7) {
+						unsigned int flow_rate = ((((unsigned int)packet[3]) << 0) | (((unsigned int)packet[4]) << 8)) 0x3FF;
+						unsigned int flow_total = ((((unsigned int)packet[4]) >> 2) | (((unsigned short)packet[5]) << 6)) & 0x3FFF;
+						out_len = snprintf(out, 1000, "UART_AMT_7@%lld=%lu,%u,%u\n",
+							packet_birth,
+							rpm,
+							flow_rate,
+							flow_total
+						);
+						if (out_len > 0 && out_len < 1000) write_websocket_message(out, out_len);
+					} else if (packet_type == 8) {
+						unsigned long idle_rpm = ((unsigned long)packet[3]) * 1000;
+						out_len = snprintf(out, 1000, "UART_AMT_8@%lld=%lu,%lu\n",
+							packet_birth,
+							rpm,
+							idle_rpm
+						);
+						if (out_len > 0 && out_len < 1000) write_websocket_message(out, out_len);
 					}
 				} else {
 					// write_websocket_message("invalid\n", 8);
@@ -198,6 +244,7 @@ driver_amt_init(void)
 	uart_param_config(AMT_UART_PORT, &amt_uart_cfg);
 	uart_set_pin(AMT_UART_PORT, AMT_UART_TX_PIN, AMT_UART_RX_PIN, UART_PIN_NO_CHANGE, UART_PIN_NO_CHANGE);
 	xTaskCreatePinnedToCore(&amt_driver, "amt_driver", 4096, NULL, 1, NULL, 1);
+	// xTaskCreatePinnedToCore(&amt_control_spammer, "amt_control_spammer", 4096, NULL, 1, NULL, 1);
 	amt_driver_is_enabled = true;
 	return true;
 }
@@ -237,21 +284,105 @@ driver_amt_engine_control_start(const char *value, char *answer_buf_ptr, int *an
 	driver_amt_engine_control_toggle(value, answer_buf_ptr, answer_len_ptr, data);
 }
 
-void
-driver_amt_engine_test_starter(const char *value, char *answer_buf_ptr, int *answer_len_ptr)
+static inline void
+driver_amt_send_short_cmd(const char *value, char *answer_buf_ptr, int *answer_len_ptr, unsigned int id)
 {
 	if (amt_driver_is_enabled == false) {
 		*answer_len_ptr = snprintf(answer_buf_ptr, HTTP_TUNER_ANSWER_SIZE_LIMIT, "AMT driver isn't enabled!\n");
 		return;
 	}
-	unsigned char cmd[4];
-	cmd[0]  = 0xFF;       // header
-	cmd[1]  = 2 << 4;     // cmd id 2
-	cmd[2]  = 6;          // test starter
+	unsigned char cmd[8];
+	cmd[0]  = 0xFF;   // first header
+	cmd[1]  = 1 << 4; // command id
+	cmd[1] |= 3 << 2; // enable control
+	cmd[1] |= (unsigned char)((current_throttle & 0x300)>>8);
+	cmd[2]  = (unsigned char)((current_throttle & 0x0FF)>>0);
 	cmd[3]  = calc_crc8(&cmd[1], 2);
+	cmd[4]  = 0xFF;   // second header
+	cmd[5]  = 2 << 4; // command id
+	cmd[6]  = id;     // command param
+	cmd[7]  = calc_crc8(&cmd[5], 2);
 	if (xSemaphoreTake(amt_driver_lock, portMAX_DELAY) == pdTRUE) {
-		uart_write_bytes(AMT_UART_PORT, cmd, 4);
+		uart_write_bytes(AMT_UART_PORT, cmd, 8);
 		xSemaphoreGive(amt_driver_lock);
 	}
-	*answer_len_ptr = snprintf(answer_buf_ptr, HTTP_TUNER_ANSWER_SIZE_LIMIT, "Success!\n");
+	*answer_len_ptr = snprintf(
+		answer_buf_ptr,
+		HTTP_TUNER_ANSWER_SIZE_LIMIT,
+		"Sent: %02X %02X %02X %02X %02X %02X %02X %02X\n",
+		cmd[0],
+		cmd[1],
+		cmd[2],
+		cmd[3],
+		cmd[4],
+		cmd[5],
+		cmd[6],
+		cmd[7]
+	);
+}
+
+void
+driver_amt_engine_exhaust_fuel(const char *value, char *answer_buf_ptr, int *answer_len_ptr)
+{
+	driver_amt_send_short_cmd(value, answer_buf_ptr, answer_len_ptr, 1);
+}
+
+void
+driver_amt_engine_test_glowplug(const char *value, char *answer_buf_ptr, int *answer_len_ptr)
+{
+	driver_amt_send_short_cmd(value, answer_buf_ptr, answer_len_ptr, 2);
+}
+
+void
+driver_amt_engine_test_main_valve(const char *value, char *answer_buf_ptr, int *answer_len_ptr)
+{
+	driver_amt_send_short_cmd(value, answer_buf_ptr, answer_len_ptr, 3);
+}
+
+void
+driver_amt_engine_test_ignition_valve(const char *value, char *answer_buf_ptr, int *answer_len_ptr)
+{
+	driver_amt_send_short_cmd(value, answer_buf_ptr, answer_len_ptr, 4);
+}
+
+void
+driver_amt_engine_test_pump(const char *value, char *answer_buf_ptr, int *answer_len_ptr)
+{
+	driver_amt_send_short_cmd(value, answer_buf_ptr, answer_len_ptr, 5);
+}
+
+void
+driver_amt_engine_test_starter(const char *value, char *answer_buf_ptr, int *answer_len_ptr)
+{
+	driver_amt_send_short_cmd(value, answer_buf_ptr, answer_len_ptr, 6);
+}
+
+void
+driver_amt_engine_set_update_rate_20hz(const char *value, char *answer_buf_ptr, int *answer_len_ptr)
+{
+	driver_amt_send_short_cmd(value, answer_buf_ptr, answer_len_ptr, 7);
+}
+
+void
+driver_amt_engine_set_update_rate_50hz(const char *value, char *answer_buf_ptr, int *answer_len_ptr)
+{
+	driver_amt_send_short_cmd(value, answer_buf_ptr, answer_len_ptr, 8);
+}
+
+void
+driver_amt_engine_set_update_rate_100hz(const char *value, char *answer_buf_ptr, int *answer_len_ptr)
+{
+	driver_amt_send_short_cmd(value, answer_buf_ptr, answer_len_ptr, 9);
+}
+
+void
+driver_amt_engine_reset_fuel_flow(const char *value, char *answer_buf_ptr, int *answer_len_ptr)
+{
+	driver_amt_send_short_cmd(value, answer_buf_ptr, answer_len_ptr, 10);
+}
+
+void
+driver_amt_engine_calibrate_thrust_zero(const char *value, char *answer_buf_ptr, int *answer_len_ptr)
+{
+	driver_amt_send_short_cmd(value, answer_buf_ptr, answer_len_ptr, 11);
 }

@@ -91,7 +91,18 @@ bool driver_amt_init(void);
 void driver_amt_engine_control_off(const char *value, char *answer_buf_ptr, int *answer_len_ptr);
 void driver_amt_engine_control_ready(const char *value, char *answer_buf_ptr, int *answer_len_ptr);
 void driver_amt_engine_control_start(const char *value, char *answer_buf_ptr, int *answer_len_ptr);
+
+void driver_amt_engine_exhaust_fuel(const char *value, char *answer_buf_ptr, int *answer_len_ptr);
+void driver_amt_engine_test_glowplug(const char *value, char *answer_buf_ptr, int *answer_len_ptr);
+void driver_amt_engine_test_main_valve(const char *value, char *answer_buf_ptr, int *answer_len_ptr);
+void driver_amt_engine_test_ignition_valve(const char *value, char *answer_buf_ptr, int *answer_len_ptr);
+void driver_amt_engine_test_pump(const char *value, char *answer_buf_ptr, int *answer_len_ptr);
 void driver_amt_engine_test_starter(const char *value, char *answer_buf_ptr, int *answer_len_ptr);
+void driver_amt_engine_set_update_rate_20hz(const char *value, char *answer_buf_ptr, int *answer_len_ptr);
+void driver_amt_engine_set_update_rate_50hz(const char *value, char *answer_buf_ptr, int *answer_len_ptr);
+void driver_amt_engine_set_update_rate_100hz(const char *value, char *answer_buf_ptr, int *answer_len_ptr);
+void driver_amt_engine_reset_fuel_flow(const char *value, char *answer_buf_ptr, int *answer_len_ptr);
+void driver_amt_engine_calibrate_thrust_zero(const char *value, char *answer_buf_ptr, int *answer_len_ptr);
 
 extern struct task_descriptor tasks[];
 #endif // MAIN_HEADER_GUARD_H
