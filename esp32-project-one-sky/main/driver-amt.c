@@ -233,13 +233,12 @@ driver_amt_init(void)
 	amt_uart_cfg.data_bits = UART_DATA_8_BITS;
 	amt_uart_cfg.parity    = UART_PARITY_DISABLE;
 	amt_uart_cfg.stop_bits = UART_STOP_BITS_1;
-	amt_uart_cfg.flow_ctrl = UART_HW_FLOWCTRL_CTS_RTS;
-	amt_uart_cfg.rx_flow_ctrl_thresh = 122;
+	amt_uart_cfg.flow_ctrl = UART_HW_FLOWCTRL_DISABLE;
 	// amt_uart_cfg.source_clk = UART_SCLK_DEFAULT;
 #if CONFIG_UART_ISR_IN_IRAM
-	uart_driver_install(AMT_UART_PORT, 1024, 1024, 0, NULL, ESP_INTR_FLAG_IRAM);
+	uart_driver_install(AMT_UART_PORT, 1024, 0, 0, NULL, ESP_INTR_FLAG_IRAM);
 #else
-	uart_driver_install(AMT_UART_PORT, 1024, 1024, 0, NULL, 0);
+	uart_driver_install(AMT_UART_PORT, 1024, 0, 0, NULL, 0);
 #endif
 	uart_param_config(AMT_UART_PORT, &amt_uart_cfg);
 	uart_set_pin(AMT_UART_PORT, AMT_UART_TX_PIN, AMT_UART_RX_PIN, UART_PIN_NO_CHANGE, UART_PIN_NO_CHANGE);
@@ -250,38 +249,62 @@ driver_amt_init(void)
 }
 
 static inline void
-driver_amt_engine_control_toggle(const char *value, char *answer_buf_ptr, int *answer_len_ptr, const uint8_t *data)
+driver_amt_engine_control_toggle(const char *value, char *answer_buf_ptr, int *answer_len_ptr, uint8_t mode, long throttle)
 {
 	if (amt_driver_is_enabled == false) {
 		*answer_len_ptr = snprintf(answer_buf_ptr, HTTP_TUNER_ANSWER_SIZE_LIMIT, "AMT driver isn't enabled!\n");
 		return;
 	}
+	if (throttle < 0 || throttle > 1000) {
+		*answer_len_ptr = snprintf(answer_buf_ptr, HTTP_TUNER_ANSWER_SIZE_LIMIT, "Throttle must be in range [0; 1000]!\n");
+		return;
+	}
+	current_throttle = throttle;
+	uint8_t cmd[4];
+	cmd[0]  = 0xFF;
+	cmd[1]  = 1 << 4;
+	cmd[1] |= (mode & 0x03) << 2;
+	cmd[1] |= (unsigned char)((current_throttle & 0x300)>>8);
+	cmd[2]  = (unsigned char)((current_throttle & 0x0FF)>>0);
+	cmd[3]  = calc_crc8(&cmd[1], 2);
 	if (xSemaphoreTake(amt_driver_lock, portMAX_DELAY) == pdTRUE) {
-		uart_write_bytes(AMT_UART_PORT, data, 4);
+		uart_write_bytes(AMT_UART_PORT, cmd, 4);
 		xSemaphoreGive(amt_driver_lock);
 	}
-	*answer_len_ptr = snprintf(answer_buf_ptr, HTTP_TUNER_ANSWER_SIZE_LIMIT, "Success!\n");
+	*answer_len_ptr = snprintf(
+		answer_buf_ptr,
+		HTTP_TUNER_ANSWER_SIZE_LIMIT,
+		"Sent: %02X %02X %02X %02X\n",
+		cmd[0],
+		cmd[1],
+		cmd[2],
+		cmd[3]
+	);
+}
+
+void
+driver_amt_engine_control_drop(const char *value, char *answer_buf_ptr, int *answer_len_ptr)
+{
+	driver_amt_engine_control_toggle(value, answer_buf_ptr, answer_len_ptr, 0, 0);
 }
 
 void
 driver_amt_engine_control_off(const char *value, char *answer_buf_ptr, int *answer_len_ptr)
 {
-	uint8_t data[] = {0xFF, 0x14, 0x00, 0xD7};
-	driver_amt_engine_control_toggle(value, answer_buf_ptr, answer_len_ptr, data);
+	driver_amt_engine_control_toggle(value, answer_buf_ptr, answer_len_ptr, 1, 0);
 }
 
 void
 driver_amt_engine_control_ready(const char *value, char *answer_buf_ptr, int *answer_len_ptr)
 {
-	uint8_t data[] = {0xFF, 0x18, 0x00, 0x9A};
-	driver_amt_engine_control_toggle(value, answer_buf_ptr, answer_len_ptr, data);
+	driver_amt_engine_control_toggle(value, answer_buf_ptr, answer_len_ptr, 2, 0);
 }
 
 void
 driver_amt_engine_control_start(const char *value, char *answer_buf_ptr, int *answer_len_ptr)
 {
-	uint8_t data[] = {0xFF, 0x1C, 0x00, 0xA1};
-	driver_amt_engine_control_toggle(value, answer_buf_ptr, answer_len_ptr, data);
+	const long data = strtol(value, NULL, 10);
+	driver_amt_engine_control_toggle(value, answer_buf_ptr, answer_len_ptr, 3, data);
 }
 
 static inline void
@@ -301,6 +324,41 @@ driver_amt_send_short_cmd(const char *value, char *answer_buf_ptr, int *answer_l
 	cmd[4]  = 0xFF;   // second header
 	cmd[5]  = 2 << 4; // command id
 	cmd[6]  = id;     // command param
+	cmd[7]  = calc_crc8(&cmd[5], 2);
+	if (xSemaphoreTake(amt_driver_lock, portMAX_DELAY) == pdTRUE) {
+		uart_write_bytes(AMT_UART_PORT, cmd, 8);
+		xSemaphoreGive(amt_driver_lock);
+	}
+	*answer_len_ptr = snprintf(
+		answer_buf_ptr,
+		HTTP_TUNER_ANSWER_SIZE_LIMIT,
+		"Sent: %02X %02X %02X %02X %02X %02X %02X %02X\n",
+		cmd[0],
+		cmd[1],
+		cmd[2],
+		cmd[3],
+		cmd[4],
+		cmd[5],
+		cmd[6],
+		cmd[7]
+	);
+}
+
+static inline void
+driver_amt_send_tune_cmd(const char *value, char *answer_buf_ptr, int *answer_len_ptr, unsigned int id, unsigned int data)
+{
+	if (amt_driver_is_enabled == false) {
+		*answer_len_ptr = snprintf(answer_buf_ptr, HTTP_TUNER_ANSWER_SIZE_LIMIT, "AMT driver isn't enabled!\n");
+		return;
+	}
+	unsigned char cmd[8];
+	cmd[0]  = 0xFF;    // first header
+	cmd[1]  = 3 << 4;  // command id
+	cmd[2]  = 0;       // unlock
+	cmd[3]  = calc_crc8(&cmd[1], 2);
+	cmd[4]  = 0xFF;    // second header
+	cmd[5]  = id << 4; // command id
+	cmd[6]  = data;    // command param
 	cmd[7]  = calc_crc8(&cmd[5], 2);
 	if (xSemaphoreTake(amt_driver_lock, portMAX_DELAY) == pdTRUE) {
 		uart_write_bytes(AMT_UART_PORT, cmd, 8);
@@ -385,4 +443,19 @@ void
 driver_amt_engine_calibrate_thrust_zero(const char *value, char *answer_buf_ptr, int *answer_len_ptr)
 {
 	driver_amt_send_short_cmd(value, answer_buf_ptr, answer_len_ptr, 11);
+}
+
+void
+driver_amt_engine_set_ignition_pump_voltage(const char *value, char *answer_buf_ptr, int *answer_len_ptr)
+{
+	const double data_raw = atof(value);
+	const unsigned int data = data_raw * 100 / 2;
+	driver_amt_send_tune_cmd(value, answer_buf_ptr, answer_len_ptr, 4, data);
+}
+
+void
+driver_amt_engine_set_acceleration_curve(const char *value, char *answer_buf_ptr, int *answer_len_ptr)
+{
+	const long data = strtol(value, NULL, 10);
+	driver_amt_send_tune_cmd(value, answer_buf_ptr, answer_len_ptr, 5, data);
 }

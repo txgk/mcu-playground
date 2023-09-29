@@ -30,8 +30,8 @@
 #define AMT_UART_PORT       UART_NUM_1
 
 #define HX711_SAMPLES_COUNT 10
-#define HX711_DATA_PIN      14
-#define HX711_SCLK_PIN      12
+#define HX711_DATA_PIN      17
+#define HX711_SCLK_PIN      21
 #define HX711_MEASURE_GAIN   1 // 1 = 128, 2 = 32, 3 = 64
 
 #define WIFI_AP_SSID                "demoproshivka"
@@ -78,6 +78,7 @@ bool start_tcp_streamer(void);                             // См. файл "st
 void write_tcp_message(const char *buf, size_t len);       // См. файл "streamer-tcp.c"
 bool start_websocket_streamer(void);                       // См. файл "streamer-websocket.c"
 void write_websocket_message(const char *buf, size_t len); // См. файл "streamer-websocket.c"
+int write_websocket_message_vprintf(const char *fmt, va_list args);
 
 bool start_http_tuner(void); // См. файл "http-tuner.c"
 void stop_http_tuner(void);  // См. файл "http-tuner.c"
@@ -93,6 +94,7 @@ void get_ctrl_layout_string(const char *value, char *answer_buf_ptr, int *answer
 
 // См. файл "driver-amt.c"
 bool driver_amt_init(void);
+void driver_amt_engine_control_drop(const char *value, char *answer_buf_ptr, int *answer_len_ptr);
 void driver_amt_engine_control_off(const char *value, char *answer_buf_ptr, int *answer_len_ptr);
 void driver_amt_engine_control_ready(const char *value, char *answer_buf_ptr, int *answer_len_ptr);
 void driver_amt_engine_control_start(const char *value, char *answer_buf_ptr, int *answer_len_ptr);
@@ -108,6 +110,9 @@ void driver_amt_engine_set_update_rate_50hz(const char *value, char *answer_buf_
 void driver_amt_engine_set_update_rate_100hz(const char *value, char *answer_buf_ptr, int *answer_len_ptr);
 void driver_amt_engine_reset_fuel_flow(const char *value, char *answer_buf_ptr, int *answer_len_ptr);
 void driver_amt_engine_calibrate_thrust_zero(const char *value, char *answer_buf_ptr, int *answer_len_ptr);
+
+void driver_amt_engine_set_ignition_pump_voltage(const char *value, char *answer_buf_ptr, int *answer_len_ptr);
+void driver_amt_engine_set_acceleration_curve(const char *value, char *answer_buf_ptr, int *answer_len_ptr);
 
 // См. файл "driver-hx711.c"
 bool hx711_init(void);

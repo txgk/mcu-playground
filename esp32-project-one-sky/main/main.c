@@ -86,8 +86,8 @@ app_main(void)
 	gpio_set_level(15, 1);
 #endif
 
-	uart_config_t uart0_cfg = {0};
-	setup_serial(&uart0_cfg, UART0_PORT, UART0_SPEED, UART0_TX_PIN, UART0_RX_PIN);
+	// uart_config_t uart0_cfg = {0};
+	// setup_serial(&uart0_cfg, UART0_PORT, UART0_SPEED, UART0_TX_PIN, UART0_RX_PIN);
 
 	esp_netif_init();
 	esp_event_loop_create_default();
@@ -101,6 +101,9 @@ app_main(void)
 		.ip      = {.addr = ESP_IP4TOADDR(192, 168,  11,  41)},
 		.gw      = {.addr = ESP_IP4TOADDR(192, 168,  11,   1)},
 		.netmask = {.addr = ESP_IP4TOADDR(255, 255, 255,   0)}
+		// .ip      = {.addr = ESP_IP4TOADDR(192, 168,  68, 201)},
+		// .gw      = {.addr = ESP_IP4TOADDR(192, 168,  68,   1)},
+		// .netmask = {.addr = ESP_IP4TOADDR(255, 255, 255,   0)}
 	};
 	esp_netif_set_ip_info(sta, &ip_info);
 	esp_netif_dns_info_t dns1 = {.ip = INIT_IP4_LOL(77, 88, 8, 8)};
@@ -147,14 +150,15 @@ app_main(void)
 	esp_wifi_set_ps(WIFI_PS_NONE);
 #endif
 
+	// esp_log_set_vprintf(write_websocket_message_vprintf);
 	start_websocket_streamer();
 
-	if (hx711_init() == false) {
-		while (true) {
-			write_websocket_message("hx711_init failed\n", 18);
-			TASK_DELAY_MS(2000);
-		}
-	}
+	// if (hx711_init() == false) {
+	// 	while (true) {
+	// 		write_websocket_message("hx711_init failed\n", 18);
+	// 		TASK_DELAY_MS(2000);
+	// 	}
+	// }
 
 	if (driver_amt_init() == false) {
 		while (true) {
