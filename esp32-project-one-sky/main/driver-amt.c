@@ -193,7 +193,7 @@ amt_driver(void *dummy)
 						);
 						if (out_len > 0 && out_len < 1000) write_websocket_message(out, out_len);
 					} else if (packet_type == 7) {
-						unsigned int flow_rate = ((((unsigned int)packet[3]) << 0) | (((unsigned int)packet[4]) << 8)) 0x3FF;
+						unsigned int flow_rate = ((((unsigned int)packet[3]) << 0) | (((unsigned int)packet[4]) << 8)) & 0x3FF;
 						unsigned int flow_total = ((((unsigned int)packet[4]) >> 2) | (((unsigned short)packet[5]) << 6)) & 0x3FFF;
 						out_len = snprintf(out, 1000, "UART_AMT_7@%lld=%lu,%u,%u\n",
 							packet_birth,

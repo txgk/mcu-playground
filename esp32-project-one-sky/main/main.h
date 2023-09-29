@@ -29,6 +29,11 @@
 #define AMT_UART_RX_PIN     18
 #define AMT_UART_PORT       UART_NUM_1
 
+#define HX711_SAMPLES_COUNT 10
+#define HX711_DATA_PIN      14
+#define HX711_SCLK_PIN      12
+#define HX711_MEASURE_GAIN   1 // 1 = 128, 2 = 32, 3 = 64
+
 #define WIFI_AP_SSID                "demoproshivka"
 #define WIFI_AP_PASS                "elbereth"
 #define WIFI_RECONNECTION_PERIOD_MS 2000
@@ -103,6 +108,9 @@ void driver_amt_engine_set_update_rate_50hz(const char *value, char *answer_buf_
 void driver_amt_engine_set_update_rate_100hz(const char *value, char *answer_buf_ptr, int *answer_len_ptr);
 void driver_amt_engine_reset_fuel_flow(const char *value, char *answer_buf_ptr, int *answer_len_ptr);
 void driver_amt_engine_calibrate_thrust_zero(const char *value, char *answer_buf_ptr, int *answer_len_ptr);
+
+// См. файл "driver-hx711.c"
+bool hx711_init(void);
 
 extern struct task_descriptor tasks[];
 #endif // MAIN_HEADER_GUARD_H

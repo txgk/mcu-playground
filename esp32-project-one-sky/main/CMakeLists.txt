@@ -9,6 +9,8 @@ idf_component_register(
 	"common-i2c.c"
 	"system-info.c"
 	"driver-amt.c"
+	"driver-hx711.c"
+	"HX711.c"
 	INCLUDE_DIRS
 	"."
 )

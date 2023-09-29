@@ -149,6 +149,13 @@ app_main(void)
 
 	start_websocket_streamer();
 
+	if (hx711_init() == false) {
+		while (true) {
+			write_websocket_message("hx711_init failed\n", 18);
+			TASK_DELAY_MS(2000);
+		}
+	}
+
 	if (driver_amt_init() == false) {
 		while (true) {
 			write_websocket_message("driver_amt_init failed\n", 23);
