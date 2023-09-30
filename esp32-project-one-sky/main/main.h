@@ -94,6 +94,9 @@ void get_ctrl_layout_string(const char *value, char *answer_buf_ptr, int *answer
 
 // См. файл "driver-amt.c"
 bool driver_amt_init(void);
+
+void driver_amt_engine_set_throttle(const char *value, char *answer_buf_ptr, int *answer_len_ptr);
+
 void driver_amt_engine_control_drop(const char *value, char *answer_buf_ptr, int *answer_len_ptr);
 void driver_amt_engine_control_off(const char *value, char *answer_buf_ptr, int *answer_len_ptr);
 void driver_amt_engine_control_ready(const char *value, char *answer_buf_ptr, int *answer_len_ptr);

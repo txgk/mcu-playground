@@ -248,18 +248,29 @@ driver_amt_init(void)
 	return true;
 }
 
-static inline void
-driver_amt_engine_control_toggle(const char *value, char *answer_buf_ptr, int *answer_len_ptr, uint8_t mode, long throttle)
+void
+driver_amt_engine_set_throttle(const char *value, char *answer_buf_ptr, int *answer_len_ptr)
 {
 	if (amt_driver_is_enabled == false) {
 		*answer_len_ptr = snprintf(answer_buf_ptr, HTTP_TUNER_ANSWER_SIZE_LIMIT, "AMT driver isn't enabled!\n");
 		return;
 	}
-	if (throttle < 0 || throttle > 1000) {
+	const long new_throttle = strtol(value, NULL, 10);
+	if (new_throttle < 0 || new_throttle > 1000) {
 		*answer_len_ptr = snprintf(answer_buf_ptr, HTTP_TUNER_ANSWER_SIZE_LIMIT, "Throttle must be in range [0; 1000]!\n");
 		return;
 	}
-	current_throttle = throttle;
+	current_throttle = new_throttle;
+	*answer_len_ptr = snprintf(answer_buf_ptr, HTTP_TUNER_ANSWER_SIZE_LIMIT, "Throttle set successfully!\n");
+}
+
+static inline void
+driver_amt_engine_control_toggle(const char *value, char *answer_buf_ptr, int *answer_len_ptr, uint8_t mode)
+{
+	if (amt_driver_is_enabled == false) {
+		*answer_len_ptr = snprintf(answer_buf_ptr, HTTP_TUNER_ANSWER_SIZE_LIMIT, "AMT driver isn't enabled!\n");
+		return;
+	}
 	uint8_t cmd[4];
 	cmd[0]  = 0xFF;
 	cmd[1]  = 1 << 4;
@@ -285,26 +296,25 @@ driver_amt_engine_control_toggle(const char *value, char *answer_buf_ptr, int *a
 void
 driver_amt_engine_control_drop(const char *value, char *answer_buf_ptr, int *answer_len_ptr)
 {
-	driver_amt_engine_control_toggle(value, answer_buf_ptr, answer_len_ptr, 0, 0);
+	driver_amt_engine_control_toggle(value, answer_buf_ptr, answer_len_ptr, 0);
 }
 
 void
 driver_amt_engine_control_off(const char *value, char *answer_buf_ptr, int *answer_len_ptr)
 {
-	driver_amt_engine_control_toggle(value, answer_buf_ptr, answer_len_ptr, 1, 0);
+	driver_amt_engine_control_toggle(value, answer_buf_ptr, answer_len_ptr, 1);
 }
 
 void
 driver_amt_engine_control_ready(const char *value, char *answer_buf_ptr, int *answer_len_ptr)
 {
-	driver_amt_engine_control_toggle(value, answer_buf_ptr, answer_len_ptr, 2, 0);
+	driver_amt_engine_control_toggle(value, answer_buf_ptr, answer_len_ptr, 2);
 }
 
 void
 driver_amt_engine_control_start(const char *value, char *answer_buf_ptr, int *answer_len_ptr)
 {
-	const long data = strtol(value, NULL, 10);
-	driver_amt_engine_control_toggle(value, answer_buf_ptr, answer_len_ptr, 3, data);
+	driver_amt_engine_control_toggle(value, answer_buf_ptr, answer_len_ptr, 3);
 }
 
 static inline void
