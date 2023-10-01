@@ -90,7 +90,6 @@ uint16_t i2c_read_two_bytes_from_register(i2c_port_t port, uint8_t addr, uint8_t
 // См. файл "system-info.c"
 void get_system_info_string(const char *value, char *answer_buf_ptr, int *answer_len_ptr);
 void get_temperature_info_string(const char *value, char *answer_buf_ptr, int *answer_len_ptr);
-void get_ctrl_layout_string(const char *value, char *answer_buf_ptr, int *answer_len_ptr);
 
 // См. файл "driver-amt.c"
 bool driver_amt_init(void);

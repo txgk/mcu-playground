@@ -73,33 +73,3 @@ get_temperature_info_string(const char *value, char *answer_buf_ptr, int *answer
 		temp
 	);
 }
-
-void
-get_ctrl_layout_string(const char *value, char *answer_buf_ptr, int *answer_len_ptr)
-{
-	*answer_len_ptr = snprintf(
-		answer_buf_ptr,
-		HTTP_TUNER_ANSWER_SIZE_LIMIT,
-		"{\"set_throttle\":[\"0\",\"100\",\"200\",\"300\",\"400\",\"500\",\"600\",\"700\",\"800\",\"900\",\"1000\"],"
-		"\"set_ignition_pump_voltage\":[\"1.0\",\"1.5\",\"2.0\",\"2.5\",\"3.0\",\"3.5\",\"4.0\",\"4.5\",\"5.0\",\"5.5\",\"6.0\"],"
-		"\"set_acceleration_curve\":[\"0\",\"1\",\"2\",\"3\",\"4\",\"5\",\"6\",\"7\",\"8\",\"9\",\"10\"],"
-		"\"restart\":null,"
-		"\"esptemp\":null,"
-		"\"espinfo\":null,"
-		"\"control_drop\":null,"
-		"\"control_off\":null,"
-		"\"control_ready\":null,"
-		"\"control_start\":null,"
-		"\"exhaust_fuel\":null,"
-		"\"test_glowplug\":null,"
-		"\"test_main_valve\":null,"
-		"\"test_ignition_valve\":null,"
-		"\"test_pump\":null,"
-		"\"test_starter\":null,"
-		"\"set_update_rate_20hz\":null,"
-		"\"set_update_rate_50hz\":null,"
-		"\"set_update_rate_100hz\":null,"
-		"\"reset_fuel_flow\":null,"
-		"\"calibrate_thrust_zero\":null}\n"
-	);
-}
