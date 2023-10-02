@@ -96,7 +96,7 @@ amt_driver(void *dummy)
 			continue;
 		}
 		// out_len = snprintf(out, 1000, "0x%02X, ", c);
-		// if (out_len > 0 && out_len < 1000) write_websocket_message(out, out_len);
+		// if (out_len > 0 && out_len < 1000) stream_write(out, out_len);
 		if (skip_byte == true) {
 			skip_byte = false;
 			continue;
@@ -117,9 +117,9 @@ amt_driver(void *dummy)
 				packet_index += 1;
 				if ((packet_index % 4) != 0) continue;
 				if (packet[6] == calc_crc8(packet, 6)) {
-					// write_websocket_message("valid\n", 6);
+					// stream_write("valid\n", 6);
 					int64_t packet_birth = esp_timer_get_time() / 1000;
-					unsigned long rpm = (((unsigned long)packet[2]) << 8) + packet[1];
+					unsigned long rpm = ((((unsigned long)packet[2]) << 8) + packet[1]) * 10;
 					if (packet_type == 1) {
 						unsigned int error_code = ( (((unsigned int)(packet[3])) & 0xE0) >> 5 ) | ( (((unsigned int)(packet[4])) & 0x03) << 3 );
 						unsigned int engine_state = packet[3] & 0x1F;
@@ -133,7 +133,7 @@ amt_driver(void *dummy)
 							engine_temp,
 							switch_state
 						);
-						if (out_len > 0 && out_len < 1000) write_websocket_message(out, out_len);
+						if (out_len > 0 && out_len < 1000) stream_write(out, out_len);
 					} else if (packet_type == 2) {
 						unsigned int radio_voltage = packet[3];
 						unsigned int power_voltage = packet[4];
@@ -145,7 +145,7 @@ amt_driver(void *dummy)
 							power_voltage,
 							pump_voltage
 						);
-						if (out_len > 0 && out_len < 1000) write_websocket_message(out, out_len);
+						if (out_len > 0 && out_len < 1000) stream_write(out, out_len);
 					} else if (packet_type == 3) {
 						unsigned int throttle = packet[3] > 100 ? 100 : packet[3];
 						unsigned long pressure = (((unsigned long)packet[4]) | (((unsigned long)packet[5]) << 8)) * 2;
@@ -155,7 +155,7 @@ amt_driver(void *dummy)
 							throttle, // percent
 							pressure // Pa
 						);
-						if (out_len > 0 && out_len < 1000) write_websocket_message(out, out_len);
+						if (out_len > 0 && out_len < 1000) stream_write(out, out_len);
 					} else if (packet_type == 4) {
 						unsigned int current = ((((unsigned int)packet[3]) << 0) | (((unsigned int)packet[4]) << 8)) & 0x1FF;
 						unsigned int thrust = ((((unsigned int)packet[5]) << 0) | (((unsigned int)(packet[4] & 0xFE)) << 7)) & 0x7FFF;
@@ -165,9 +165,9 @@ amt_driver(void *dummy)
 							current, // 0.1A
 							thrust // 0.1Kg
 						);
-						if (out_len > 0 && out_len < 1000) write_websocket_message(out, out_len);
+						if (out_len > 0 && out_len < 1000) stream_write(out, out_len);
 					} else if (packet_type == 5) {
-						unsigned int pump_ignite_voltage = ((unsigned int)packet[3]) * 2; //0.10 ~  5.00v
+						unsigned int pump_ignite_voltage = ((unsigned int)packet[3]) * 2; // 0.1v ~ 5.0v
 						unsigned int curve_increase = packet[4];
 						unsigned int curve_decrease = packet[5];
 						out_len = snprintf(out, 1000, "UART_AMT_5@%lld=%lu,%u,%u,%u\n",
@@ -177,7 +177,7 @@ amt_driver(void *dummy)
 							curve_increase,
 							curve_decrease
 						);
-						if (out_len > 0 && out_len < 1000) write_websocket_message(out, out_len);
+						if (out_len > 0 && out_len < 1000) stream_write(out, out_len);
 					} else if (packet_type == 6) {
 						unsigned long int max_rpm = ((unsigned long)packet[3]) * 1000;
 						unsigned int pump_max_voltage = packet[4];
@@ -191,7 +191,7 @@ amt_driver(void *dummy)
 							version,
 							update_rate
 						);
-						if (out_len > 0 && out_len < 1000) write_websocket_message(out, out_len);
+						if (out_len > 0 && out_len < 1000) stream_write(out, out_len);
 					} else if (packet_type == 7) {
 						unsigned int flow_rate = ((((unsigned int)packet[3]) << 0) | (((unsigned int)packet[4]) << 8)) & 0x3FF;
 						unsigned int flow_total = ((((unsigned int)packet[4]) >> 2) | (((unsigned short)packet[5]) << 6)) & 0x3FFF;
@@ -201,7 +201,7 @@ amt_driver(void *dummy)
 							flow_rate,
 							flow_total
 						);
-						if (out_len > 0 && out_len < 1000) write_websocket_message(out, out_len);
+						if (out_len > 0 && out_len < 1000) stream_write(out, out_len);
 					} else if (packet_type == 8) {
 						unsigned long idle_rpm = ((unsigned long)packet[3]) * 1000;
 						out_len = snprintf(out, 1000, "UART_AMT_8@%lld=%lu,%lu\n",
@@ -209,10 +209,10 @@ amt_driver(void *dummy)
 							rpm,
 							idle_rpm
 						);
-						if (out_len > 0 && out_len < 1000) write_websocket_message(out, out_len);
+						if (out_len > 0 && out_len < 1000) stream_write(out, out_len);
 					}
 				} else {
-					// write_websocket_message("invalid\n", 8);
+					// stream_write("invalid\n", 8);
 					skip_byte = true;
 				}
 			}

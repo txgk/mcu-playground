@@ -22,6 +22,8 @@ static const struct param_handler handlers[] = {
 	{"espinfo",                    7, &get_system_info_string,                      NULL},
 
 	{"set_throttle",              12, &driver_amt_engine_set_throttle,              "0 100 200 300 400 500 600 700 800 900 1000"},
+	{"set_ignition_pump_voltage", 25, &driver_amt_engine_set_ignition_pump_voltage, "1.0 1.5 2.0 2.5 3.0 3.5 4.0 4.5 5.0 5.5 6.0"},
+	{"set_acceleration_curve",    22, &driver_amt_engine_set_acceleration_curve,    "0 1 2 3 4 5 6 7 8 9 10"},
 
 	{"control_drop",              12, &driver_amt_engine_control_drop,              NULL},
 	{"control_off",               11, &driver_amt_engine_control_off,               NULL},
@@ -40,8 +42,10 @@ static const struct param_handler handlers[] = {
 	{"reset_fuel_flow",           15, &driver_amt_engine_reset_fuel_flow,           NULL},
 	{"calibrate_thrust_zero",     21, &driver_amt_engine_calibrate_thrust_zero,     NULL},
 
-	{"set_ignition_pump_voltage", 25, &driver_amt_engine_set_ignition_pump_voltage, "1.0 1.5 2.0 2.5 3.0 3.5 4.0 4.5 5.0 5.5 6.0"},
-	{"set_acceleration_curve",    22, &driver_amt_engine_set_acceleration_curve,    "0 1 2 3 4 5 6 7 8 9 10"},
+	{"stream_websocket_on",       19, &streamer_websocket_enable,                   NULL},
+	{"stream_websocket_off",      20, &streamer_websocket_disable,                  NULL},
+	{"stream_tcp_on",             13, &streamer_tcp_enable,                         NULL},
+	{"stream_tcp_off",            14, &streamer_tcp_disable,                        NULL},
 
 	{"get_layout",                10, &get_ctrl_layout_string,                      NULL},
 };

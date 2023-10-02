@@ -73,6 +73,13 @@ void tell_esp_to_restart(const char *value, char *answer_buf_ptr, int *answer_le
 
 void start_tasks(void); // См. файл "tasks.c"
 
+// См. файл "streamer.c"
+void stream_write(const char *buf, size_t len);
+void streamer_websocket_enable(const char *value, char *answer_buf_ptr, int *answer_len_ptr);
+void streamer_websocket_disable(const char *value, char *answer_buf_ptr, int *answer_len_ptr);
+void streamer_tcp_enable(const char *value, char *answer_buf_ptr, int *answer_len_ptr);
+void streamer_tcp_disable(const char *value, char *answer_buf_ptr, int *answer_len_ptr);
+
 bool start_serial_streamer(void);                          // См. файл "streamer-serial.c"
 bool start_tcp_streamer(void);                             // См. файл "streamer-tcp.c"
 void write_tcp_message(const char *buf, size_t len);       // См. файл "streamer-tcp.c"
