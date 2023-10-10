@@ -111,13 +111,13 @@ unsigned long HX711_read()
 
 unsigned long  HX711_read_average(char times) 
 {
-	ESP_LOGI(DEBUGTAG, "===================== READ AVERAGE START ====================");
+	// ESP_LOGI(DEBUGTAG, "===================== READ AVERAGE START ====================");
 	unsigned long sum = 0;
 	for (char i = 0; i < times; i++) 
 	{
 		sum += HX711_read();
 	}
-	ESP_LOGI(DEBUGTAG, "===================== READ AVERAGE END : %ld ====================",(sum / times));
+	// ESP_LOGI(DEBUGTAG, "===================== READ AVERAGE END : %ld ====================",(sum / times));
 	return sum / times;
 }
 

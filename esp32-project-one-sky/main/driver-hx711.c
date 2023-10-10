@@ -4,9 +4,16 @@
 static void
 hx711_task(void *arg)
 {
-	while(1) {
+	char out[500];
+	while (1) {
+		int64_t packet_birth = esp_timer_get_time() / 1000;
 		unsigned long int weight = HX711_get_units(HX711_SAMPLES_COUNT);
-		TASK_DELAY_MS(1000);
+		int out_len = snprintf(out, 500, "HX711@%lld=%lu\n",
+			packet_birth,
+			weight
+		);
+		if (out_len > 0 && out_len < 500) stream_write(out, out_len);
+		TASK_DELAY_MS(500);
 	}
 }
 

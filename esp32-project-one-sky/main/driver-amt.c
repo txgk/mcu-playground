@@ -75,7 +75,7 @@ calc_crc8(unsigned char *buf, unsigned char buf_len)
 static void IRAM_ATTR
 amt_driver(void *dummy)
 {
-	char out[500];
+	char out[1000];
 	int out_len;
 	uint8_t c;
 	uint8_t packet[10];

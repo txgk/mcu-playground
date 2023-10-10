@@ -101,7 +101,7 @@ app_main(void)
 		.ip      = {.addr = ESP_IP4TOADDR(192, 168,  11,  41)},
 		.gw      = {.addr = ESP_IP4TOADDR(192, 168,  11,   1)},
 		.netmask = {.addr = ESP_IP4TOADDR(255, 255, 255,   0)}
-		// .ip      = {.addr = ESP_IP4TOADDR(192, 168,  68, 201)},
+		// .ip      = {.addr = ESP_IP4TOADDR(192, 168,  68, 241)},
 		// .gw      = {.addr = ESP_IP4TOADDR(192, 168,  68,   1)},
 		// .netmask = {.addr = ESP_IP4TOADDR(255, 255, 255,   0)}
 	};
@@ -125,7 +125,7 @@ app_main(void)
 	esp_wifi_set_mode(WIFI_MODE_STA);
 	esp_wifi_set_config(WIFI_IF_STA, &wifi_cfg);
 	esp_wifi_start();
-	esp_wifi_set_ps(WIFI_PS_NONE);
+	esp_wifi_set_ps(WIFI_PS_NONE); // POWER SAVING IS BAD BAD BAD FOR CONSISTENT DATA TRANSFER
 	xTaskCreatePinnedToCore(&wifi_loop, "wifi_loop", 2048, NULL, 1, NULL, 1);
 #else
 	esp_netif_create_default_wifi_ap();
@@ -150,15 +150,16 @@ app_main(void)
 	esp_wifi_set_ps(WIFI_PS_NONE);
 #endif
 
-	// esp_log_set_vprintf(write_websocket_message_vprintf);
+	esp_log_set_vprintf(write_websocket_message_vprintf);
+	start_tcp_streamer();
 	start_websocket_streamer();
 
-	// if (hx711_init() == false) {
-	// 	while (true) {
-	// 		write_websocket_message("hx711_init failed\n", 18);
-	// 		TASK_DELAY_MS(2000);
-	// 	}
-	// }
+	if (hx711_init() == false) {
+		while (true) {
+			write_websocket_message("hx711_init failed\n", 18);
+			TASK_DELAY_MS(2000);
+		}
+	}
 
 	if (driver_amt_init() == false) {
 		while (true) {
