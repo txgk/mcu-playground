@@ -56,7 +56,7 @@ get_system_info_string(const char *value, char *answer_buf_ptr, int *answer_len_
 void
 get_temperature_info_string(const char *value, char *answer_buf_ptr, int *answer_len_ptr)
 {
-#ifdef ESP32
+#ifdef CONFIG_IDF_TARGET_ESP32
 	const int temp = ((int)temprature_sens_read() - 32) * 5 / 9;
 #else
 	const int temp = 0;

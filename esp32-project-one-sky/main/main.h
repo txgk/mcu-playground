@@ -56,7 +56,7 @@
 #define WEBSOCKET_STREAMER_MAX_MESSAGE_SIZE 1000
 #define HTTP_TUNER_ANSWER_SIZE_LIMIT        1000
 
-#ifdef ESP32
+#ifdef CONFIG_IDF_TARGET_ESP32
 uint8_t temprature_sens_read(); // Undocumented secret function!
 #endif
 

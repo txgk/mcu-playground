@@ -164,8 +164,8 @@ app_main(void)
 		char beat_buf[100];
 		static int32_t i = 1;
 		int64_t ms = esp_timer_get_time() / 1000;
-#ifdef ESP32
-		int beat_len = snprintf(beat_buf, 100, "BEAT@%lld=%d\n", ms, (int)temprature_sens_read());
+#ifdef CONFIG_IDF_TARGET_ESP32
+		int beat_len = snprintf(beat_buf, 100, "BEAT@%lld=%d\n", ms, ((int)temprature_sens_read() - 32) * 5 / 9);
 #else
 		int beat_len = snprintf(beat_buf, 100, "BEAT@%lld=%ld\n", ms, i);
 #endif
