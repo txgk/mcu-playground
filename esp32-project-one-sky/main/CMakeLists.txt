@@ -1,7 +1,6 @@
 idf_component_register(
 	SRCS
 	"main.c"
-	"tasks.c"
 	"streamer.c"
 	"streamer-serial.c"
 	"streamer-tcp.c"

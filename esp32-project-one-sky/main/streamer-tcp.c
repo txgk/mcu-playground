@@ -5,8 +5,6 @@
 #include "main.h"
 
 #define TAG "TCP_STREAMER"
-#define TCP_STREAMER_PORT             111
-#define TCP_STREAMER_MAX_PACKET_SIZE  1000
 
 static volatile bool tcp_streamer_is_connected = false;
 SemaphoreHandle_t tcp_streamer_lock = NULL;
@@ -87,11 +85,11 @@ bool
 start_tcp_streamer(void)
 {
 	tcp_streamer_lock = xSemaphoreCreateMutex();
-	if (tcp_streamer_lock != NULL) {
-		xTaskCreatePinnedToCore(&tcp_streamer, "tcp_streamer", 4096, NULL, 1, NULL, 1);
-		return true;
+	if (tcp_streamer_lock == NULL) {
+		return false;
 	}
-	return false;
+	xTaskCreatePinnedToCore(&tcp_streamer, "tcp_streamer", 4096, NULL, 1, NULL, 1);
+	return true;
 }
 
 void

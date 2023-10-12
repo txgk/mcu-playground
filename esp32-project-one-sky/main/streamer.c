@@ -11,6 +11,15 @@ stream_write(const char *buf, size_t len)
 }
 
 void
+stream_panic(const char *buf, size_t len)
+{
+	while (true) {
+		stream_write(buf, len);
+		TASK_DELAY_MS(2000);
+	}
+}
+
+void
 streamer_websocket_enable(const char *value, char *answer_buf_ptr, int *answer_len_ptr)
 {
 	websocket_streamer_enabled = true;

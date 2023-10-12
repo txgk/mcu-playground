@@ -151,34 +151,23 @@ app_main(void)
 #endif
 
 	esp_log_set_vprintf(write_websocket_message_vprintf);
+
 	start_tcp_streamer();
 	start_websocket_streamer();
 
-	if (hx711_init() == false) {
-		while (true) {
-			write_websocket_message("hx711_init failed\n", 18);
-			TASK_DELAY_MS(2000);
-		}
-	}
+	if (hx711_init()       == false) stream_panic("hx711_init failed\n", 18);
+	if (driver_amt_init()  == false) stream_panic("driver_amt_init failed\n", 23);
+	if (start_http_tuner() == false) stream_panic("start_http_tuner failed\n", 24);
 
-	if (driver_amt_init() == false) {
-		while (true) {
-			write_websocket_message("driver_amt_init failed\n", 23);
-			TASK_DELAY_MS(2000);
-		}
-	}
-
-	start_http_tuner();
-
-	// char heartbeat_text_buf[100];
-	// int32_t i = 1;
 	while (they_want_us_to_restart == false) {
-		// int64_t ms = esp_timer_get_time() / 1000;
-		// int heartbeat_text_len = snprintf(heartbeat_text_buf, 100, "BEAT@%lld=%ld\n", ms, i);
-		// if (heartbeat_text_len > 0 && heartbeat_text_len < 100) {
-		// 	write_websocket_message(heartbeat_text_buf, heartbeat_text_len);
-		// }
-		// i = (i * 10) % 999999999;
+#if ENABLE_HEARTBEAT
+		char beat_buf[100];
+		static int32_t i = 1;
+		int64_t ms = esp_timer_get_time() / 1000;
+		int beat_len = snprintf(beat_buf, 100, "BEAT@%lld=%ld\n", ms, i);
+		if (beat_len > 0 && beat_len < 100) stream_write(beat_buf, beat_len);
+		i = (i * 10) % 999999999;
+#endif
 		TASK_DELAY_MS(1000);
 	}
 

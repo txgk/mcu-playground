@@ -18,6 +18,7 @@
 #endif
 
 #define FIRMWARE_CODEWORD  "Щелкунчик"
+#define ENABLE_HEARTBEAT   0
 
 #define UART0_TX_PIN        1
 #define UART0_RX_PIN        3
@@ -38,10 +39,11 @@
 #define WIFI_AP_PASS                "elbereth"
 #define WIFI_RECONNECTION_PERIOD_MS 2000
 
-#define HTTP_STREAMER_PORT 222
-#define HTTP_TUNER_PORT    333
-#define HTTP_STREAMER_CTRL 2222
-#define HTTP_TUNER_CTRL    3333
+#define TCP_STREAMER_PORT 111
+#define WS_STREAMER_PORT  222
+#define HTTP_TUNER_PORT   333
+#define WS_STREAMER_CTRL  2222
+#define HTTP_TUNER_CTRL   3333
 
 #define LENGTH(A) (sizeof((A))/sizeof(*(A)))
 #define MS_TO_TICKS(A) ((A) / portTICK_PERIOD_MS)
@@ -50,31 +52,15 @@
 #define TASK_DELAY_MS(A) vTaskDelay((A) / portTICK_PERIOD_MS)
 #define INIT_IP4_LOL(a, b, c, d) { .type = ESP_IPADDR_TYPE_V4, .u_addr = { .ip4 = { .addr = ESP_IP4TOADDR(a, b, c, d) }}}
 
-#define MESSAGE_SIZE_LIMIT 1000
-#define HTTP_TUNER_ANSWER_SIZE_LIMIT 1000
-
-struct task_descriptor {
-	const char *prefix;
-	void (*performer)(void *);
-	int (*informer)(struct task_descriptor *, char *); // Returns the number of bytes in respective informer_data
-	const int64_t performer_period_ms;
-	const int64_t informer_period_ms;
-	const uint32_t stack_size;
-	const unsigned int priority;
-	// last_inform_ms[0] and informer_data[MESSAGE_SIZE_LIMIT][0] are for WebSocket streamer
-	// last_inform_ms[1] and informer_data[MESSAGE_SIZE_LIMIT][1] are for Serial streamer
-	// last_inform_ms[2] and informer_data[MESSAGE_SIZE_LIMIT][2] are for Winbond streamer
-	int64_t last_inform_ms[3];
-	char informer_data[MESSAGE_SIZE_LIMIT][3];
-	SemaphoreHandle_t mutex;
-};
+#define TCP_STREAMER_MAX_PACKET_SIZE        1000
+#define WEBSOCKET_STREAMER_MAX_MESSAGE_SIZE 1000
+#define HTTP_TUNER_ANSWER_SIZE_LIMIT        1000
 
 void tell_esp_to_restart(const char *value, char *answer_buf_ptr, int *answer_len_ptr); // См. файл "main.c"
 
-void start_tasks(void); // См. файл "tasks.c"
-
 // См. файл "streamer.c"
 void stream_write(const char *buf, size_t len);
+void stream_panic(const char *buf, size_t len);
 void streamer_websocket_enable(const char *value, char *answer_buf_ptr, int *answer_len_ptr);
 void streamer_websocket_disable(const char *value, char *answer_buf_ptr, int *answer_len_ptr);
 void streamer_tcp_enable(const char *value, char *answer_buf_ptr, int *answer_len_ptr);
@@ -125,6 +111,4 @@ void driver_amt_engine_set_acceleration_curve(const char *value, char *answer_bu
 
 // См. файл "driver-hx711.c"
 bool hx711_init(void);
-
-extern struct task_descriptor tasks[];
 #endif // MAIN_HEADER_GUARD_H

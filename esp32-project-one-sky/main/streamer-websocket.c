@@ -1,8 +1,6 @@
 #include "esp_http_server.h"
 #include "main.h"
 
-#define WEBSOCKET_STREAMER_MAX_MESSAGE_SIZE 1000
-
 static httpd_handle_t http_streamer = NULL;
 static httpd_config_t http_streamer_config = HTTPD_DEFAULT_CONFIG();
 static volatile bool websocket_streamer_is_connected = false;
@@ -75,8 +73,8 @@ start_websocket_streamer(void)
 	if (websocket_streamer_lock == NULL) {
 		return false;
 	}
-	http_streamer_config.server_port = HTTP_STREAMER_PORT;
-	http_streamer_config.ctrl_port = HTTP_STREAMER_CTRL;
+	http_streamer_config.server_port = WS_STREAMER_PORT;
+	http_streamer_config.ctrl_port = WS_STREAMER_CTRL;
 	http_streamer_config.lru_purge_enable = true;
 	if (httpd_start(&http_streamer, &http_streamer_config) != ESP_OK) {
 		return false;
@@ -106,9 +104,9 @@ write_websocket_message(const char *buf, size_t len)
 int
 write_websocket_message_vprintf(const char *fmt, va_list args)
 {
-	char out[1000];
-	int wrote = vsnprintf(out, 1000, fmt, args);
-	if (wrote > 0 && wrote < 1000) {
+	char out[WEBSOCKET_STREAMER_MAX_MESSAGE_SIZE];
+	int wrote = vsnprintf(out, WEBSOCKET_STREAMER_MAX_MESSAGE_SIZE, fmt, args);
+	if (wrote > 0 && wrote < WEBSOCKET_STREAMER_MAX_MESSAGE_SIZE) {
 		write_websocket_message(out, wrote);
 	}
 	return wrote;
