@@ -18,7 +18,7 @@
 #endif
 
 #define FIRMWARE_CODEWORD  "Щелкунчик"
-#define ENABLE_HEARTBEAT   0
+#define ENABLE_HEARTBEAT   1
 
 #define UART0_TX_PIN        1
 #define UART0_RX_PIN        3
@@ -55,6 +55,10 @@
 #define TCP_STREAMER_MAX_PACKET_SIZE        1000
 #define WEBSOCKET_STREAMER_MAX_MESSAGE_SIZE 1000
 #define HTTP_TUNER_ANSWER_SIZE_LIMIT        1000
+
+#ifdef ESP32
+uint8_t temprature_sens_read(); // Undocumented secret function!
+#endif
 
 void tell_esp_to_restart(const char *value, char *answer_buf_ptr, int *answer_len_ptr); // См. файл "main.c"
 

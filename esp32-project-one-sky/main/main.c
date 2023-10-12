@@ -164,7 +164,11 @@ app_main(void)
 		char beat_buf[100];
 		static int32_t i = 1;
 		int64_t ms = esp_timer_get_time() / 1000;
+#ifdef ESP32
+		int beat_len = snprintf(beat_buf, 100, "BEAT@%lld=%d\n", ms, (int)temprature_sens_read());
+#else
 		int beat_len = snprintf(beat_buf, 100, "BEAT@%lld=%ld\n", ms, i);
+#endif
 		if (beat_len > 0 && beat_len < 100) stream_write(beat_buf, beat_len);
 		i = (i * 10) % 999999999;
 #endif

@@ -3,11 +3,6 @@
 #include "esp_chip_info.h"
 #include "esp_idf_version.h"
 
-#ifdef ESP32
-// Undocumented secret function...
-uint8_t temprature_sens_read();
-#endif
-
 static inline const char *
 get_esp_model_string(esp_chip_model_t id)
 {
