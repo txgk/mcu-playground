@@ -22,6 +22,9 @@ static const char *names_string[] = {
 static esp_err_t
 http_streamer_handler(httpd_req_t *req)
 {
+	if (websocket_streamer_is_connected == true) {
+		return ESP_FAIL;
+	}
 	websocket_streamer_is_connected = true;
 	for (size_t i = 0; i < LENGTH(names_string); ++i) {
 		httpd_ws_frame_t names_pkt = {
@@ -59,10 +62,11 @@ http_streamer_handler(httpd_req_t *req)
 }
 
 static const httpd_uri_t http_streamer_handler_setup = {
-	.uri       = "/",
-	.method    = HTTP_GET,
-	.handler   = &http_streamer_handler,
-	.user_ctx  = NULL,
+	.uri          = "/",
+	.method       = HTTP_GET,
+	.handler      = &http_streamer_handler,
+	.user_ctx     = NULL,
+	.handle_ws_control_frames = true,
 	.is_websocket = true
 };
 
@@ -73,9 +77,21 @@ start_websocket_streamer(void)
 	if (websocket_streamer_lock == NULL) {
 		return false;
 	}
-	http_streamer_config.server_port = WS_STREAMER_PORT;
-	http_streamer_config.ctrl_port = WS_STREAMER_CTRL;
-	http_streamer_config.lru_purge_enable = true;
+	http_streamer_config.server_port         = WS_STREAMER_PORT;
+	http_streamer_config.ctrl_port           = WS_STREAMER_CTRL;
+	http_streamer_config.lru_purge_enable    = true;
+	http_streamer_config.recv_wait_timeout   = 1;
+	http_streamer_config.send_wait_timeout   = 1;
+	http_streamer_config.keep_alive_enable   = true;
+	http_streamer_config.keep_alive_idle     = 1;
+	http_streamer_config.keep_alive_interval = 1;
+	http_streamer_config.keep_alive_count    = 1;
+	http_streamer_config.max_uri_handlers    = 1;
+	http_streamer_config.max_open_sockets    = 1;
+	http_streamer_config.backlog_conn        = 1;
+	// http_streamer_config.enable_so_linger  = true;
+	// http_streamer_config.linger_timeout    = 1;
+	// http_streamer_config.keep_alive_enable = true;
 	if (httpd_start(&http_streamer, &http_streamer_config) != ESP_OK) {
 		return false;
 	}
