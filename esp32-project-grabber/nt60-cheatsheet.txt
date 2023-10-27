@@ -1,0 +1,79 @@
+# Read bus voltage in mV
+echo -ne '\x01\x03\x00\x0B\x00\x01\xF5\xC8' > /dev/ttyUSB0
+
+# Current step test (1)
+echo -ne '\x01\x06\x00\x27\x00\x01\xF8\x01' > /dev/ttyUSB0
+
+
+toserial(){ echo -ne "$(echo "$*" | sed -e 's/^/\\x/' -e 's/ /\\x/g')" > /dev/ttyUSB0; }
+
+## SETUP GUIDE
+
+Reset to defaults:
+01 06 00 5B 00 01 39 D9
+
+Enable internal pulse:
+01 06 00 11 00 00 D9 CF
+
+Enable communication control:
+01 06 00 14 00 00 C9 CE
+
+Enable two phase mode:
+01 06 00 15 00 00 98 0E
+
+Enable closed loop:
+01 06 00 16 00 01 A9 CE
+
+Set normal direction:
+01 06 00 17 00 00 39 CE
+
+Enable quadrature encoder:
+01 06 00 3C 00 03 09 C7
+01 06 00 3D 00 02 99 C7
+
+Enable inputs & outputs:
+01 06 00 3C 00 23 08 1F
+01 06 00 3D 00 22 98 1F
+01 06 00 3E 00 27 A8 1C
+01 06 00 3F 00 28 B9 D8
+01 06 00 40 00 2C 89 C3
+01 06 00 41 00 2B 99 C1
+01 06 00 42 00 11 E9 D2
+01 06 00 43 00 12 F8 13
+01 06 00 66 00 15 A8 1A
+01 06 00 67 00 14 38 1A
+
+Set movement mode to absolute:
+01 06 00 54 00 01 09 DA
+
+Set position to 0:
+01 06 00 49 00 00 58 1C
+01 06 00 4A 00 00 A8 1C
+
+Set position to 100:
+01 06 00 49 00 64 59 F7
+01 06 00 4A 00 00 A8 1C
+
+Set position to 1000:
+01 06 00 49 03 E8 58 A2
+01 06 00 4A 00 00 A8 1C
+
+Set position to 4000:
+01 06 00 49 0F A0 5D 94
+01 06 00 4A 00 00 A8 1C
+
+Set position to -4000:
+01 06 00 49 F0 60 1C 34
+01 06 00 4A FF FF A9 AC
+
+Set speed to 10:
+01 06 00 48 00 0A 89 DB
+
+Set speed to 100:
+01 06 00 48 00 64 08 37
+
+Set speed to 200:
+01 06 00 48 00 C8 08 4A
+
+Commit rotation:
+01 06 00 12 00 01 E8 0F
