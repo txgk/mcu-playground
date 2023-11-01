@@ -1,0 +1,13 @@
+idf_component_register(
+	SRCS
+	"main.c"
+	"common-modbus.c"
+	"streamer.c"
+	"streamer-tcp.c"
+	"streamer-websocket.c"
+	"http-tuner.c"
+	"driver-nt60.c"
+	"system-info.c"
+	INCLUDE_DIRS
+	"."
+)
