@@ -22,6 +22,8 @@ static const struct param_handler handlers[] = {
 	{"espinfo",               7, &get_system_info_string,      NULL},
 
 	{"servo_setup",          11, &nt60_servo_setup,            "1 2 3 4 5 6 7 8 9 10"},
+	{"rotate_absolute",      15, &nt60_rotate_absolute,        "1,0 1,100 1,250 1,500 1,1000 1,2000 1,3000 1,4000"},
+	{"get_speed",             9, &nt60_get_speed,              "1 2 3 4 5 6 7 8 9 10"},
 
 	{"stream_websocket_on",  19, &streamer_websocket_enable,   NULL},
 	{"stream_websocket_off", 20, &streamer_websocket_disable,  NULL},

@@ -20,10 +20,14 @@
 #define FIRMWARE_CODEWORD  "Хвататель"
 #define ENABLE_HEARTBEAT   1
 
-#define UART0_TX_PIN        1
-#define UART0_RX_PIN        3
-#define UART0_SPEED         115200
+#define UART0_TX_PIN        18
+#define UART0_RX_PIN        19
+#define UART0_SPEED         9600
 #define UART0_PORT          UART_NUM_1
+
+#define NT60_UART_PORT      UART0_PORT
+
+#define C25B_DE_PIN         21 // Connect RE pin to ground!
 
 #define WIFI_AP_SSID                "demoproshivka"
 #define WIFI_AP_PASS                "elbereth"
@@ -70,7 +74,13 @@ bool start_http_tuner(void); // См. файл "http-tuner.c"
 void stop_http_tuner(void);  // См. файл "http-tuner.c"
 
 // См. файл "driver-nt60.c"
+bool nt60_driver_setup(void);
 void nt60_servo_setup(const char *value, char *answer_buf_ptr, int *answer_len_ptr);
+void nt60_rotate_absolute(const char *value, char *answer_buf_ptr, int *answer_len_ptr);
+void nt60_get_speed(const char *value, char *answer_buf_ptr, int *answer_len_ptr);
+
+// См. файл "driver-c25b.c"
+bool c25b_driver_setup(void);
 
 // См. файл "system-info.c"
 void get_system_info_string(const char *value, char *answer_buf_ptr, int *answer_len_ptr);

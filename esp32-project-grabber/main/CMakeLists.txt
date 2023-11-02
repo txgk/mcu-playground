@@ -6,6 +6,7 @@ idf_component_register(
 	"streamer-tcp.c"
 	"streamer-websocket.c"
 	"http-tuner.c"
+	"driver-c25b.c"
 	"driver-nt60.c"
 	"system-info.c"
 	INCLUDE_DIRS

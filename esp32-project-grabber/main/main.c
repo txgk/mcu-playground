@@ -19,13 +19,13 @@ setup_serial(uart_config_t *cfg, uart_port_t port, int speed, int tx_pin, int rx
 	cfg->data_bits = UART_DATA_8_BITS;
 	cfg->parity    = UART_PARITY_DISABLE;
 	cfg->stop_bits = UART_STOP_BITS_1;
-	cfg->flow_ctrl = UART_HW_FLOWCTRL_CTS_RTS;
+	cfg->flow_ctrl = UART_HW_FLOWCTRL_DISABLE;
 	cfg->rx_flow_ctrl_thresh = 122;
 	// cfg->source_clk = UART_SCLK_DEFAULT;
 #if CONFIG_UART_ISR_IN_IRAM
-	uart_driver_install(port, 1024, 1024, 0, NULL, ESP_INTR_FLAG_IRAM);
+	uart_driver_install(port, 1024, 0, 0, NULL, ESP_INTR_FLAG_IRAM);
 #else
-	uart_driver_install(port, 1024, 1024, 0, NULL, 0);
+	uart_driver_install(port, 1024, 0, 0, NULL, 0);
 #endif
 	uart_param_config(port, cfg);
 	uart_set_pin(port, tx_pin, rx_pin, -1, -1);
@@ -98,7 +98,7 @@ app_main(void)
 		// .ip      = {.addr = ESP_IP4TOADDR(192, 168,   0,  99)},
 		// .gw      = {.addr = ESP_IP4TOADDR(192, 168,   0,   1)},
 		// .netmask = {.addr = ESP_IP4TOADDR(255, 255, 255,   0)}
-		.ip      = {.addr = ESP_IP4TOADDR(192, 168,  11,  41)},
+		.ip      = {.addr = ESP_IP4TOADDR(192, 168,  11,  55)},
 		.gw      = {.addr = ESP_IP4TOADDR(192, 168,  11,   1)},
 		.netmask = {.addr = ESP_IP4TOADDR(255, 255, 255,   0)}
 		// .ip      = {.addr = ESP_IP4TOADDR(192, 168,  68, 241)},
@@ -150,12 +150,14 @@ app_main(void)
 	esp_wifi_set_ps(WIFI_PS_NONE);
 #endif
 
-	esp_log_set_vprintf(write_websocket_message_vprintf);
+	// esp_log_set_vprintf(write_websocket_message_vprintf);
 
 	start_tcp_streamer();
 	start_websocket_streamer();
 
-	if (start_http_tuner() == false) stream_panic("start_http_tuner failed\n", 24);
+	if (c25b_driver_setup() == false) stream_panic("c25b_driver_setup failed\n", 25);
+	if (nt60_driver_setup() == false) stream_panic("nt60_driver_setup failed\n", 25);
+	if (start_http_tuner()  == false) stream_panic("start_http_tuner failed\n", 24);
 
 	while (they_want_us_to_restart == false) {
 #if ENABLE_HEARTBEAT
