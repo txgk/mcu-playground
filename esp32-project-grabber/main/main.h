@@ -48,7 +48,7 @@
 
 #define TCP_STREAMER_MAX_PACKET_SIZE        1000
 #define WEBSOCKET_STREAMER_MAX_MESSAGE_SIZE 1000
-#define HTTP_TUNER_ANSWER_SIZE_LIMIT        1000
+#define HTTP_TUNER_ANSWER_SIZE_LIMIT        2000
 
 #ifdef CONFIG_IDF_TARGET_ESP32
 uint8_t temprature_sens_read(); // Undocumented secret function!
@@ -76,8 +76,23 @@ void stop_http_tuner(void);  // См. файл "http-tuner.c"
 // См. файл "driver-nt60.c"
 bool nt60_driver_setup(void);
 void nt60_servo_setup(const char *value, char *answer_buf_ptr, int *answer_len_ptr);
+void nt60_seek_extremes(const char *value, char *answer_buf_ptr, int *answer_len_ptr);
+void nt60_servo_stop(const char *value, char *answer_buf_ptr, int *answer_len_ptr);
 void nt60_rotate_absolute(const char *value, char *answer_buf_ptr, int *answer_len_ptr);
+void nt60_rotate_relative(const char *value, char *answer_buf_ptr, int *answer_len_ptr);
+void nt60_read_short_register(const char *value, char *answer_buf_ptr, int *answer_len_ptr);
+void nt60_read_long_register(const char *value, char *answer_buf_ptr, int *answer_len_ptr);
+void nt60_set_speed(const char *value, char *answer_buf_ptr, int *answer_len_ptr);
 void nt60_get_speed(const char *value, char *answer_buf_ptr, int *answer_len_ptr);
+void nt60_set_acceleration(const char *value, char *answer_buf_ptr, int *answer_len_ptr);
+void nt60_get_acceleration(const char *value, char *answer_buf_ptr, int *answer_len_ptr);
+void nt60_set_deceleration(const char *value, char *answer_buf_ptr, int *answer_len_ptr);
+void nt60_get_deceleration(const char *value, char *answer_buf_ptr, int *answer_len_ptr);
+void nt60_set_current(const char *value, char *answer_buf_ptr, int *answer_len_ptr);
+void nt60_get_current(const char *value, char *answer_buf_ptr, int *answer_len_ptr);
+void nt60_set_tracking_error_threshold(const char *value, char *answer_buf_ptr, int *answer_len_ptr);
+void nt60_get_tracking_error_threshold(const char *value, char *answer_buf_ptr, int *answer_len_ptr);
+void nt60_save_config_to_flash(const char *value, char *answer_buf_ptr, int *answer_len_ptr);
 
 // См. файл "driver-c25b.c"
 bool c25b_driver_setup(void);
