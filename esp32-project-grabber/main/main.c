@@ -60,7 +60,7 @@ wifi_loop(void *dummy)
 }
 
 void
-tell_esp_to_restart(const char *value, char *answer_buf_ptr, int *answer_len_ptr)
+tell_esp_to_restart(const char *value)
 {
 	they_want_us_to_restart = true;
 }
@@ -95,15 +95,10 @@ app_main(void)
 	esp_netif_t *sta = esp_netif_create_default_wifi_sta();
 	esp_netif_dhcpc_stop(sta);
 	esp_netif_ip_info_t ip_info = {
-		// .ip      = {.addr = ESP_IP4TOADDR(192, 168,   0,  99)},
-		// .gw      = {.addr = ESP_IP4TOADDR(192, 168,   0,   1)},
-		// .netmask = {.addr = ESP_IP4TOADDR(255, 255, 255,   0)}
-		.ip      = {.addr = ESP_IP4TOADDR(192, 168,  11,  55)},
-		.gw      = {.addr = ESP_IP4TOADDR(192, 168,  11,   1)},
-		.netmask = {.addr = ESP_IP4TOADDR(255, 255, 255,   0)}
-		// .ip      = {.addr = ESP_IP4TOADDR(192, 168,  68, 241)},
-		// .gw      = {.addr = ESP_IP4TOADDR(192, 168,  68,   1)},
-		// .netmask = {.addr = ESP_IP4TOADDR(255, 255, 255,   0)}
+		// Initialize addr with ESP_IP4TOADDR(255, 255, 255, 255)
+		.ip      = {.addr = ESP_IP_ADDR},
+		.gw      = {.addr = ESP_IP_GATE},
+		.netmask = {.addr = ESP_IP_MASK}
 	};
 	esp_netif_set_ip_info(sta, &ip_info);
 	esp_netif_dns_info_t dns1 = {.ip = INIT_IP4_LOL(77, 88, 8, 8)};
@@ -157,7 +152,7 @@ app_main(void)
 
 	if (c25b_driver_setup() == false) stream_panic("c25b_driver_setup failed\n", 25);
 	if (nt60_driver_setup() == false) stream_panic("nt60_driver_setup failed\n", 25);
-	if (start_http_tuner()  == false) stream_panic("start_http_tuner failed\n", 24);
+	if (http_tuner_start()  == false) stream_panic("http_tuner_start failed\n", 24);
 
 	while (they_want_us_to_restart == false) {
 #if ENABLE_HEARTBEAT

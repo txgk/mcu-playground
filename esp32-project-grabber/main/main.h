@@ -48,21 +48,20 @@
 
 #define TCP_STREAMER_MAX_PACKET_SIZE        1000
 #define WEBSOCKET_STREAMER_MAX_MESSAGE_SIZE 1000
-#define HTTP_TUNER_ANSWER_SIZE_LIMIT        2000
 
 #ifdef CONFIG_IDF_TARGET_ESP32
 uint8_t temprature_sens_read(); // Undocumented secret function!
 #endif
 
-void tell_esp_to_restart(const char *value, char *answer_buf_ptr, int *answer_len_ptr); // См. файл "main.c"
+void tell_esp_to_restart(const char *value); // См. файл "main.c"
 
 // См. файл "streamer.c"
 void stream_write(const char *buf, size_t len);
 void stream_panic(const char *buf, size_t len);
-void streamer_websocket_enable(const char *value, char *answer_buf_ptr, int *answer_len_ptr);
-void streamer_websocket_disable(const char *value, char *answer_buf_ptr, int *answer_len_ptr);
-void streamer_tcp_enable(const char *value, char *answer_buf_ptr, int *answer_len_ptr);
-void streamer_tcp_disable(const char *value, char *answer_buf_ptr, int *answer_len_ptr);
+void streamer_websocket_enable(const char *value);
+void streamer_websocket_disable(const char *value);
+void streamer_tcp_enable(const char *value);
+void streamer_tcp_disable(const char *value);
 
 bool start_tcp_streamer(void);                             // См. файл "streamer-tcp.c"
 void write_tcp_message(const char *buf, size_t len);       // См. файл "streamer-tcp.c"
@@ -70,34 +69,35 @@ bool start_websocket_streamer(void);                       // См. файл "st
 void write_websocket_message(const char *buf, size_t len); // См. файл "streamer-websocket.c"
 int write_websocket_message_vprintf(const char *fmt, va_list args);
 
-bool start_http_tuner(void); // См. файл "http-tuner.c"
-void stop_http_tuner(void);  // См. файл "http-tuner.c"
+bool http_tuner_start(void);                       // См. файл "http-tuner.c"
+void http_tuner_response(const char *format, ...); // См. файл "http-tuner.c"
+void http_tuner_stop(void);                        // См. файл "http-tuner.c"
 
 // См. файл "driver-nt60.c"
 bool nt60_driver_setup(void);
-void nt60_servo_setup(const char *value, char *answer_buf_ptr, int *answer_len_ptr);
-void nt60_seek_extremes(const char *value, char *answer_buf_ptr, int *answer_len_ptr);
-void nt60_servo_stop(const char *value, char *answer_buf_ptr, int *answer_len_ptr);
-void nt60_rotate_absolute(const char *value, char *answer_buf_ptr, int *answer_len_ptr);
-void nt60_rotate_relative(const char *value, char *answer_buf_ptr, int *answer_len_ptr);
-void nt60_read_short_register(const char *value, char *answer_buf_ptr, int *answer_len_ptr);
-void nt60_read_long_register(const char *value, char *answer_buf_ptr, int *answer_len_ptr);
-void nt60_set_speed(const char *value, char *answer_buf_ptr, int *answer_len_ptr);
-void nt60_get_speed(const char *value, char *answer_buf_ptr, int *answer_len_ptr);
-void nt60_set_acceleration(const char *value, char *answer_buf_ptr, int *answer_len_ptr);
-void nt60_get_acceleration(const char *value, char *answer_buf_ptr, int *answer_len_ptr);
-void nt60_set_deceleration(const char *value, char *answer_buf_ptr, int *answer_len_ptr);
-void nt60_get_deceleration(const char *value, char *answer_buf_ptr, int *answer_len_ptr);
-void nt60_set_current(const char *value, char *answer_buf_ptr, int *answer_len_ptr);
-void nt60_get_current(const char *value, char *answer_buf_ptr, int *answer_len_ptr);
-void nt60_set_tracking_error_threshold(const char *value, char *answer_buf_ptr, int *answer_len_ptr);
-void nt60_get_tracking_error_threshold(const char *value, char *answer_buf_ptr, int *answer_len_ptr);
-void nt60_save_config_to_flash(const char *value, char *answer_buf_ptr, int *answer_len_ptr);
+void nt60_servo_setup(const char *value);
+void nt60_seek_extremes(const char *value);
+void nt60_servo_stop(const char *value);
+void nt60_rotate_absolute(const char *value);
+void nt60_rotate_relative(const char *value);
+void nt60_read_short_register(const char *value);
+void nt60_read_long_register(const char *value);
+void nt60_set_speed(const char *value);
+void nt60_get_speed(const char *value);
+void nt60_set_acceleration(const char *value);
+void nt60_get_acceleration(const char *value);
+void nt60_set_deceleration(const char *value);
+void nt60_get_deceleration(const char *value);
+void nt60_set_current(const char *value);
+void nt60_get_current(const char *value);
+void nt60_set_tracking_error_threshold(const char *value);
+void nt60_get_tracking_error_threshold(const char *value);
+void nt60_save_config_to_flash(const char *value);
 
 // См. файл "driver-c25b.c"
 bool c25b_driver_setup(void);
 
 // См. файл "system-info.c"
-void get_system_info_string(const char *value, char *answer_buf_ptr, int *answer_len_ptr);
-void get_temperature_info_string(const char *value, char *answer_buf_ptr, int *answer_len_ptr);
+void get_system_info_string(const char *value);
+void get_temperature_info_string(const char *value);
 #endif // MAIN_HEADER_GUARD_H

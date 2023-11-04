@@ -79,7 +79,7 @@ nt60_set_current_absolute_position(uint8_t address, long pos)
 }
 
 void
-nt60_servo_setup(const char *value, char *answer_buf_ptr, int *answer_len_ptr)
+nt60_servo_setup(const char *value)
 {
 	const uint8_t address = strtol(value, NULL, 10);
 	const long speed = 50;
@@ -108,12 +108,12 @@ nt60_servo_setup(const char *value, char *answer_buf_ptr, int *answer_len_ptr)
 	SEND_MODBUS_FRAME(frame, 6, address, 0x06, 0x00, 0x66, 0x00, 0x15);
 	SEND_MODBUS_FRAME(frame, 6, address, 0x06, 0x00, 0x67, 0x00, 0x14);
 	SEND_MODBUS_FRAME(frame, 6, address, 0x06, 0x00, 0x48, (speed >> 8) & 0xFF, speed & 0xFF); // Set speed
-	*answer_len_ptr = snprintf(answer_buf_ptr, HTTP_TUNER_ANSWER_SIZE_LIMIT, "Servo setup completed.\n");
 	free_modbus_frame(&frame);
+	http_tuner_response("Servo setup completed.\n");
 }
 
 void
-nt60_seek_extremes(const char *value, char *answer_buf_ptr, int *answer_len_ptr)
+nt60_seek_extremes(const char *value)
 {
 #define NT60_SEEK_DELTA 8
 
@@ -177,35 +177,26 @@ nt60_seek_extremes(const char *value, char *answer_buf_ptr, int *answer_len_ptr)
 	SEND_MODBUS_FRAME(frame, 6, address, 0x06, 0x00, 0x48, ((old_speed   >> 8) & 0xFF), ((old_speed   >> 0) & 0xFF));
 
 	free_modbus_frame(&frame);
+	http_tuner_response("Extremes seeking completed.\n");
 }
 
 void
-nt60_servo_stop(const char *value, char *answer_buf_ptr, int *answer_len_ptr)
+nt60_servo_stop(const char *value)
 {
 	const uint8_t address = strtol(value, NULL, 10);
 	struct modbus_frame frame = {0};
 	SEND_MODBUS_FRAME(frame, 6, address, 0x06, 0x00, 0x12, 0x00, 0x06);
 	nt60_create_answer_string();
 	if (answer_len > 12) {
-		*answer_len_ptr = snprintf(
-			answer_buf_ptr,
-			HTTP_TUNER_ANSWER_SIZE_LIMIT,
-			"%s\n",
-			answer_str
-		);
+		http_tuner_response("%s\n", answer_str);
 	} else {
-		*answer_len_ptr = snprintf(
-			answer_buf_ptr,
-			HTTP_TUNER_ANSWER_SIZE_LIMIT,
-			"Servo %d doesn't respond to stop command!\n",
-			(int)address
-		);
+		http_tuner_response("Servo %d doesn't respond to stop command!\n", (int)address);
 	}
 	free_modbus_frame(&frame);
 }
 
 static void
-nt60_rotate_absolute_or_relative(const char *value, char *answer_buf_ptr, int *answer_len_ptr, bool is_absolute)
+nt60_rotate_absolute_or_relative(const char *value, bool is_absolute)
 {
 	char *comma_pos = strchr(value, ',');
 	if (comma_pos == NULL) return;
@@ -220,25 +211,25 @@ nt60_rotate_absolute_or_relative(const char *value, char *answer_buf_ptr, int *a
 	// Commit rotation
 	SEND_MODBUS_FRAME(frame, 6, address, 0x06, 0x00, 0x12, 0x00, rotation_cmd);
 	nt60_create_answer_string();
-	if (answer_len > 0) *answer_len_ptr = snprintf(answer_buf_ptr, HTTP_TUNER_ANSWER_SIZE_LIMIT, "%s\n", answer_str);
+	if (answer_len > 0) http_tuner_response("%s\n", answer_str);
 	free_modbus_frame(&frame);
 }
 
 
 void
-nt60_rotate_absolute(const char *value, char *answer_buf_ptr, int *answer_len_ptr)
+nt60_rotate_absolute(const char *value)
 {
-	nt60_rotate_absolute_or_relative(value, answer_buf_ptr, answer_len_ptr, true);
+	nt60_rotate_absolute_or_relative(value, true);
 }
 
 void
-nt60_rotate_relative(const char *value, char *answer_buf_ptr, int *answer_len_ptr)
+nt60_rotate_relative(const char *value)
 {
-	nt60_rotate_absolute_or_relative(value, answer_buf_ptr, answer_len_ptr, false);
+	nt60_rotate_absolute_or_relative(value, false);
 }
 
 void
-nt60_read_short_register(const char *value, char *answer_buf_ptr, int *answer_len_ptr)
+nt60_read_short_register(const char *value)
 {
 	char *comma_pos = strchr(value, ',');
 	if (comma_pos == NULL) return;
@@ -249,28 +240,15 @@ nt60_read_short_register(const char *value, char *answer_buf_ptr, int *answer_le
 	nt60_create_answer_string();
 	if (answer_len > 12) {
 		int read_value = ((int)(answer[11]) << 8) | answer[12];
-		*answer_len_ptr = snprintf(
-			answer_buf_ptr,
-			HTTP_TUNER_ANSWER_SIZE_LIMIT,
-			"%s (value of register %ld is %d)\n",
-			answer_str,
-			reg,
-			read_value
-		);
+		http_tuner_response("%s (value of register %ld is %d)\n", answer_str, reg, read_value);
 	} else {
-		*answer_len_ptr = snprintf(
-			answer_buf_ptr,
-			HTTP_TUNER_ANSWER_SIZE_LIMIT,
-			"%s (can't read value of register %ld)\n",
-			answer_str,
-			reg
-		);
+		http_tuner_response("%s (can't read value of register %ld)\n", answer_str, reg);
 	}
 	free_modbus_frame(&frame);
 }
 
 void
-nt60_read_long_register(const char *value, char *answer_buf_ptr, int *answer_len_ptr)
+nt60_read_long_register(const char *value)
 {
 	char *comma_pos = strchr(value, ',');
 	if (comma_pos == NULL) return;
@@ -281,28 +259,15 @@ nt60_read_long_register(const char *value, char *answer_buf_ptr, int *answer_len
 	nt60_create_answer_string();
 	if (answer_len > 12) {
 		int read_value = (((long)answer[11]) << 24) | (((long)answer[12]) << 16) | (((long)answer[13]) << 8) | answer[14];
-		*answer_len_ptr = snprintf(
-			answer_buf_ptr,
-			HTTP_TUNER_ANSWER_SIZE_LIMIT,
-			"%s (value of register %ld is %d)\n",
-			answer_str,
-			reg,
-			read_value
-		);
+		http_tuner_response("%s (value of register %ld is %d)\n", answer_str, reg, read_value);
 	} else {
-		*answer_len_ptr = snprintf(
-			answer_buf_ptr,
-			HTTP_TUNER_ANSWER_SIZE_LIMIT,
-			"%s (can't read value of register %ld)\n",
-			answer_str,
-			reg
-		);
+		http_tuner_response("%s (can't read value of register %ld)\n", answer_str, reg);
 	}
 	free_modbus_frame(&frame);
 }
 
 static void
-nt60_write_short_register(const char *value, char *answer_buf_ptr, int *answer_len_ptr, const char *name, unsigned long reg_addr)
+nt60_write_short_register(const char *value, const char *name, unsigned long reg_addr)
 {
 	char *comma_pos = strchr(value, ',');
 	if (comma_pos == NULL) return;
@@ -312,29 +277,15 @@ nt60_write_short_register(const char *value, char *answer_buf_ptr, int *answer_l
 	SEND_MODBUS_FRAME(frame, 6, address, 0x06, ((reg_addr >> 8) & 0xFF), ((reg_addr >> 0) & 0xFF), ((data >> 8) & 0xFF), ((data >> 0) & 0xFF));
 	nt60_create_answer_string();
 	if (answer_len > 13) {
-		*answer_len_ptr = snprintf(
-			answer_buf_ptr,
-			HTTP_TUNER_ANSWER_SIZE_LIMIT,
-			"%s (%s set to %d)\n",
-			answer_str,
-			name,
-			(((int)answer[12]) << 8) | answer[13]
-		);
-
+		http_tuner_response("%s (%s set to %d)\n", answer_str, name, (((int)answer[12]) << 8) | answer[13]);
 	} else {
-		*answer_len_ptr = snprintf(
-			answer_buf_ptr,
-			HTTP_TUNER_ANSWER_SIZE_LIMIT,
-			"%s (failed to set %s)\n",
-			answer_str,
-			name
-		);
+		http_tuner_response("%s (failed to set %s)\n", answer_str, name);
 	}
 	free_modbus_frame(&frame);
 }
 
 static void
-nt60_get_short_register(const char *value, char *answer_buf_ptr, int *answer_len_ptr, const char *name, unsigned long reg_addr)
+nt60_get_short_register(const char *value, const char *name, unsigned long reg_addr)
 {
 	const uint8_t address = strtol(value, NULL, 10);
 	struct modbus_frame frame = {0};
@@ -342,88 +293,75 @@ nt60_get_short_register(const char *value, char *answer_buf_ptr, int *answer_len
 	nt60_create_answer_string();
 	if (answer_len > 12) {
 		int read_value = ((int)(answer[11]) << 8) | answer[12];
-		*answer_len_ptr = snprintf(
-			answer_buf_ptr,
-			HTTP_TUNER_ANSWER_SIZE_LIMIT,
-			"%s (%s is %d)\n",
-			answer_str,
-			name,
-			read_value
-		);
+		http_tuner_response("%s (%s is %d)\n", answer_str, name, read_value);
 	} else {
-		*answer_len_ptr = snprintf(
-			answer_buf_ptr,
-			HTTP_TUNER_ANSWER_SIZE_LIMIT,
-			"%s (can't read %s)\n",
-			answer_str,
-			name
-		);
+		http_tuner_response("%s (can't read %s)\n", answer_str, name);
 	}
 	free_modbus_frame(&frame);
 }
 
 void
-nt60_set_speed(const char *value, char *answer_buf_ptr, int *answer_len_ptr)
+nt60_set_speed(const char *value)
 {
-	nt60_write_short_register(value, answer_buf_ptr, answer_len_ptr, "speed", 0x48);
+	nt60_write_short_register(value, "speed", 0x48);
 }
 
 void
-nt60_get_speed(const char *value, char *answer_buf_ptr, int *answer_len_ptr)
+nt60_get_speed(const char *value)
 {
-	nt60_get_short_register(value, answer_buf_ptr, answer_len_ptr, "speed", 0x48);
+	nt60_get_short_register(value, "speed", 0x48);
 }
 
 void
-nt60_set_acceleration(const char *value, char *answer_buf_ptr, int *answer_len_ptr)
+nt60_set_acceleration(const char *value)
 {
-	nt60_write_short_register(value, answer_buf_ptr, answer_len_ptr, "acceleration", 0x46);
+	nt60_write_short_register(value, "acceleration", 0x46);
 }
 
 void
-nt60_get_acceleration(const char *value, char *answer_buf_ptr, int *answer_len_ptr)
+nt60_get_acceleration(const char *value)
 {
-	nt60_get_short_register(value, answer_buf_ptr, answer_len_ptr, "acceleration", 0x46);
+	nt60_get_short_register(value, "acceleration", 0x46);
 }
 
 void
-nt60_set_deceleration(const char *value, char *answer_buf_ptr, int *answer_len_ptr)
+nt60_set_deceleration(const char *value)
 {
-	nt60_write_short_register(value, answer_buf_ptr, answer_len_ptr, "deceleration", 0x47);
+	nt60_write_short_register(value, "deceleration", 0x47);
 }
 
 void
-nt60_get_deceleration(const char *value, char *answer_buf_ptr, int *answer_len_ptr)
+nt60_get_deceleration(const char *value)
 {
-	nt60_get_short_register(value, answer_buf_ptr, answer_len_ptr, "deceleration", 0x47);
+	nt60_get_short_register(value, "deceleration", 0x47);
 }
 
 void
-nt60_set_current(const char *value, char *answer_buf_ptr, int *answer_len_ptr)
+nt60_set_current(const char *value)
 {
-	nt60_write_short_register(value, answer_buf_ptr, answer_len_ptr, "current", 0x2D);
+	nt60_write_short_register(value, "current", 0x2D);
 }
 
 void
-nt60_get_current(const char *value, char *answer_buf_ptr, int *answer_len_ptr)
+nt60_get_current(const char *value)
 {
-	nt60_get_short_register(value, answer_buf_ptr, answer_len_ptr, "current", 0x2D);
+	nt60_get_short_register(value, "current", 0x2D);
 }
 
 void
-nt60_set_tracking_error_threshold(const char *value, char *answer_buf_ptr, int *answer_len_ptr)
+nt60_set_tracking_error_threshold(const char *value)
 {
-	nt60_write_short_register(value, answer_buf_ptr, answer_len_ptr, "tracking error alarm threshold", 0x29);
+	nt60_write_short_register(value, "tracking error alarm threshold", 0x29);
 }
 
 void
-nt60_get_tracking_error_threshold(const char *value, char *answer_buf_ptr, int *answer_len_ptr)
+nt60_get_tracking_error_threshold(const char *value)
 {
-	nt60_get_short_register(value, answer_buf_ptr, answer_len_ptr, "tracking error alarm threshold", 0x29);
+	nt60_get_short_register(value, "tracking error alarm threshold", 0x29);
 }
 
 void
-nt60_save_config_to_flash(const char *value, char *answer_buf_ptr, int *answer_len_ptr)
+nt60_save_config_to_flash(const char *value)
 {
-	nt60_write_short_register(value, answer_buf_ptr, answer_len_ptr, "register 90", 0x5A);
+	nt60_write_short_register(value, "register 90", 0x5A);
 }

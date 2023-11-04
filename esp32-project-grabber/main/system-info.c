@@ -14,13 +14,13 @@ get_esp_model_string(esp_chip_model_t id)
 		case CHIP_ESP32C2: return "ESP32C2";
 		case CHIP_ESP32C6: return "ESP32C6";
 		case CHIP_ESP32H2: return "ESP32H2";
-		default: return "UNKNOWN";
+		default:           return "UNKNOWN";
 	}
 	return "UNKNOWN";
 }
 
 void
-get_system_info_string(const char *value, char *answer_buf_ptr, int *answer_len_ptr)
+get_system_info_string(const char *value)
 {
 	esp_chip_info_t chip_info;
 	uint8_t mac[6];
@@ -30,9 +30,7 @@ get_system_info_string(const char *value, char *answer_buf_ptr, int *answer_len_
 #else
 	esp_wifi_get_mac(WIFI_IF_AP, mac);
 #endif
-	*answer_len_ptr = snprintf(
-		answer_buf_ptr,
-		HTTP_TUNER_ANSWER_SIZE_LIMIT,
+	http_tuner_response(
 		"\n"
 		"Model: %s\n"
 		"Revision: %d\n"
@@ -54,17 +52,11 @@ get_system_info_string(const char *value, char *answer_buf_ptr, int *answer_len_
 }
 
 void
-get_temperature_info_string(const char *value, char *answer_buf_ptr, int *answer_len_ptr)
+get_temperature_info_string(const char *value)
 {
 #ifdef CONFIG_IDF_TARGET_ESP32
-	const int temp = ((int)temprature_sens_read() - 32) * 5 / 9;
+	http_tuner_response("%d\n", ((int)temprature_sens_read() - 32) * 5 / 9);
 #else
-	const int temp = 0;
+	http_tuner_response("This model of ESP32 doesn't support temperature readings!\n");
 #endif
-	*answer_len_ptr = snprintf(
-		answer_buf_ptr,
-		HTTP_TUNER_ANSWER_SIZE_LIMIT,
-		"%d\n",
-		temp
-	);
 }

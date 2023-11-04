@@ -1,20 +1,24 @@
 #include "esp_http_server.h"
 #include "main.h"
 
+#define HTTP_TUNER_ANSWER_SIZE_LIMIT 2000
+
 struct param_handler {
 	const char *prefix;
 	const size_t prefix_len;
-	void (*handler)(const char *value, char *answer_buf_ptr, int *answer_len_ptr);
+	void (*handler)(const char *value);
 	const char *args;
 };
 
 static httpd_handle_t http_tuner = NULL;
 static httpd_config_t http_tuner_config = HTTPD_DEFAULT_CONFIG();
+static SemaphoreHandle_t http_tuner_lock = NULL;
 
 static char answer_buf[HTTP_TUNER_ANSWER_SIZE_LIMIT];
 static int answer_len = 0;
+static char *http_tuner_layout_string = NULL;
 
-void get_ctrl_layout_string(const char *value, char *answer_buf_ptr, int *answer_len_ptr);
+static void get_ctrl_layout_string(const char *value);
 
 static const struct param_handler handlers[] = {
 	{"restart",               7, &tell_esp_to_restart,               NULL},
@@ -74,10 +78,15 @@ http_tuner_parse_ctrl(httpd_req_t *req)
 			value[value_len] = '\0';
 			for (size_t j = 0; j < LENGTH(handlers); ++j) {
 				if (key_len == handlers[j].prefix_len && memcmp(key, handlers[j].prefix, key_len) == 0) {
-					answer_len = 0;
-					handlers[j].handler(value, answer_buf, &answer_len);
-					if (answer_len > 0 && answer_len < HTTP_TUNER_ANSWER_SIZE_LIMIT) {
-						httpd_resp_send_chunk(req, answer_buf, answer_len);
+					if (xSemaphoreTake(http_tuner_lock, portMAX_DELAY) == pdTRUE) {
+						answer_len = 0;
+						handlers[j].handler(value);
+						if (answer_len > 0 && answer_len < HTTP_TUNER_ANSWER_SIZE_LIMIT) {
+							httpd_resp_send_chunk(req, answer_buf, answer_len);
+						} else {
+							httpd_resp_send_chunk(req, "Command was executed silently.\n", 31);
+						}
+						xSemaphoreGive(http_tuner_lock);
 					}
 					break;
 				}
@@ -107,8 +116,46 @@ static const httpd_uri_t http_tuner_ctrl_handler = {
 };
 
 bool
-start_http_tuner(void)
+http_tuner_start(void)
 {
+	http_tuner_lock = xSemaphoreCreateMutex();
+	if (http_tuner_lock == NULL) return false;
+
+	size_t http_tuner_layout_string_len = 2; // 2 curly braces
+	for (size_t i = 0; i < LENGTH(handlers); ++i) {
+		// 1 comma + 2 double quotes + 1 colon + 2 square brackets + 4 characters for "null" = 10
+		http_tuner_layout_string_len += 10 + handlers[i].prefix_len;
+		if (handlers[i].args != NULL) {
+			// In the worst case, each character in args may require 2 double quotes and 1 comma, so multiply by 4.
+			http_tuner_layout_string_len += 4 * strlen(handlers[i].args);
+		}
+	}
+	http_tuner_layout_string = malloc(sizeof(char) * (http_tuner_layout_string_len + 1));
+	if (http_tuner_layout_string == NULL) {
+		return false;
+	}
+	strcpy(http_tuner_layout_string, "{");
+	for (size_t i = 0; i < LENGTH(handlers); ++i) {
+		if (i > 0) strcat(http_tuner_layout_string, ",");
+		strcat(http_tuner_layout_string, "\"");
+		strcat(http_tuner_layout_string, handlers[i].prefix);
+		strcat(http_tuner_layout_string, "\":");
+		if (handlers[i].args == NULL) {
+			strcat(http_tuner_layout_string, "null");
+		} else {
+			strcat(http_tuner_layout_string, "[\"");
+			for (const char *j = handlers[i].args; *j != '\0'; ++j) {
+				if (*j == ' ') {
+					strcat(http_tuner_layout_string, "\",\"");
+				} else {
+					strncat(http_tuner_layout_string, j, 1);
+				}
+			}
+			strcat(http_tuner_layout_string, "\"]");
+		}
+	}
+	strcat(http_tuner_layout_string, "}");
+
 	http_tuner_config.server_port = HTTP_TUNER_PORT;
 	http_tuner_config.ctrl_port = HTTP_TUNER_CTRL;
 	http_tuner_config.lru_purge_enable = true;
@@ -120,7 +167,7 @@ start_http_tuner(void)
 }
 
 void
-stop_http_tuner(void)
+http_tuner_stop(void)
 {
 	if (httpd_stop(http_tuner) == ESP_OK) {
 		http_tuner = NULL;
@@ -128,28 +175,16 @@ stop_http_tuner(void)
 }
 
 void
-get_ctrl_layout_string(const char *value, char *answer_buf_ptr, int *answer_len_ptr)
+http_tuner_response(const char *format, ...)
 {
-	strcpy(answer_buf_ptr, "{");
-	for (size_t i = 0; i < LENGTH(handlers); ++i) {
-		if (i > 0) strcat(answer_buf_ptr, ",");
-		strcat(answer_buf_ptr, "\"");
-		strcat(answer_buf_ptr, handlers[i].prefix);
-		strcat(answer_buf_ptr, "\":");
-		if (handlers[i].args == NULL) {
-			strcat(answer_buf_ptr, "null");
-		} else {
-			strcat(answer_buf_ptr, "[\"");
-			for (const char *j = handlers[i].args; *j != '\0'; ++j) {
-				if (*j == ' ') {
-					strcat(answer_buf_ptr, "\",\"");
-				} else {
-					strncat(answer_buf_ptr, j, 1);
-				}
-			}
-			strcat(answer_buf_ptr, "\"]");
-		}
-	}
-	strcat(answer_buf_ptr, "}\n");
-	*answer_len_ptr = strlen(answer_buf_ptr);
+	va_list args;
+	va_start(args, format);
+	answer_len = vsnprintf(answer_buf, HTTP_TUNER_ANSWER_SIZE_LIMIT, format, args);
+	va_end(args);
+}
+
+static void
+get_ctrl_layout_string(const char *value)
+{
+	http_tuner_response("%s\n", http_tuner_layout_string);
 }
