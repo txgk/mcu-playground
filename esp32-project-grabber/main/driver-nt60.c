@@ -151,7 +151,7 @@ nt60_seek_extremes(const char *value)
 		long pos1 = nt60_get_current_absolute_position(address);
 		// They have delay between them anyway, so don't add more waiting.
 		long pos2 = nt60_get_current_absolute_position(address);
-		if ((pos1 == pos2) || (labs(pos1 - pos2) <= DEFAULT_ABS_POS_SHIFT_PER_PULSE * NT60_SEEK_DELTA) || (pos2 >= new_pos)) {
+		if ((labs(pos1 - pos2) <= DEFAULT_ABS_POS_SHIFT_PER_PULSE * NT60_SEEK_DELTA) || (pos2 >= new_pos)) {
 			SEND_MODBUS_FRAME(frame, 6, address, 0x06, 0x00, 0x12, 0x00, 0x06); // Stop rotation
 			break;
 		}
@@ -163,7 +163,7 @@ nt60_seek_extremes(const char *value)
 		long pos1 = nt60_get_current_absolute_position(address);
 		// They have delay between them anyway, so don't add more waiting.
 		long pos2 = nt60_get_current_absolute_position(address);
-		if ((pos1 == pos2) || (labs(pos1 - pos2) <= DEFAULT_ABS_POS_SHIFT_PER_PULSE * NT60_SEEK_DELTA) || (pos2 <= new_pos)) {
+		if ((labs(pos1 - pos2) <= DEFAULT_ABS_POS_SHIFT_PER_PULSE * NT60_SEEK_DELTA) || (pos2 <= new_pos)) {
 			SEND_MODBUS_FRAME(frame, 6, address, 0x06, 0x00, 0x12, 0x00, 0x06); // Stop rotation
 			break;
 		}
