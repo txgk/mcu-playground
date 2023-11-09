@@ -17,7 +17,11 @@ setup_serial(uart_config_t *cfg, uart_port_t port, int speed, int tx_pin, int rx
 {
 	cfg->baud_rate = speed;
 	cfg->data_bits = UART_DATA_8_BITS;
+#ifdef TALK_TO_BMSD20
+	cfg->parity    = UART_PARITY_EVEN;
+#else
 	cfg->parity    = UART_PARITY_DISABLE;
+#endif
 	cfg->stop_bits = UART_STOP_BITS_1;
 	cfg->flow_ctrl = UART_HW_FLOWCTRL_DISABLE;
 	cfg->rx_flow_ctrl_thresh = 122;

@@ -20,9 +20,15 @@
 #define FIRMWARE_CODEWORD  "Хвататель"
 #define ENABLE_HEARTBEAT   1
 
+// #define TALK_TO_BMSD20 1
+
 #define UART0_TX_PIN        18
 #define UART0_RX_PIN        19
+#ifdef TALK_TO_BMSD20
+#define UART0_SPEED         115200
+#else
 #define UART0_SPEED         9600
+#endif
 #define UART0_PORT          UART_NUM_1
 
 #define NT60_UART_PORT      UART0_PORT
@@ -93,6 +99,10 @@ void nt60_get_current(const char *value);
 void nt60_set_tracking_error_threshold(const char *value);
 void nt60_get_tracking_error_threshold(const char *value);
 void nt60_save_config_to_flash(const char *value);
+
+void bmsd20_move_forward(const char *value);
+void bmsd20_move_backward(const char *value);
+void bmsd20_move_stop(const char *value);
 
 // См. файл "driver-c25b.c"
 bool c25b_driver_setup(void);

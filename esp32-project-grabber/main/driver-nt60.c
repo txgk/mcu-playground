@@ -203,6 +203,10 @@ nt60_rotate_absolute_or_relative(const char *value, bool is_absolute)
 	uint8_t address = strtol(value, NULL, 10);
 	long position = strtol(comma_pos + 1, NULL, 10);
 	uint8_t rotation_cmd = 0x01;
+	if (is_absolute == false && position < 0) {
+		position = labs(position);
+		rotation_cmd = 0x02; // Reverse for relative rotation action.
+	}
 	struct modbus_frame frame = {0};
 	// Set movement mode
 	SEND_MODBUS_FRAME(frame, 6, address, 0x06, 0x00, 0x54, 0x00, is_absolute ? 0x01 : 0x00);
@@ -258,8 +262,12 @@ nt60_read_long_register(const char *value)
 	SEND_MODBUS_FRAME(frame, 6, address, 0x03, ((reg >> 8) & 0xFF), ((reg >> 0) & 0xFF), 0x00, 0x02);
 	nt60_create_answer_string();
 	if (answer_len > 12) {
-		int read_value = (((long)answer[11]) << 24) | (((long)answer[12]) << 16) | (((long)answer[13]) << 8) | answer[14];
-		http_tuner_response("%s (value of register %ld is %d)\n", answer_str, reg, read_value);
+		long read_value = (((long)answer[11]) << 24) | (((long)answer[12]) << 16) | (((long)answer[13]) << 8) | answer[14];
+		if (reg == 8) {
+			http_tuner_response("%s (current absolute position is %ld, encoded %ld)\n", answer_str, read_value, read_value / DEFAULT_ABS_POS_SHIFT_PER_PULSE);
+		} else {
+			http_tuner_response("%s (value of register %ld is %ld)\n", answer_str, reg, read_value);
+		}
 	} else {
 		http_tuner_response("%s (can't read value of register %ld)\n", answer_str, reg);
 	}

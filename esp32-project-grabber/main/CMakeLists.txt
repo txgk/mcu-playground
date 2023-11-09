@@ -8,6 +8,7 @@ idf_component_register(
 	"http-tuner.c"
 	"driver-c25b.c"
 	"driver-nt60.c"
+	"driver-bmsd20.c"
 	"system-info.c"
 	INCLUDE_DIRS
 	"."

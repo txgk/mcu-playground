@@ -1,7 +1,7 @@
 #include "esp_http_server.h"
 #include "main.h"
 
-#define HTTP_TUNER_ANSWER_SIZE_LIMIT 2000
+#define HTTP_TUNER_ANSWER_SIZE_LIMIT 3000
 
 struct param_handler {
 	const char *prefix;
@@ -25,26 +25,30 @@ static const struct param_handler handlers[] = {
 	{"esptemp",               7, &get_temperature_info_string,       NULL},
 	{"espinfo",               7, &get_system_info_string,            NULL},
 
-	{"servo_setup",          11, &nt60_servo_setup,                  "1 2 3 4 5 6 7 8"},
-	{"seek_extremes",        13, &nt60_seek_extremes,                "1 2 3 4 5 6 7 8"},
+	{"servo_setup",          11, &nt60_servo_setup,                  "1 2 3 4 5 6 7 8 9 10 11 12"},
+	{"seek_extremes",        13, &nt60_seek_extremes,                "1 2 3 4 5 6 7 8 9 10 11 12"},
 	{"rotate_absolute",      15, &nt60_rotate_absolute,              "1,0 1,100 1,250 1,500 1,1000 1,2000 1,3000 1,4000 1,8000 1,16000 1,32000"},
 	{"rotate_relative",      15, &nt60_rotate_relative,              "1,100 1,-100 1,250 1,-250 1,500 1,-500 1,1000 1,-1000 "
 	                                                                 "2,100 2,-100 2,250 2,-250 2,500 2,-500 2,1000 2,-1000 "
 	                                                                 "3,100 3,-100 3,250 3,-250 3,500 3,-500 3,1000 3,-1000"},
-	{"rotate_stop",          11, &nt60_servo_stop,                   "1 2 3 4 5 6 7 8"},
-	{"set_speed",             9, &nt60_set_speed,                    "1,100 1,200 1,300 1,400 1,500 1,600"},
-	{"get_speed",             9, &nt60_get_speed,                    "1 2 3 4 5 6 7 8"},
+	{"rotate_stop",          11, &nt60_servo_stop,                   "1 2 3 4 5 6 7 8 9 10 11 12"},
+	{"set_speed",             9, &nt60_set_speed,                    "1,20 2,20 3,20 4,20 5,20 6,20 7,20 8,20 9,20 10,20 11,20 12,20"},
+	{"get_speed",             9, &nt60_get_speed,                    "1 2 3 4 5 6 7 8 9 10 11 12"},
 	{"set_acceleration",     16, &nt60_set_acceleration,             "1,100 1,200 1,300 1,400 1,500 1,600"},
-	{"get_acceleration",     16, &nt60_get_acceleration,             "1 2 3 4 5 6 7 8"},
+	{"get_acceleration",     16, &nt60_get_acceleration,             "1 2 3 4 5 6 7 8 9 10 11 12"},
 	{"set_deceleration",     16, &nt60_set_deceleration,             "1,100 1,200 1,300 1,400 1,500 1,600"},
-	{"get_deceleration",     16, &nt60_get_deceleration,             "1 2 3 4 5 6 7 8"},
-	{"set_current",          11, &nt60_set_current,                  "1,1000 1,2000 1,3000 1,4000 1,5000"},
-	{"get_current",          11, &nt60_get_current,                  "1 2 3 4 5 6 7 8"},
-	{"set_track_err_thres",  19, &nt60_set_tracking_error_threshold, "1,100 1,500 1,1000 1,2000 1,4000"},
-	{"get_track_err_thres",  19, &nt60_get_tracking_error_threshold, "1 2 3 4 5 6 7 8"},
+	{"get_deceleration",     16, &nt60_get_deceleration,             "1 2 3 4 5 6 7 8 9 10 11 12"},
+	{"set_current",          11, &nt60_set_current,                  "1,100 2,100 3,100 4,100 5,100 6,100 7,100 8,100 9,100 10,100 11,100 12,100"},
+	{"get_current",          11, &nt60_get_current,                  "1 2 3 4 5 6 7 8 9 10 11 12"},
+	{"set_error_threshold",  19, &nt60_set_tracking_error_threshold, "1,100 1,500 1,1000 1,2000 1,4000"},
+	{"get_error_threshold",  19, &nt60_get_tracking_error_threshold, "1 2 3 4 5 6 7 8 9 10 11 12"},
 	{"save_config_to_flash", 20, &nt60_save_config_to_flash,         "1,1 2,1 3,1 4,1 5,1 6,1 7,1 8,1"},
-	{"read_short_reg",       14, &nt60_read_short_register,          "1,2 1,3 1,25 1,29 1,41 1,45 1,46"},
-	{"read_long_reg",        13, &nt60_read_long_register,           "1,8 1,12"},
+	{"read_short_register",  19, &nt60_read_short_register,          "1,2 1,3 1,25 1,29 1,41 1,45 1,46"},
+	{"read_long_register",   18, &nt60_read_long_register,           "1,8 1,12"},
+
+	{"actuator_forward",     16, &bmsd20_move_forward,               "1"},
+	{"actuator_backward",    17, &bmsd20_move_backward,              "1"},
+	{"actuator_stop",        13, &bmsd20_move_stop,                  "1"},
 
 	{"stream_websocket_on",  19, &streamer_websocket_enable,         NULL},
 	{"stream_websocket_off", 20, &streamer_websocket_disable,        NULL},
