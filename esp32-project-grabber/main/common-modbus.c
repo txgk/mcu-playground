@@ -18,36 +18,42 @@ crc16_modbus(const uint8_t *data, size_t data_len)
 	return crc;
 }
 
-void
-set_modbus_frame(struct modbus_frame *frame, int count, ...)
+int
+uart_send_modbus(uart_port_t port, uint8_t *answer, size_t answer_size, size_t bytes_count, ...)
 {
-	free_modbus_frame(frame);
-	frame->length = count + 2;
-	frame->bytes = malloc(sizeof(uint8_t) * frame->length);
-	if (frame->bytes == NULL) {
-		frame->length = 0;
-		return;
-	}
+#define MODBUS_FRAME_MAX_SIZE 100
+	if (bytes_count > MODBUS_FRAME_MAX_SIZE) return -1;
+	uint8_t buf[MODBUS_FRAME_MAX_SIZE + 3];
+	struct modbus_frame frame = {.length = bytes_count + 2, .bytes = buf};
 
 	va_list list;
-	va_start(list, count);
-	for (int i = 0; i < count; ++i) {
-		frame->bytes[i] = (uint8_t)va_arg(list, int);
+	va_start(list, bytes_count);
+	for (int i = 0; i < bytes_count; ++i) {
+		frame.bytes[i] = (uint8_t)va_arg(list, int);
 	}
-	uint16_t crc = crc16_modbus(frame->bytes, count);
-	frame->bytes[count] = crc & 0xFF;
-	frame->bytes[count + 1] = crc >> 8;
+	uint16_t crc = crc16_modbus(frame.bytes, bytes_count);
+	frame.bytes[bytes_count] = crc & 0xFF;
+	frame.bytes[bytes_count + 1] = crc >> 8;
 	va_end(list);
-}
-
-void
-free_modbus_frame(struct modbus_frame *frame)
-{
-	if (frame != NULL) {
-		if (frame->bytes != NULL) {
-			free(frame->bytes);
-			frame->bytes = NULL;
+	// int64_t tm[4] = {0};
+	// tm[0] = esp_timer_get_time();
+	uart_write_bytes(port, frame.bytes, frame.length);
+	// tm[1] = esp_timer_get_time();
+	int len = 0;
+	uint8_t c;
+	while (true) {
+		if (uart_read_bytes(port, &c, 1, MS_TO_TICKS(20)) == 1) {
+			if (len < answer_size) {
+				// if (len == 0) tm[2] = esp_timer_get_time();
+				answer[len++] = c;
+			}
+		} else {
+			break;
 		}
-		frame->length = 0;
 	}
+	// tm[3] = esp_timer_get_time();
+	// char out[300];
+	// int out_len = snprintf(out, 300, "otpravka=%" PRId64 ", ojidanie=%" PRId64 ", otvechanie=%" PRId64 "\n", tm[1] - tm[0], tm[2] - tm[1], tm[3] - tm[2]);
+	// stream_write(out, out_len);
+	return len;
 }

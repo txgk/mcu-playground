@@ -24,11 +24,7 @@
 
 #define UART0_TX_PIN        18
 #define UART0_RX_PIN        19
-#ifdef TALK_TO_BMSD20
 #define UART0_SPEED         115200
-#else
-#define UART0_SPEED         9600
-#endif
 #define UART0_PORT          UART_NUM_1
 
 #define NT60_UART_PORT      UART0_PORT
@@ -86,8 +82,10 @@ void nt60_seek_extremes(const char *value);
 void nt60_servo_stop(const char *value);
 void nt60_rotate_absolute(const char *value);
 void nt60_rotate_relative(const char *value);
-void nt60_read_short_register(const char *value);
-void nt60_read_long_register(const char *value);
+void nt60_set_short_register(const char *value);
+void nt60_get_short_register(const char *value);
+void nt60_set_long_register(const char *value);
+void nt60_get_long_register(const char *value);
 void nt60_set_speed(const char *value);
 void nt60_get_speed(const char *value);
 void nt60_set_acceleration(const char *value);

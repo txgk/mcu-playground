@@ -43,8 +43,10 @@ static const struct param_handler handlers[] = {
 	{"set_error_threshold",  19, &nt60_set_tracking_error_threshold, "1,100 1,500 1,1000 1,2000 1,4000"},
 	{"get_error_threshold",  19, &nt60_get_tracking_error_threshold, "1 2 3 4 5 6 7 8 9 10 11 12"},
 	{"save_config_to_flash", 20, &nt60_save_config_to_flash,         "1,1 2,1 3,1 4,1 5,1 6,1 7,1 8,1"},
-	{"read_short_register",  19, &nt60_read_short_register,          "1,2 1,3 1,25 1,29 1,41 1,45 1,46"},
-	{"read_long_register",   18, &nt60_read_long_register,           "1,8 1,12"},
+	{"set_short_register",   18, &nt60_set_short_register,           "1,24,200 1,24,1000 1,24,2000 1,24,4000"},
+	{"get_short_register",   18, &nt60_get_short_register,           "1,2 1,3 1,25 1,29 1,41 1,45 1,46"},
+	{"set_long_register",    17, &nt60_set_long_register,            "1,73,0"},
+	{"get_long_register",    17, &nt60_get_long_register,            "1,8 1,12"},
 
 	{"actuator_forward",     16, &bmsd20_move_forward,               "1"},
 	{"actuator_backward",    17, &bmsd20_move_backward,              "1"},
@@ -72,11 +74,11 @@ http_tuner_parse_ctrl(httpd_req_t *req)
 		}
 		i += 1;
 	}
-#define URL_KEY_MAX_LENGTH   50
-#define URL_VALUE_MAX_LENGTH 50
+#define URL_KEY_MAX_LENGTH   500
+#define URL_VALUE_MAX_LENGTH 500
 	char key[URL_KEY_MAX_LENGTH + 1], value[URL_VALUE_MAX_LENGTH + 1];
 	bool in_value = false;
-	for (uint8_t key_len = 0, value_len = 0; ; ++i) {
+	for (size_t key_len = 0, value_len = 0; ; ++i) {
 		if (*i == '&' || *i == '\0') {
 			key[key_len] = '\0';
 			value[value_len] = '\0';

@@ -5,5 +5,4 @@ struct modbus_frame {
 	size_t length;
 };
 
-void set_modbus_frame(struct modbus_frame *frame, int count, ...);
-void free_modbus_frame(struct modbus_frame *frame);
+int uart_send_modbus(uart_port_t port, uint8_t *answer, size_t answer_size, size_t bytes_count, ...);
