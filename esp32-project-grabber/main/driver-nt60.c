@@ -1,5 +1,6 @@
 #include "main.h"
 #include "common-modbus.h"
+#include "esp_random.h"
 
 #define DEFAULT_ABS_POS_SHIFT_PER_PULSE 65536
 // #define NT60_CURRENT_REGISTER           0x2D
@@ -212,20 +213,32 @@ nt60_rotate_absolute_or_relative(const char *value, bool is_absolute)
 			TASK_DELAY_MS(delay);
 			comma_pos = iter;
 		} else {
+			long pos1 = 0, pos2 = 0;
 			uint8_t address = strtol(iter, NULL, 10);
 			comma_pos = strchr(iter, ',');
 			if (comma_pos == NULL) return;
-			long position = strtol(comma_pos + 1, NULL, 10);
+			const char *comma_pos_2 = strchr(comma_pos + 1, ',');
+			const char *semicolon_pos = strchr(comma_pos + 1, ';');
+
+			pos1 = strtol(comma_pos + 1, NULL, 10);
+			if (comma_pos_2 != NULL && (semicolon_pos == NULL || comma_pos_2 < semicolon_pos)) {
+				// Set random position in the range of [pos1; pos2].
+				pos2 = strtol(comma_pos_2 + 1, NULL, 10);
+				long delta = labs(pos2 - pos1);
+				uint32_t random = esp_random();
+				pos1 += random % delta;
+			}
 
 			uint8_t rotation_cmd = 0x01;
-			if (is_absolute == false && position < 0) {
-				position = labs(position);
+			if (is_absolute == false && pos1 < 0) {
+				pos1 = labs(pos1);
 				rotation_cmd = 0x02; // Reverse for relative rotation action.
 			}
+
 			// Set movement mode
 			SEND_MODBUS_FRAME_FAST(6, address, 0x06, 0x00, 0x54, 0x00, is_absolute ? 0x01 : 0x00);
 			// Set position
-			SEND_MODBUS_FRAME_FAST(11, address, 0x10, 0x00, 0x49, 0x00, 0x02, 0x04, ((position >> 8) & 0xFF), ((position >> 0) & 0xFF), ((position >> 24) & 0xFF), ((position >> 16) & 0xFF));
+			SEND_MODBUS_FRAME_FAST(11, address, 0x10, 0x00, 0x49, 0x00, 0x02, 0x04, ((pos1 >> 8) & 0xFF), ((pos1 >> 0) & 0xFF), ((pos1 >> 24) & 0xFF), ((pos1 >> 16) & 0xFF));
 			// Commit rotation
 			SEND_MODBUS_FRAME_FAST(6, address, 0x06, 0x00, 0x12, 0x00, rotation_cmd);
 		}
