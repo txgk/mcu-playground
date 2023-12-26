@@ -9,31 +9,39 @@
 #include "driver/gpio.h"
 #include "driver/twai.h"
 #include "HX711.h"
+#include "WebSocketsServer.h"
 #include "../../wifi-credentials.h"
 
-IPAddress            ip(192, 168, 68, 203);
-IPAddress       gateway(192, 168, 68,   1);
+IPAddress            ip(192, 168, 102, 41);
+IPAddress       gateway(192, 168, 102, 99);
 IPAddress        subnet(255, 255, 255,  0);
 IPAddress   primary_dns( 77,  88,   8,  8);
 IPAddress secondary_dns( 77,  88,   8,  1);
 
-#define CAN_TX_PIN                       17
-#define CAN_RX_PIN                       16
-#define JETCAT_CAN_ID_BASE               256
+WebSocketsServer ws = WebSocketsServer(222);
+
+#define BRUSHED_MOTOR_REGULATOR_PIN      5
 #define SDA_PIN                          32
 #define SCL_PIN                          33
 #define SDA2_PIN                         34
 #define SCL2_PIN                         35
 #define RX_PIN                           16
 #define TX_PIN                           17
-#define I2C1_BUS_SDA_PIN                 27
-#define I2C1_BUS_SCL_PIN                 26
-#define PWM_OUT_1_PIN                    5
+#define CAN_RX_PIN                       16
+#define CAN_TX_PIN                       17
+#define LOADCELL_SDA_PIN                 27
+#define LOADCELL_SCL_PIN                 26
+#define PWM_OUT_1_PIN                    23
 #define RASHODOMER_PIN                   25
+
+#define JETCAT_CAN_ID_BASE               256
+
 #define LOG_SERIAL_SPEED                 9600
 #define SERIAL_SPEED                     9600
+
 #define WIFI_DATA_PORT                   80
 #define WIFI_CTRL_PORT                   81
+
 #define SDA                              ((REG_READ(GPIO_IN1_REG)) & 0b0001)
 #define SCL                              ((REG_READ(GPIO_IN1_REG)) & 0b0010)
 #define SDA2                             ((REG_READ(GPIO_IN1_REG)) & 0b0100)
@@ -84,9 +92,7 @@ void start_beat_loop(void);
 void start_can_loop(void);
 
 SemaphoreHandle_t wifi_lock = NULL;
-WiFiServer streamer(WIFI_DATA_PORT);
 WiFiServer manager(WIFI_CTRL_PORT);
-WiFiClient listener;
 WiFiClient tuner;
 
 volatile uint8_t b, c;
@@ -94,6 +100,7 @@ char i2c1[I2C1_BUFFER_SIZE], i2c2[I2C2_BUFFER_SIZE];
 volatile size_t i2c1_len = 0, i2c2_len = 0;
 
 char engine_id = '1';
+int esc_mode = 0, new_esc_filling = 0;
 
 char **fast_queue = NULL;
 volatile size_t fast_queue_pos = 0;
@@ -113,14 +120,14 @@ volatile bool i2c2_allowed_to_run = true, i2c2_has_stopped = false;
 volatile bool uart_allowed_to_run = true, uart_has_stopped = false;
 volatile bool beat_allowed_to_run = true, beat_has_stopped = false;
 
-volatile long rpm = 0;
+volatile long faked_rpm = 0;
 SemaphoreHandle_t rpm_lock = NULL;
 
 ledc_timer_config_t timer_config = {
 	.speed_mode = LEDC_HIGH_SPEED_MODE,
 	.duty_resolution = LEDC_TIMER_13_BIT,
 	.timer_num = LEDC_TIMER_0,
-	.freq_hz = 0,
+	.freq_hz = 50,
 	.clk_cfg = LEDC_USE_REF_TICK, // 1 MHz, high speed, frequency scaling
 	// .deconfigure = false,
 };
@@ -130,7 +137,8 @@ ledc_channel_config_t channel_config = {
 	.channel = LEDC_CHANNEL_0,
 	.intr_type = LEDC_INTR_DISABLE,
 	.timer_sel = LEDC_TIMER_0,
-	.duty = 820, // Заполнение ~10% для имитации датчика Холла.
+	// .duty = 820, // Заполнение ~10% для имитации датчика Холла.
+	.duty = 622, // Заполнение ~7.5% для имитации датчика Холла.
 	.hpoint = 0,
 };
 
@@ -315,17 +323,7 @@ void
 send_data(const char *data, size_t data_len)
 {
 	if (xSemaphoreTake(wifi_lock, portMAX_DELAY) == pdTRUE) {
-		if (listener) {
-			listener.write(data, data_len);
-		} else {
-			listener = streamer.available();
-			if (listener) {
-				listener.write("CAN@names=VALUES,SetRpm[RPM],RealRpm[RPM],EGT[C],EngineState[enum],PumpVoltage[V]\n", 82);
-				listener.write("CAN@names=ELECTRO,BatVoltage[V],EngineCurrent[A],GeneratorVoltage[V],GeneratorCurrent[A],ElectroState[bitfield]\n", 112);
-				listener.write("CAN@names=FUEL,FuelFlow[ml/min],FuelConsumed[ml],AirPressure[mbar],EcuTemperature[C]\n", 85);
-				listener.write(data, data_len);
-			}
-		}
+		if (ws.connectedClients() > 0) ws.broadcastTXT(data, data_len);
 		xSemaphoreGive(wifi_lock);
 	}
 }
@@ -502,13 +500,13 @@ uart_loop(void *dummy)
 							&& (strncmp(uart + uart_prefix_len, "1,RAC,1~1,HS,OK,", 16) == 0))
 						{
 							if (xSemaphoreTake(rpm_lock, portMAX_DELAY) == pdTRUE) {
-								rpm = 0;
+								faked_rpm = 0;
 								for (const char *i = uart + uart_prefix_len + 16; ISDIGIT(*i); ++i) {
-									rpm = rpm * 10 + (*i - '0');
+									faked_rpm = faked_rpm * 10 + (*i - '0');
 								}
 								// char shft[100];
 								// size_t shft_len;
-								// shft_len = snprintf(shft, 100, "\nSHFT=%lu", rpm);
+								// shft_len = snprintf(shft, 100, "SHFT=%lu\n", faked_rpm);
 								// if (shft_len < 100) {
 								// 	send_data(shft, shft_len);
 								// }
@@ -539,7 +537,7 @@ beat_loop(void *dummy)
 	char beat_buf[100];
 	unsigned i = 1;
 	while (beat_allowed_to_run == true) {
-		int beat_len = sprintf(beat_buf, "\nBEAT@%lu=%u", millis(), i);
+		int beat_len = sprintf(beat_buf, "BEAT@%lu=%u\n", millis(), i);
 		if (beat_len > 0 && beat_len < 100) send_data(beat_buf, beat_len);
 		i = (i * 10) % 9999;
 		TASK_DELAY_MS(HEART_BEAT_PERIODICITY);
@@ -582,6 +580,12 @@ tuner_loop(void *dummy)
 						}
 					} else if (cmd[0] == 'n') { // set default engine id
 						engine_id = cmd[1];
+					} else if (cmd[0] == 'e' && cmd_len > 2) {
+						char value_str[3] = {cmd[1], cmd[2], '\0'};
+						int value = 0;
+						if (sscanf(value_str, "%d", &value) == 1) {
+							new_esc_filling = value;
+						}
 					}
 				}
 			}
@@ -596,11 +600,11 @@ tuner_loop(void *dummy)
 void IRAM_ATTR
 tachometer_faker_loop(void *dummy)
 {
-	long current_rpm = rpm;
+	long current_rpm = 0;
 	while (true) {
-		if (current_rpm != rpm) {
+		if (current_rpm != faked_rpm) {
 			if (xSemaphoreTake(rpm_lock, portMAX_DELAY) == pdTRUE) {
-				current_rpm = rpm;
+				current_rpm = faked_rpm;
 				xSemaphoreGive(rpm_lock);
 			}
 			// Делим на 60, т. к. 10 Гц = 600 об/м
@@ -609,7 +613,7 @@ tachometer_faker_loop(void *dummy)
 			timer_config.freq_hz = current_rpm / 60 / 20;
 			ledc_timer_config(&timer_config);
 			// char shft[100];
-			// size_t shft_len = snprintf(shft, 100, "\nSHFT=%lu", current_rpm / 60 / 20);
+			// size_t shft_len = snprintf(shft, 100, "SHFT=%lu\n", current_rpm / 60 / 20);
 			// if (shft_len < 100) send_data(shft, shft_len);
 		}
 		TASK_DELAY_MS(50);
@@ -646,7 +650,7 @@ loadcell_and_rshd_loop(void *dummy)
 			int loadcell_and_rshd_buf_len = snprintf(
 				loadcell_and_rshd_buf,
 				400,
-				"\nRSHD@%lu=%lld,%lld,%lld",
+				"RSHD@%lu=%lld,%lld,%lld\n",
 				packet_birth,
 				rshd_period_1,
 				rshd_period_3,
@@ -678,7 +682,7 @@ can_loop(void *dummy)
 					int engine_state = message.data[6]; // flags
 					float pump_volts = (float)message.data[7] / 10.0; // volts
 					int len = snprintf(out, 1000,
-						"\nCAN@%lu=VALUES,%lu,%lu,%.1f,%d,%.1f",
+						"CAN_VALUES@%lu=%lu,%lu,%.1f,%d,%.1f\n",
 						packet_birth,
 						set_rpm,
 						real_rpm,
@@ -693,7 +697,7 @@ can_loop(void *dummy)
 					float generator_volts = (float)(message.data[2]) / 5.0; // volts
 					float generator_amps = (float)(message.data[3]) / 10.0; // amps
 					int len = snprintf(out, 1000,
-						"\nCAN@%lu=ELECTRO,%.1f,%.1f,%.1f,%.1f,%d",
+						"CAN_ELECTRO@%lu=%.1f,%.1f,%.1f,%.1f,%d\n",
 						packet_birth,
 						bat_volts,
 						engine_amps,
@@ -715,7 +719,7 @@ can_loop(void *dummy)
 					float air_pressure = (float)(((unsigned int)message.data[4] << 8) + message.data[5]) / 50.0; // mbar
 					float ecu_temp = (float)message.data[6] / 2.0 + 30; // celsius degree
 					int len = snprintf(out, 1000,
-						"\nCAN@%lu=FUEL,%lu,%lu,%.1f,%.1f",
+						"CAN_FUEL@%lu=%lu,%lu,%.1f,%.1f\n",
 						packet_birth,
 						fuel_flow,
 						fuel_consum,
@@ -734,6 +738,58 @@ can_loop(void *dummy)
 		}
 	}
 	vTaskDelete(NULL);
+}
+
+void IRAM_ATTR
+adc_to_pwm_faker_loop(void *dummy)
+{
+	char out[200];
+	size_t phase = 0;
+	while (true) {
+		int voltage = analogRead(BRUSHED_MOTOR_REGULATOR_PIN); // [0; 4095]
+		if (esc_mode != new_esc_filling) {
+			esc_mode = new_esc_filling;
+			channel_config.duty = esc_mode;
+			ledc_channel_config(&channel_config);
+			// 614 (1.50ms)
+			// 618 (1.51ms)
+			// 622 (1.52ms)
+			// 626 (1.53ms)
+			// 630 (1.54ms)
+			// 634 (1.55ms)
+			// 638 (1.56ms)
+			// 642 (1.57ms)
+			// 646 (1.58ms)
+			// 650 (1.59ms)
+		}
+		int len = snprintf(out, 200,
+			"TEST => VOLTAGE: %5d, DUTY: %5d\n",
+			voltage,
+			channel_config.duty
+		);
+		if (len > 0 && len < 200) send_data(out, len);
+		TASK_DELAY_MS(100);
+		// phase += 1;
+		// if ((phase % 100) == 0) {
+		// 	phase = 0;
+		// 	mode = (mode + 1) % 3;
+		// }
+	}
+	vTaskDelete(NULL);
+}
+
+void
+start_adc_to_pwm_faker_loop(void)
+{
+	xTaskCreatePinnedToCore(
+		&adc_to_pwm_faker_loop,
+		"adc_to_pwm_faker_loop",
+		2048, // stack size
+		NULL, // argument
+		1, // priority
+		NULL, // handle
+		1 // core
+	);
 }
 
 void
@@ -849,6 +905,17 @@ start_can_loop(void)
 }
 
 void
+ws_event_handler(uint8_t num, WStype_t type, uint8_t * payload, size_t length)
+{
+	if (type == WStype_CONNECTED) {
+		ws.broadcastTXT("BEAT@names=HeartBeat(hit)\n", 26);
+		ws.broadcastTXT("CAN_VALUES@names=SetRpm(rpm),RealRpm(rpm),EGT(C),EngineState(enum),PumpVoltage(V)\n", 82);
+		ws.broadcastTXT("CAN_ELECTRO@names=BatVoltage(V),EngineCurrent(A),GeneratorVoltage(V),GeneratorCurrent(A),ElectroState(bitfield)\n", 112);
+		ws.broadcastTXT("CAN_FUEL@names=FuelFlow(ml/min),FuelConsumed(ml),AirPressure(mbar),EcuTemperature(C)\n", 85);
+	}
+}
+
+void
 setup(void)
 {
 	gpio_install_isr_service(0);
@@ -869,47 +936,49 @@ setup(void)
 	// };
 	// gpio_config(&rshd_input_cfg);
 	// gpio_isr_handler_add((gpio_num_t)RASHODOMER_PIN, &rshd_take_sample, NULL);
-	// ledc_timer_config(&timer_config);
-	// ledc_channel_config(&channel_config);
+	ledc_timer_config(&timer_config);
+	ledc_channel_config(&channel_config);
 	wifi_lock = xSemaphoreCreateMutex();
 	fast_queue_lock = xSemaphoreCreateMutex();
 	uart_circle_lock = xSemaphoreCreateMutex();
 	rpm_lock = xSemaphoreCreateMutex();
 	// Serial.begin(LOG_SERIAL_SPEED);
 	Serial1.begin(SERIAL_SPEED, SERIAL_8N1, RX_PIN, TX_PIN);
-	// loadcell.begin(I2C1_BUS_SDA_PIN, I2C1_BUS_SCL_PIN);
+	// loadcell.begin(LOADCELL_SDA_PIN, LOADCELL_SCL_PIN);
 	add_command_to_uart_circle("RAC", 3, true);
 	add_command_to_uart_circle("RFI", 3, true);
+	// WiFi.softAP("HahaHoho", "12345678");
 	WiFi.config(ip, gateway, subnet, primary_dns, secondary_dns);
-	const byte bssid[] = {0x50, 0xFF, 0x20, 0x98, 0x30, 0x08};
-	WiFi.begin(WIFI_SSID, WIFI_PASSWORD, 11, bssid);
-	while (WiFi.status() != WL_CONNECTED) {
-		delay(500);
-	}
+	WiFi.begin(WIFI_SSID, WIFI_PASSWORD);
+	// while (WiFi.status() != WL_CONNECTED) {
+	// 	delay(500);
+	// }
 	// ArduinoOTA.begin();
-	streamer.begin();
-	// manager.begin();
+	ws.begin();
+	ws.onEvent(ws_event_handler);
+	manager.begin();
 	// start_i2c1_loop();
 	// start_i2c2_loop();
-	// start_uart_loop();
+	start_uart_loop();
 	start_beat_loop();
-	// start_tuner_loop();
-	// start_tachometer_faker_loop();
+	start_tuner_loop();
+	// start_adc_to_pwm_faker_loop();
+	start_tachometer_faker_loop();
 	// start_loadcell_and_rshd_loop();
-	twai_general_config_t g_config = TWAI_GENERAL_CONFIG_DEFAULT((gpio_num_t)CAN_TX_PIN, (gpio_num_t)CAN_RX_PIN, TWAI_MODE_NORMAL);
-	twai_timing_config_t t_config = TWAI_TIMING_CONFIG_250KBITS();
-	twai_filter_config_t f_config = TWAI_FILTER_CONFIG_ACCEPT_ALL();
-	if (twai_driver_install(&g_config, &t_config, &f_config) == ESP_OK) {
-		//Start TWAI driver
-		if (twai_start() == ESP_OK) {
-			// Serial.println("Driver started");
-			start_can_loop();
-		} else {
-			// Serial.println("Driver not started");
-		}
-	} else {
-		// Serial.println("Driver setup failed");
-	}
+	//twai_general_config_t g_config = TWAI_GENERAL_CONFIG_DEFAULT((gpio_num_t)CAN_TX_PIN, (gpio_num_t)CAN_RX_PIN, TWAI_MODE_NORMAL);
+	//twai_timing_config_t t_config = TWAI_TIMING_CONFIG_250KBITS();
+	//twai_filter_config_t f_config = TWAI_FILTER_CONFIG_ACCEPT_ALL();
+	//if (twai_driver_install(&g_config, &t_config, &f_config) == ESP_OK) {
+	//	//Start TWAI driver
+	//	if (twai_start() == ESP_OK) {
+	//		// Serial.println("Driver started");
+	//		start_can_loop();
+	//	} else {
+	//		// Serial.println("Driver not started");
+	//	}
+	//} else {
+	//	// Serial.println("Driver setup failed");
+	//}
 	// Serial.println(WiFi.localIP());
 }
 
@@ -920,5 +989,5 @@ loop(void)
 	// 	ArduinoOTA.handle();
 	// 	xSemaphoreGive(wifi_lock);
 	// }
-	delay(10000);
+	ws.loop();
 }
