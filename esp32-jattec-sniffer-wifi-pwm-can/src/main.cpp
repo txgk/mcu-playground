@@ -10,6 +10,7 @@
 #include "driver/twai.h"
 #include "HX711.h"
 #include "WebSocketsServer.h"
+#include "main.h"
 #include "../../wifi-credentials.h"
 
 IPAddress            ip(192, 168, 102, 41);
@@ -18,29 +19,12 @@ IPAddress        subnet(255, 255, 255,  0);
 IPAddress   primary_dns( 77,  88,   8,  8);
 IPAddress secondary_dns( 77,  88,   8,  1);
 
-WebSocketsServer ws = WebSocketsServer(222);
-
-#define BRUSHED_MOTOR_REGULATOR_PIN      5
-#define SDA_PIN                          32
-#define SCL_PIN                          33
-#define SDA2_PIN                         34
-#define SCL2_PIN                         35
-#define RX_PIN                           16
-#define TX_PIN                           17
-#define CAN_RX_PIN                       16
-#define CAN_TX_PIN                       17
-#define LOADCELL_SDA_PIN                 27
-#define LOADCELL_SCL_PIN                 26
-#define PWM_OUT_1_PIN                    23
-#define RASHODOMER_PIN                   25
+WebSocketsServer ws = WebSocketsServer(WS_STREAMER_PORT);
 
 #define JETCAT_CAN_ID_BASE               256
 
 #define LOG_SERIAL_SPEED                 9600
 #define SERIAL_SPEED                     9600
-
-#define WIFI_DATA_PORT                   80
-#define WIFI_CTRL_PORT                   81
 
 #define SDA                              ((REG_READ(GPIO_IN1_REG)) & 0b0001)
 #define SCL                              ((REG_READ(GPIO_IN1_REG)) & 0b0010)
@@ -76,9 +60,6 @@ WebSocketsServer ws = WebSocketsServer(222);
 
 #define HEART_BEAT_PERIODICITY           2000 // milliseconds
 
-#define TASK_DELAY_MS(A) vTaskDelay(A / portTICK_PERIOD_MS)
-#define ISDIGIT(A) (((A)=='0')||((A)=='1')||((A)=='2')||((A)=='3')||((A)=='4')||((A)=='5')||((A)=='6')||((A)=='7')||((A)=='8')||((A)=='9'))
-
 struct instruction_entry {
 	char *data;
 	size_t data_len;
@@ -92,14 +73,13 @@ void start_beat_loop(void);
 void start_can_loop(void);
 
 SemaphoreHandle_t wifi_lock = NULL;
-WiFiServer manager(WIFI_CTRL_PORT);
-WiFiClient tuner;
 
 volatile uint8_t b, c;
 char i2c1[I2C1_BUFFER_SIZE], i2c2[I2C2_BUFFER_SIZE];
 volatile size_t i2c1_len = 0, i2c2_len = 0;
 
 char engine_id = '1';
+
 int esc_mode = 0, new_esc_filling = 0;
 
 char **fast_queue = NULL;
@@ -227,53 +207,6 @@ try_to_write_next_command_from_fast_queue_to_serial(void)
 void
 add_command_to_uart_circle(const char *cmd, size_t cmd_len, bool enable)
 {
-	if (cmd_len == 4) {
-		if (strncmp(cmd, "I2C1", 4) == 0) {
-			if (i2c1_allowed_to_run != enable) {
-				if ((enable > i2c1_allowed_to_run) && (i2c1_has_stopped == true)) {
-					i2c1_has_stopped = false;
-					i2c1_allowed_to_run = enable;
-					start_i2c1_loop();
-				} else {
-					i2c1_allowed_to_run = enable;
-				}
-			}
-			return;
-		} else if (strncmp(cmd, "I2C2", 4) == 0) {
-			if (i2c2_allowed_to_run != enable) {
-				if ((enable > i2c2_allowed_to_run) && (i2c2_has_stopped == true)) {
-					i2c2_has_stopped = false;
-					i2c2_allowed_to_run = enable;
-					start_i2c2_loop();
-				} else {
-					i2c2_allowed_to_run = enable;
-				}
-			}
-			return;
-		// } else if (strncmp(cmd, "UART", 4) == 0) {
-		// 	if (uart_allowed_to_run != enable) {
-		// 		if ((enable > uart_allowed_to_run) && (uart_has_stopped == true)) {
-		// 			uart_has_stopped = false;
-		// 			uart_allowed_to_run = enable;
-		// 			start_uart_loop();
-		// 		} else {
-		// 			uart_allowed_to_run = enable;
-		// 		}
-		// 	}
-		// 	return;
-		} else if (strncmp(cmd, "BEAT", 4) == 0) {
-			if (beat_allowed_to_run != enable) {
-				if ((enable > beat_allowed_to_run) && (beat_has_stopped == true)) {
-					beat_has_stopped = false;
-					beat_allowed_to_run = enable;
-					start_beat_loop();
-				} else {
-					beat_allowed_to_run = enable;
-				}
-			}
-			return;
-		}
-	}
 	if (xSemaphoreTake(uart_circle_lock, portMAX_DELAY) == pdTRUE) {
 		for (size_t i = 0; i < uart_circle_len; ++i) {
 			if ((cmd_len == uart_circle[i].data_len) && (strncmp(cmd, uart_circle[i].data, cmd_len) == 0)) {
@@ -284,12 +217,12 @@ add_command_to_uart_circle(const char *cmd, size_t cmd_len, bool enable)
 		}
 		struct instruction_entry *tmp = (struct instruction_entry *)realloc((void *)uart_circle, sizeof(struct instruction_entry) * (uart_circle_len + 1));
 		if (tmp != NULL) {
+			tmp[uart_circle_len].data = (char *)malloc(sizeof(char) * (cmd_len + 1));
+			memcpy(tmp[uart_circle_len].data, cmd, cmd_len);
+			tmp[uart_circle_len].data[cmd_len] = '\0';
+			tmp[uart_circle_len].data_len = cmd_len;
+			tmp[uart_circle_len].enabled = enable;
 			uart_circle = tmp;
-			uart_circle[uart_circle_len].data = (char *)malloc(sizeof(char) * (cmd_len + 1));
-			memcpy(uart_circle[uart_circle_len].data, cmd, cmd_len);
-			uart_circle[uart_circle_len].data[cmd_len] = '\0';
-			uart_circle[uart_circle_len].data_len = cmd_len;
-			uart_circle[uart_circle_len].enabled = enable;
 			uart_circle_len += 1;
 		}
 		xSemaphoreGive(uart_circle_lock);
@@ -302,10 +235,7 @@ try_to_write_next_command_from_uart_circle_to_serial(void)
 	bool status = false;
 	if (xSemaphoreTake(uart_circle_lock, portMAX_DELAY) == pdTRUE) {
 		for (size_t i = 0; i < uart_circle_len; ++i) {
-			uart_circle_pos += 1;
-			if (uart_circle_pos >= uart_circle_len) {
-				uart_circle_pos = 0;
-			}
+			uart_circle_pos = (uart_circle_pos + 1) % uart_circle_len;
 			if (uart_circle[uart_circle_pos].enabled) {
 				char buf[50];
 				snprintf(buf, 50, "1,%s,%c\r", uart_circle[uart_circle_pos].data, engine_id);
@@ -482,7 +412,7 @@ uart_loop(void *dummy)
 		}
 		size_t packet_ends = 0;
 		unsigned long packet_birth = millis();
-		size_t uart_prefix_len = snprintf(uart, UART_BUFFER_SIZE, "\nUART@%lu=", packet_birth);
+		size_t uart_prefix_len = snprintf(uart, UART_BUFFER_SIZE, "UART@%lu=", packet_birth);
 		uart_len = uart_prefix_len;
 		while (true) {
 			if (Serial1.available() > 0) {
@@ -495,7 +425,13 @@ uart_loop(void *dummy)
 					uart[uart_len - 1] = '~';
 					packet_ends += 1;
 					if (packet_ends > 1) {
+						uart[uart_len++] = '\n';
 						send_data(uart, uart_len);
+						if (strstr(uart + uart_prefix_len, "1,RAC") == uart + uart_prefix_len) {
+							// parse RAC
+						} else if (strstr(uart + uart_prefix_len, "1,RFI") == uart + uart_prefix_len) {
+							// parse RFI
+						}
 						if ((uart_len - uart_prefix_len > 25)
 							&& (strncmp(uart + uart_prefix_len, "1,RAC,1~1,HS,OK,", 16) == 0))
 						{
@@ -546,55 +482,44 @@ beat_loop(void *dummy)
 	vTaskDelete(NULL);
 }
 
-void IRAM_ATTR
-tuner_loop(void *dummy)
+void
+uart_send_command(const char *value)
 {
-#define CMD_SIZE 100
-	char cmd[CMD_SIZE];
-	uint8_t cmd_len;
-	while (1) {
-		if (tuner.connected()) {
-			if (tuner.available() > 0) {
-				cmd_len = 0;
-				do {
-					cmd[cmd_len++] = tuner.read();
-				} while ((tuner.available() > 0) && (cmd_len < CMD_SIZE));
-				if (cmd_len > 1) {
-					if (cmd[0] == '1') { // send command once
-						add_command_to_fast_queue(cmd, cmd_len);
-					} else if ((cmd[0] == '+') || (cmd[0] == '-')) { // toggle task/command
-						bool enable = cmd[0] == '+' ? true : false;
-#define INSTRUCTION_SIZE 10
-						char instruction[10];
-						uint8_t instruction_len = 0;
-						for (uint8_t i = 1; i < cmd_len; ++i) {
-							if (cmd[i] == ',') {
-								add_command_to_uart_circle(instruction, instruction_len, enable);
-								instruction_len = 0;
-							} else if (instruction_len < INSTRUCTION_SIZE) {
-								instruction[instruction_len++] = cmd[i];
-							}
-						}
-						if (instruction_len != 0) {
-							add_command_to_uart_circle(instruction, instruction_len, enable);
-						}
-					} else if (cmd[0] == 'n') { // set default engine id
-						engine_id = cmd[1];
-					} else if (cmd[0] == 'e' && cmd_len > 2) {
-						char value_str[3] = {cmd[1], cmd[2], '\0'};
-						int value = 0;
-						if (sscanf(value_str, "%d", &value) == 1) {
-							new_esc_filling = value;
-						}
-					}
-				}
-			}
-		} else {
-			tuner = manager.available();
-		}
-		TASK_DELAY_MS(100);
+	add_command_to_fast_queue(value, strlen(value));
+	http_tuner_response("Queued command: %s\n", value);
+}
+
+void
+set_engine_id_command(const char *value)
+{
+	if (strlen(value) > 0) {
+		engine_id = value[0];
+		http_tuner_response("Engine ID set: %c\n", value[0]);
 	}
-	vTaskDelete(NULL);
+}
+
+void
+set_esc_pwm_command(const char *value)
+{
+	int pwm = 622;
+	if (sscanf(value, "%d", &pwm) == 1) {
+		new_esc_filling = pwm;
+		http_tuner_response("ESC PWM set: %d\n", pwm);
+	}
+}
+
+void
+enable_ecu_telemetry_command(const char *value)
+{
+	add_command_to_uart_circle(value, strlen(value), true);
+	http_tuner_response("Added ECU command to UART circle: %s\n", value);
+}
+
+void
+disable_ecu_telemetry_command(const char *value)
+{
+	add_command_to_uart_circle(value, strlen(value), false);
+	http_tuner_response("Removed ECU command from UART circle: %s\n", value);
 }
 
 void IRAM_ATTR
@@ -849,20 +774,6 @@ start_beat_loop(void)
 }
 
 void
-start_tuner_loop(void)
-{
-	xTaskCreatePinnedToCore(
-		&tuner_loop,
-		"tuner_loop",
-		2048, // stack size
-		NULL, // argument
-		1, // priority
-		NULL, // handle
-		1 // core
-	);
-}
-
-void
 start_tachometer_faker_loop(void)
 {
 	xTaskCreatePinnedToCore(
@@ -956,12 +867,10 @@ setup(void)
 	// ArduinoOTA.begin();
 	ws.begin();
 	ws.onEvent(ws_event_handler);
-	manager.begin();
 	// start_i2c1_loop();
 	// start_i2c2_loop();
 	start_uart_loop();
 	start_beat_loop();
-	start_tuner_loop();
 	// start_adc_to_pwm_faker_loop();
 	start_tachometer_faker_loop();
 	// start_loadcell_and_rshd_loop();
@@ -980,6 +889,7 @@ setup(void)
 	//	// Serial.println("Driver setup failed");
 	//}
 	// Serial.println(WiFi.localIP());
+	http_tuner_start();
 }
 
 void
