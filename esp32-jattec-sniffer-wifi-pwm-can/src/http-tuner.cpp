@@ -24,10 +24,10 @@ static void get_ctrl_layout_string(const char *value);
 static const struct param_handler handlers[] = {
 	{"get_layout",           10, &get_ctrl_layout_string,            NULL},
 	{"set_engine_id",        13, &set_engine_id_command,             "1 2 3 4 5"},
-	{"send_cmd",              8, &uart_send_command,                 "1,RAC,1 1,RFI,1 1,RSS,1"},
-	{"set_esc_pwm",          11, &set_engine_id_command,             "622 626 630 634 638 642"},
-	{"add_ecu_cmd",          11, &enable_ecu_telemetry_command,      "RAC RFI RSS"},
-	{"delete_ecu_cmd",       14, &disable_ecu_telemetry_command,     "RAC RFI RSS"},
+	{"send_cmd",              8, &uart_send_command,                 "1,RAC,1 1,RFI,1 1,RA1,1 1,RSS,1"},
+	{"set_esc_pwm",          11, &set_esc_pwm_command,               "622 626 630 634 638 642"},
+	{"add_ecu_cmd",          11, &enable_ecu_telemetry_command,      "RAC RFI RA1 RSS"},
+	{"delete_ecu_cmd",       14, &disable_ecu_telemetry_command,     "RAC RFI RA1 RSS"},
 };
 
 static esp_err_t

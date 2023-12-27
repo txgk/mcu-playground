@@ -4,7 +4,7 @@
 #define TASK_DELAY_MS(A) vTaskDelay(A / portTICK_PERIOD_MS)
 #define ISDIGIT(A) (((A)=='0')||((A)=='1')||((A)=='2')||((A)=='3')||((A)=='4')||((A)=='5')||((A)=='6')||((A)=='7')||((A)=='8')||((A)=='9'))
 
-#define BRUSHED_MOTOR_REGULATOR_PIN      5
+#define BRUSHED_MOTOR_REGULATOR_PIN      23
 #define SDA_PIN                          32
 #define SCL_PIN                          33
 #define SDA2_PIN                         34
@@ -15,7 +15,8 @@
 #define CAN_TX_PIN                       17
 #define LOADCELL_SDA_PIN                 27
 #define LOADCELL_SCL_PIN                 26
-#define PWM_OUT_1_PIN                    23
+#define PWM_OUT_TACHOMETER_FAKER_PIN      5
+#define PWM_OUT_ESC_CONTROL_PIN          18
 #define RASHODOMER_PIN                   25
 
 #define WS_STREAMER_PORT  222

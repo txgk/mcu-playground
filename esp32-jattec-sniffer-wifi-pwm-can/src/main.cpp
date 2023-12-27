@@ -8,6 +8,7 @@
 #include "driver/ledc.h"
 #include "driver/gpio.h"
 #include "driver/twai.h"
+#include "driver/adc.h"
 #include "HX711.h"
 #include "WebSocketsServer.h"
 #include "main.h"
@@ -92,7 +93,7 @@ volatile size_t uart_circle_pos = 0;
 volatile size_t uart_circle_len = 0;
 SemaphoreHandle_t uart_circle_lock = NULL;
 
-char uart[UART_BUFFER_SIZE];
+char uart[UART_BUFFER_SIZE + 10];
 volatile size_t uart_len = 0;
 
 volatile bool i2c1_allowed_to_run = true, i2c1_has_stopped = false;
@@ -102,25 +103,6 @@ volatile bool beat_allowed_to_run = true, beat_has_stopped = false;
 
 volatile long faked_rpm = 0;
 SemaphoreHandle_t rpm_lock = NULL;
-
-ledc_timer_config_t timer_config = {
-	.speed_mode = LEDC_HIGH_SPEED_MODE,
-	.duty_resolution = LEDC_TIMER_13_BIT,
-	.timer_num = LEDC_TIMER_0,
-	.freq_hz = 50,
-	.clk_cfg = LEDC_USE_REF_TICK, // 1 MHz, high speed, frequency scaling
-	// .deconfigure = false,
-};
-ledc_channel_config_t channel_config = {
-	.gpio_num = PWM_OUT_1_PIN,
-	.speed_mode = LEDC_HIGH_SPEED_MODE,
-	.channel = LEDC_CHANNEL_0,
-	.intr_type = LEDC_INTR_DISABLE,
-	.timer_sel = LEDC_TIMER_0,
-	// .duty = 820, // Заполнение ~10% для имитации датчика Холла.
-	.duty = 622, // Заполнение ~7.5% для имитации датчика Холла.
-	.hpoint = 0,
-};
 
 HX711 loadcell;
 
@@ -403,6 +385,7 @@ i2c2_next:
 void IRAM_ATTR
 uart_loop(void *dummy)
 {
+	char out[1000];
 	while (uart_allowed_to_run == true) {
 		if (try_to_write_next_command_from_fast_queue_to_serial() == false) {
 			if (try_to_write_next_command_from_uart_circle_to_serial() == false) {
@@ -412,8 +395,7 @@ uart_loop(void *dummy)
 		}
 		size_t packet_ends = 0;
 		unsigned long packet_birth = millis();
-		size_t uart_prefix_len = snprintf(uart, UART_BUFFER_SIZE, "UART@%lu=", packet_birth);
-		uart_len = uart_prefix_len;
+		uart_len = 0;
 		while (true) {
 			if (Serial1.available() > 0) {
 				if (uart_len >= UART_BUFFER_SIZE) {
@@ -424,29 +406,92 @@ uart_loop(void *dummy)
 				if (uart[uart_len - 1] == '\r') {
 					uart[uart_len - 1] = '~';
 					packet_ends += 1;
-					if (packet_ends > 1) {
-						uart[uart_len++] = '\n';
-						send_data(uart, uart_len);
-						if (strstr(uart + uart_prefix_len, "1,RAC") == uart + uart_prefix_len) {
-							// parse RAC
-						} else if (strstr(uart + uart_prefix_len, "1,RFI") == uart + uart_prefix_len) {
-							// parse RFI
-						}
-						if ((uart_len - uart_prefix_len > 25)
-							&& (strncmp(uart + uart_prefix_len, "1,RAC,1~1,HS,OK,", 16) == 0))
-						{
+					if (packet_ends > 1 && uart_len < UART_BUFFER_SIZE) {
+						uart[uart_len] = '\0';
+						if (strstr(uart, "1,RAC") == uart) {
+							long rpm = 0;
+							long egt_celsius = 0;
+							double pump_voltage = 0;
+							long turbine_state = 0;
+							long throttle_pos = 0;
+							double batt_current = 0;
+							int scanned = sscanf(uart,
+								"1,RAC,1~1,HS,OK,%ld,%ld,%lf,%ld,%ld,%lf",
+								&rpm,
+								&egt_celsius,
+								&pump_voltage,
+								&turbine_state,
+								&throttle_pos,
+								&batt_current
+							);
 							if (xSemaphoreTake(rpm_lock, portMAX_DELAY) == pdTRUE) {
-								faked_rpm = 0;
-								for (const char *i = uart + uart_prefix_len + 16; ISDIGIT(*i); ++i) {
-									faked_rpm = faked_rpm * 10 + (*i - '0');
-								}
-								// char shft[100];
-								// size_t shft_len;
-								// shft_len = snprintf(shft, 100, "SHFT=%lu\n", faked_rpm);
-								// if (shft_len < 100) {
-								// 	send_data(shft, shft_len);
-								// }
+								faked_rpm = rpm;
 								xSemaphoreGive(rpm_lock);
+							}
+							if (scanned == 6) {
+								int len = snprintf(out, 1000,
+									"JETCAT_RAC@%lu=%ld,%ld,%lf,%ld,%ld,%lf\n",
+									packet_birth,
+									rpm,
+									egt_celsius,
+									pump_voltage,
+									turbine_state,
+									throttle_pos,
+									batt_current
+								);
+								if (len > 0 && len < 1000) send_data(out, len);
+							}
+						} else if (strstr(uart, "1,RFI") == uart) {
+							long fuel_flow = 0;
+							long rest_volume_in_tank = 0;
+							long set_rpm = 0;
+							double actual_battery_voltage = 0;
+							long last_run_time = 0;
+							double unknown = 0;
+							int scanned = sscanf(uart,
+								"1,RFI,1~1,HS,OK,%ld,%ld,%ld,%lf,%ld,%lf",
+								&fuel_flow,
+								&rest_volume_in_tank,
+								&set_rpm,
+								&actual_battery_voltage,
+								&last_run_time,
+								&unknown
+							);
+							if (scanned == 6) {
+								int len = snprintf(out, 1000,
+									"JETCAT_RFI@%lu=%ld,%ld,%ld,%lf,%ld,%lf\n",
+									packet_birth,
+									fuel_flow,
+									rest_volume_in_tank,
+									set_rpm,
+									actual_battery_voltage,
+									last_run_time,
+									unknown
+								);
+								if (len > 0 && len < 1000) send_data(out, len);
+							}
+						} else if (strstr(uart, "1,RA1") == uart) {
+							long off_condition = 0; // enum
+							double ambient_temp = 0;
+							double min_pump_voltage = 0;
+							double max_pump_voltage = 0;
+							int scanned = sscanf(uart,
+								"1,RA1,1~1,HS,OK,%ld,%lf,%lf,%lf",
+								&off_condition,
+								&ambient_temp,
+								&min_pump_voltage,
+								&max_pump_voltage
+							);
+							if (scanned == 4) {
+								int len = snprintf(out, 1000,
+									"JETCAT_RA1@%lu=%ld,%lf,%lf,%lf\n",
+									packet_birth,
+									off_condition,
+									ambient_temp,
+									min_pump_voltage,
+									max_pump_voltage
+								);
+								if (len > 0 && len < 1000) send_data(out, len);
 							}
 						}
 						break;
@@ -525,6 +570,25 @@ disable_ecu_telemetry_command(const char *value)
 void IRAM_ATTR
 tachometer_faker_loop(void *dummy)
 {
+	ledc_timer_config_t timer_config = {
+		.speed_mode = LEDC_HIGH_SPEED_MODE,
+		.duty_resolution = LEDC_TIMER_13_BIT, // 8192
+		.timer_num = LEDC_TIMER_0,
+		.freq_hz = 10,
+		.clk_cfg = LEDC_USE_REF_TICK, // 1 MHz, high speed, frequency scaling
+		// .deconfigure = false,
+	};
+	ledc_channel_config_t channel_config = {
+		.gpio_num = PWM_OUT_TACHOMETER_FAKER_PIN,
+		.speed_mode = LEDC_HIGH_SPEED_MODE,
+		.channel = LEDC_CHANNEL_0,
+		.intr_type = LEDC_INTR_DISABLE,
+		.timer_sel = LEDC_TIMER_0,
+		.duty = 820, // Заполнение ~10% для имитации датчика Холла.
+		.hpoint = 0,
+	};
+	ledc_timer_config(&timer_config);
+	ledc_channel_config(&channel_config);
 	long current_rpm = 0;
 	while (true) {
 		if (current_rpm != faked_rpm) {
@@ -532,11 +596,13 @@ tachometer_faker_loop(void *dummy)
 				current_rpm = faked_rpm;
 				xSemaphoreGive(rpm_lock);
 			}
+
 			// Делим на 60, т. к. 10 Гц = 600 об/м
 			// Делим на 20, т. к. max(rpm1) = 160, max(rpm2) = 8
 			// ledc_set_freq(LEDC_HIGH_SPEED_MODE, LEDC_TIMER_0, current_rpm / 60 / 20);
 			timer_config.freq_hz = current_rpm / 60 / 20;
 			ledc_timer_config(&timer_config);
+
 			// char shft[100];
 			// size_t shft_len = snprintf(shft, 100, "SHFT=%lu\n", current_rpm / 60 / 20);
 			// if (shft_len < 100) send_data(shft, shft_len);
@@ -666,8 +732,60 @@ can_loop(void *dummy)
 }
 
 void IRAM_ATTR
+adc_loop(void *dummy)
+{
+	char out[100];
+	gpio_config_t gpio_cfg = {
+		(1ULL << 35),
+		GPIO_MODE_INPUT,
+		GPIO_PULLUP_DISABLE,
+		GPIO_PULLDOWN_DISABLE,
+		GPIO_INTR_DISABLE,
+	};
+	gpio_config(&igpio_cfg);
+// #define CHAN ADC1_CHANNEL_4 // GPIO32
+// #define CHAN ADC1_CHANNEL_5 // GPIO33
+// #define CHAN ADC1_CHANNEL_6 // GPIO34
+#define CHAN ADC1_CHANNEL_7 // GPIO35
+// #define CHAN ADC1_CHANNEL_0 // GPIO36
+	adc1_config_width(ADC_WIDTH_BIT_12);
+	adc1_config_channel_atten(CHAN, ADC_ATTEN_DB_11);
+	while (true) {
+		unsigned long packet_birth = millis();
+		int raw_adc = adc1_get_raw(CHAN);
+		int len = snprintf(out, 100,
+			"JETCAT_ADC@%lu=%d\n",
+			packet_birth,
+			raw_adc
+		);
+		if (len > 0 && len < 100) send_data(out, len);
+		TASK_DELAY_MS(500);
+	}
+	vTaskDelete(NULL);
+}
+
+void IRAM_ATTR
 adc_to_pwm_faker_loop(void *dummy)
 {
+	ledc_timer_config_t timer_config = {
+		.speed_mode = LEDC_HIGH_SPEED_MODE,
+		.duty_resolution = LEDC_TIMER_13_BIT, // 8192
+		.timer_num = LEDC_TIMER_1,
+		.freq_hz = 50,
+		.clk_cfg = LEDC_USE_REF_TICK, // 1 MHz, high speed, frequency scaling
+		// .deconfigure = false,
+	};
+	ledc_channel_config_t channel_config = {
+		.gpio_num = PWM_OUT_ESC_CONTROL_PIN,
+		.speed_mode = LEDC_HIGH_SPEED_MODE,
+		.channel = LEDC_CHANNEL_1,
+		.intr_type = LEDC_INTR_DISABLE,
+		.timer_sel = LEDC_TIMER_1,
+		.duty = 622, // Заполнение ~7.5% для управления ESC-регулятором.
+		.hpoint = 0,
+	};
+	ledc_timer_config(&timer_config);
+	ledc_channel_config(&channel_config);
 	char out[200];
 	size_t phase = 0;
 	while (true) {
@@ -704,20 +822,6 @@ adc_to_pwm_faker_loop(void *dummy)
 }
 
 void
-start_adc_to_pwm_faker_loop(void)
-{
-	xTaskCreatePinnedToCore(
-		&adc_to_pwm_faker_loop,
-		"adc_to_pwm_faker_loop",
-		2048, // stack size
-		NULL, // argument
-		1, // priority
-		NULL, // handle
-		1 // core
-	);
-}
-
-void
 start_i2c1_loop(void)
 {
 	xTaskCreatePinnedToCore(
@@ -751,7 +855,7 @@ start_uart_loop(void)
 	xTaskCreatePinnedToCore(
 		&uart_loop,
 		"uart_loop",
-		2048, // stack size
+		4096, // stack size
 		NULL, // argument
 		1, // priority
 		NULL, // handle
@@ -766,34 +870,6 @@ start_beat_loop(void)
 		&beat_loop,
 		"beat_loop",
 		2048, // stack size
-		NULL, // argument
-		1, // priority
-		NULL, // handle
-		1 // core
-	);
-}
-
-void
-start_tachometer_faker_loop(void)
-{
-	xTaskCreatePinnedToCore(
-		&tachometer_faker_loop,
-		"tachometer_faker_loop",
-		2048, // stack size
-		NULL, // argument
-		1, // priority
-		NULL, // handle
-		1 // core
-	);
-}
-
-void
-start_loadcell_and_rshd_loop(void)
-{
-	xTaskCreatePinnedToCore(
-		&loadcell_and_rshd_loop,
-		"loadcell_and_rshd_loop",
-		4096, // stack size
 		NULL, // argument
 		1, // priority
 		NULL, // handle
@@ -823,6 +899,9 @@ ws_event_handler(uint8_t num, WStype_t type, uint8_t * payload, size_t length)
 		ws.broadcastTXT("CAN_VALUES@names=SetRpm(rpm),RealRpm(rpm),EGT(C),EngineState(enum),PumpVoltage(V)\n", 82);
 		ws.broadcastTXT("CAN_ELECTRO@names=BatVoltage(V),EngineCurrent(A),GeneratorVoltage(V),GeneratorCurrent(A),ElectroState(bitfield)\n", 112);
 		ws.broadcastTXT("CAN_FUEL@names=FuelFlow(ml/min),FuelConsumed(ml),AirPressure(mbar),EcuTemperature(C)\n", 85);
+		ws.broadcastTXT("JETCAT_RAC@names=TurbineRpm(rpm),EGT(C),PumpVoltage(V),TurbineState(enum),ThrottlePosition(%),BatteryCurrent(A)\n", 112);
+		ws.broadcastTXT("JETCAT_RFI@names=ActualFuelFlow(ml/min),RestFuelVolume(ml),SetRpm(rpm),ActualBatteryVoltage(V),LastRunTime(s),LastRunFuel(ml)\n", 126);
+		ws.broadcastTXT("JETCAT_RA1@names=OffCondition(enum),AmbientTemp(C),MinPumpVoltage(V),MaxPumpVoltage(V)\n", 87);
 	}
 }
 
@@ -847,8 +926,6 @@ setup(void)
 	// };
 	// gpio_config(&rshd_input_cfg);
 	// gpio_isr_handler_add((gpio_num_t)RASHODOMER_PIN, &rshd_take_sample, NULL);
-	ledc_timer_config(&timer_config);
-	ledc_channel_config(&channel_config);
 	wifi_lock = xSemaphoreCreateMutex();
 	fast_queue_lock = xSemaphoreCreateMutex();
 	uart_circle_lock = xSemaphoreCreateMutex();
@@ -871,9 +948,10 @@ setup(void)
 	// start_i2c2_loop();
 	start_uart_loop();
 	start_beat_loop();
-	// start_adc_to_pwm_faker_loop();
-	start_tachometer_faker_loop();
-	// start_loadcell_and_rshd_loop();
+	// xTaskCreatePinnedToCore(&adc_to_pwm_faker_loop, "adc_to_pwm_faker_loop", 4096, NULL, 1, NULL, 1);
+	xTaskCreatePinnedToCore(&tachometer_faker_loop, "tachometer_faker_loop", 4096, NULL, 1, NULL, 1);
+	xTaskCreatePinnedToCore(&adc_loop, "adc_loop", 4096, NULL, 1, NULL, 1);
+	// xTaskCreatePinnedToCore(&loadcell_and_rshd_loop, "loadcell_and_rshd_loop", 4096, NULL, 1, NULL, 1);
 	//twai_general_config_t g_config = TWAI_GENERAL_CONFIG_DEFAULT((gpio_num_t)CAN_TX_PIN, (gpio_num_t)CAN_RX_PIN, TWAI_MODE_NORMAL);
 	//twai_timing_config_t t_config = TWAI_TIMING_CONFIG_250KBITS();
 	//twai_filter_config_t f_config = TWAI_FILTER_CONFIG_ACCEPT_ALL();
