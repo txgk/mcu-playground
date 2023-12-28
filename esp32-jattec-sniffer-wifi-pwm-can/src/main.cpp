@@ -742,7 +742,7 @@ adc_loop(void *dummy)
 		GPIO_PULLDOWN_DISABLE,
 		GPIO_INTR_DISABLE,
 	};
-	gpio_config(&igpio_cfg);
+	gpio_config(&gpio_cfg);
 #define SAMPLES_COUNT 64
 // #define CHAN ADC1_CHANNEL_4 // GPIO32
 // #define CHAN ADC1_CHANNEL_5 // GPIO33
