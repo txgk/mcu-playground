@@ -743,6 +743,7 @@ adc_loop(void *dummy)
 		GPIO_INTR_DISABLE,
 	};
 	gpio_config(&igpio_cfg);
+#define SAMPLES_COUNT 64
 // #define CHAN ADC1_CHANNEL_4 // GPIO32
 // #define CHAN ADC1_CHANNEL_5 // GPIO33
 // #define CHAN ADC1_CHANNEL_6 // GPIO34
@@ -752,14 +753,17 @@ adc_loop(void *dummy)
 	adc1_config_channel_atten(CHAN, ADC_ATTEN_DB_11);
 	while (true) {
 		unsigned long packet_birth = millis();
-		int raw_adc = adc1_get_raw(CHAN);
+		long sum = 0;
+		for (size_t i = 0; i < SAMPLES_COUNT; ++i) {
+			sum += adc1_get_raw(CHAN);
+		}
 		int len = snprintf(out, 100,
 			"JETCAT_ADC@%lu=%d\n",
 			packet_birth,
-			raw_adc
+			sum / SAMPLES_COUNT
 		);
 		if (len > 0 && len < 100) send_data(out, len);
-		TASK_DELAY_MS(500);
+		TASK_DELAY_MS(200);
 	}
 	vTaskDelete(NULL);
 }
