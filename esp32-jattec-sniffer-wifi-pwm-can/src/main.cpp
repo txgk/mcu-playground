@@ -736,7 +736,7 @@ adc_loop(void *dummy)
 {
 	char out[100];
 	gpio_config_t gpio_cfg = {
-		(1ULL << 35),
+		(1ULL << 34),
 		GPIO_MODE_INPUT,
 		GPIO_PULLUP_DISABLE,
 		GPIO_PULLDOWN_DISABLE,
@@ -746,8 +746,8 @@ adc_loop(void *dummy)
 #define SAMPLES_COUNT 64
 // #define CHAN ADC1_CHANNEL_4 // GPIO32
 // #define CHAN ADC1_CHANNEL_5 // GPIO33
-// #define CHAN ADC1_CHANNEL_6 // GPIO34
-#define CHAN ADC1_CHANNEL_7 // GPIO35
+#define CHAN ADC1_CHANNEL_6 // GPIO34
+// #define CHAN ADC1_CHANNEL_7 // GPIO35
 // #define CHAN ADC1_CHANNEL_0 // GPIO36
 	adc1_config_width(ADC_WIDTH_BIT_12);
 	adc1_config_channel_atten(CHAN, ADC_ATTEN_DB_11);
